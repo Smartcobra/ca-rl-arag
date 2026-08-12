@@ -1,0 +1,76 @@
+# CA-RL-ARAG V1 default config (Milestone 2)
+# Scope: five actions {retrieve, rewrite, rerank, verify, stop}
+# Datasets: Natural Questions + HotpotQA
+
+experiment:
+  name: ca_rl_arag_m2_baseline
+  seed: 42
+  output_dir: results
+
+data:
+  processed_dir: data/processed
+  index_dir: data/indexes
+  train_file: data/processed/train_slice.jsonl
+  eval_file: data/processed/eval_slice.jsonl
+  corpus_file: data/processed/corpus.jsonl
+  # Pilot sizes (roadmap: 20–50 for debugging; scale later)
+  train_nq: 40
+  train_hotpot: 60
+  eval_nq: 25
+  eval_hotpot: 25
+  # Synthetic corpus is smaller; prepare_data caps splits automatically.
+  # For HuggingFace downloads these counts are used as-is.
+  hotpot_config: distractor
+
+retrieval:
+  top_k: 5
+  candidate_pool_size: 20
+  rerank_top_n: 5
+  method: bm25  # V1: fixed hybrid/single retriever; semantic/keyword split is V1.1
+
+agent:
+  max_steps: 8
+  max_retrieve: 3
+  max_rewrite: 2
+  max_rerank: 2
+  max_verify: 2
+  actions:
+    - retrieve
+    - rewrite
+    - rerank
+    - verify
+    - stop
+
+generation:
+  backend: extractive  # extractive | openai | huggingface
+  model_name: null
+  max_answer_tokens: 64
+  temperature: 0.0
+
+verification:
+  # LOCKED DECISION (V1): NLI-style claim support, not LLM-as-judge.
+  # Default backend is lexical NLI (reproducible, no GPU). Optional neural NLI
+  # via transformers once installed — same API, same scores interface.
+  backend: lexical_nli  # lexical_nli | neural_nli
+  neural_model: cross-encoder/nli-deberta-v3-base
+  support_threshold: 0.45
+  contradiction_threshold: 0.55
+
+budget:
+  max_usd: 0.05
+  max_tokens: 8000
+  max_latency_ms: 30000
+  force_stop_on_exhaustion: true
+
+reward:
+  preset: default  # see configs/reward_weights.yaml
+  quality_gate: 0.5  # GRASP-style: no efficiency credit unless Q_ans clears this
+
+policy:
+  # Milestone 2: stable baselines before RL algorithm optimization
+  name: rule_based  # naive_rag | rule_based | always_max | random
+
+logging:
+  save_trajectories: true
+  trajectory_dir: results/trajectories
+  metrics_dir: results/metrics

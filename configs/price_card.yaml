@@ -1,0 +1,40 @@
+# FinOps price card (relative unit costs for V1).
+# Absolute $ can be remapped later; ratios matter for policy learning.
+# Aligns with Scope Memo V2 §6.2 and production transferability note.
+
+currency: USD
+
+llm:
+  # Approximate public API mid-tier pricing (per 1M tokens), for instrumentation.
+  input_per_1m: 0.15
+  output_per_1m: 0.60
+  # Extractive / local backends still accrue "virtual" tokens for fair comparison.
+  extractive_prompt_tokens_per_call: 200
+  extractive_completion_tokens_per_call: 32
+
+retrieval:
+  bm25_per_call: 0.00005
+  embed_per_query: 0.00002
+  # Dense retrieve (unused in V1 BM25-only, reserved for V1.1)
+  dense_per_call: 0.0001
+
+rerank:
+  cross_encoder_per_doc: 0.00001
+
+verify:
+  # NLI lexical is cheap; neural NLI priced closer to a small forward pass.
+  lexical_nli_per_call: 0.00001
+  neural_nli_per_call: 0.00008
+  llm_verifier_per_1k_tokens: 0.0006  # reserved; not used in V1
+
+latency:
+  # Soft cost: μ * (latency_ms / 1000) * latency_unit_usd
+  latency_unit_usd_per_sec: 0.001
+
+actions:
+  # Fallback flat prices if detailed metering unavailable
+  retrieve: 0.00007
+  rewrite: 0.00025
+  rerank: 0.00005
+  verify: 0.00008
+  stop: 0.00020

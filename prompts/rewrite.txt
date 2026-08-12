@@ -1,0 +1,8 @@
+Rewrite the search query to improve retrieval for multi-hop or underspecified questions.
+Keep it concise. Do not answer the question.
+
+Original question: {{question}}
+Current query: {{current_query}}
+Evidence titles so far: {{evidence_titles}}
+
+Rewritten query:

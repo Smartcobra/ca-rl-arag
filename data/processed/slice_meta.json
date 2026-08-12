@@ -1,0 +1,19 @@
+{
+  "source": "huggingface_nq_hotpot",
+  "n_train": 100,
+  "n_eval": 50,
+  "n_passages": 911,
+  "train_by_dataset": {
+    "hotpot_qa": 60,
+    "natural_questions": 40
+  },
+  "eval_by_dataset": {
+    "hotpot_qa": 25,
+    "natural_questions": 25
+  },
+  "paths": {
+    "train": "/Users/parsuram/Desktop/research/cursor/agentic_rag_rl/data/processed/train_slice.jsonl",
+    "eval": "/Users/parsuram/Desktop/research/cursor/agentic_rag_rl/data/processed/eval_slice.jsonl",
+    "corpus": "/Users/parsuram/Desktop/research/cursor/agentic_rag_rl/data/processed/corpus.jsonl"
+  }
+}

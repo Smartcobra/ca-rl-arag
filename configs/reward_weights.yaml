@@ -1,0 +1,103 @@
+# Reward weight presets for CA-RL-ARAG V1
+#
+# Aggregate (Scope Memo V2 §6.3):
+#   R = α Q_ans + β Q_ground + γ Q_cal
+#       − λ (C_tok + C_ret) − μ C_lat
+#       − P_hall − P_act − P_bud
+#
+# Justification for "default" (see docs/REWARD_DESIGN.md):
+# - α highest: answer correctness is the primary research signal (Search-R1 / GRASP R_A).
+# - β material: grounding blocks uncited / unsupported answers (Self-RAG / GRASP R_R).
+# - γ smaller: calibration encourages abstain when evidence is weak under cost pressure.
+# - λ, μ: cost terms; sampled / swept for Pareto (not fixed as the only operating point).
+# - P_act small vs one useful retrieve: anti-loop, not anti-retrieve.
+# - Quality gate: efficiency credit only if Q_ans >= quality_gate (GRASP R_E pattern).
+
+presets:
+  default:
+    alpha: 1.0          # Q_ans
+    beta: 0.4           # Q_ground
+    gamma: 0.15         # Q_cal
+    lambda_cost: 2.0    # $ token + retrieval (λ)
+    mu_latency: 0.5     # latency cost (μ)
+    hall_weight: 0.5    # P_hall multiplier
+    act_penalty: 0.02   # P_act per tool action after first
+    bud_penalty: 1.0    # P_bud on budget violation
+    verify_ignored_extra: 0.15  # extra hall weight if verify available but unused
+    quality_gate: 0.5
+    unused_budget_bonus: 0.1    # only if quality_gate cleared
+
+  # Ablation A: correctness only (Search-R1-like outcome reward)
+  correctness_only:
+    alpha: 1.0
+    beta: 0.0
+    gamma: 0.0
+    lambda_cost: 0.0
+    mu_latency: 0.0
+    hall_weight: 0.0
+    act_penalty: 0.0
+    bud_penalty: 0.0
+    verify_ignored_extra: 0.0
+    quality_gate: 0.0
+    unused_budget_bonus: 0.0
+
+  # Ablation B: correctness + grounding (no cost)
+  correctness_grounding:
+    alpha: 1.0
+    beta: 0.4
+    gamma: 0.0
+    lambda_cost: 0.0
+    mu_latency: 0.0
+    hall_weight: 0.5
+    act_penalty: 0.0
+    bud_penalty: 0.0
+    verify_ignored_extra: 0.15
+    quality_gate: 0.0
+    unused_budget_bonus: 0.0
+
+  # Ablation C: correctness + faithfulness + cost (full minus calibration)
+  correctness_faithfulness_cost:
+    alpha: 1.0
+    beta: 0.4
+    gamma: 0.0
+    lambda_cost: 2.0
+    mu_latency: 0.5
+    hall_weight: 0.5
+    act_penalty: 0.02
+    bud_penalty: 1.0
+    verify_ignored_extra: 0.15
+    quality_gate: 0.5
+    unused_budget_bonus: 0.1
+
+  # Ablation D: λ=0 isolates dollar/latency term benefit
+  lambda_zero:
+    alpha: 1.0
+    beta: 0.4
+    gamma: 0.15
+    lambda_cost: 0.0
+    mu_latency: 0.0
+    hall_weight: 0.5
+    act_penalty: 0.02
+    bud_penalty: 1.0
+    verify_ignored_extra: 0.15
+    quality_gate: 0.5
+    unused_budget_bonus: 0.1
+
+  # Ablation E: high cost pressure (cheap operating point)
+  high_cost_pressure:
+    alpha: 1.0
+    beta: 0.4
+    gamma: 0.2
+    lambda_cost: 8.0
+    mu_latency: 2.0
+    hall_weight: 0.5
+    act_penalty: 0.05
+    bud_penalty: 1.0
+    verify_ignored_extra: 0.15
+    quality_gate: 0.5
+    unused_budget_bonus: 0.2
+
+# λ / μ sweep grid for quality–cost Pareto (Milestone 3+)
+pareto_sweep:
+  lambda_cost: [0.0, 0.5, 1.0, 2.0, 4.0, 8.0]
+  mu_latency: [0.0, 0.25, 0.5, 1.0]

@@ -1,0 +1,10 @@
+You are a careful QA assistant. Answer the question using ONLY the evidence passages.
+If evidence is insufficient, respond with ABSTAIN.
+Return a short answer span (a few words) when possible.
+
+Question: {{question}}
+
+Evidence:
+{{evidence}}
+
+Answer:

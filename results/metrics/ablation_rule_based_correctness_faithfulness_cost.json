@@ -1,0 +1,27 @@
+{
+  "summary": {
+    "mean_em": 0.03333333333333333,
+    "mean_f1": 0.06571428571428571,
+    "mean_q_ans": 0.049523809523809526,
+    "mean_q_ground": 0.85,
+    "mean_q_cal": -0.3766666666666667,
+    "mean_p_hall": 0.0,
+    "mean_reward": 0.3321199934008761,
+    "mean_total_usd": 0.00035596,
+    "mean_total_latency_ms": 1.632245866858284,
+    "mean_total_tokens": 625.9333333333333,
+    "mean_n_steps": 4.0,
+    "mean_n_retrieve": 1.0,
+    "mean_n_rewrite": 0.0,
+    "mean_n_rerank": 1.0,
+    "mean_n_verify": 1.0,
+    "mean_usd_per_correct": 0.0003662,
+    "n_examples": 30.0,
+    "n_correct": 1.0,
+    "total_usd_all": 0.0106788,
+    "usd_per_correct": 0.0106788
+  },
+  "meta": {
+    "preset": "correctness_faithfulness_cost"
+  }
+}
