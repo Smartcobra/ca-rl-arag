@@ -69,7 +69,7 @@ def rule_based_policy(obs: dict[str, Any], state: AgentState) -> str:
     return "stop"
 
 
-def always_max_policy(obs: dict[str, Any], state: AgentState) -> str:
+def max_tools_policy(obs: dict[str, Any], state: AgentState) -> str:
     """Upper-cost reference: use every tool up to caps then stop."""
     if state.counts.get("retrieve", 0) < 2:
         return "retrieve"
@@ -82,6 +82,10 @@ def always_max_policy(obs: dict[str, Any], state: AgentState) -> str:
     if state.counts.get("verify", 0) < 1:
         return "verify"
     return "stop"
+
+
+# Backward-compatible alias (old name implied "max accuracy").
+always_max_policy = max_tools_policy
 
 
 def random_policy(obs: dict[str, Any], state: AgentState, rng: random.Random | None = None) -> str:
@@ -107,8 +111,8 @@ def get_policy(name: str):
         return naive_stop_policy, "naive_rag"
     if name in {"rule_based", "rule"}:
         return rule_based_policy, "rule_based"
-    if name in {"always_max", "max"}:
-        return always_max_policy, "always_max"
+    if name in {"max_tools", "always_max", "max"}:
+        return max_tools_policy, "max_tools"
     if name == "random":
         return random_policy, "random"
     raise ValueError(f"Unknown policy: {name}")

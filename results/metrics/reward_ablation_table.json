@@ -2,7 +2,7 @@
   "default": {
     "mean_em": 0.03333333333333333,
     "mean_f1": 0.06571428571428571,
-    "mean_reward": 0.27561994637167603,
+    "mean_reward": 0.2756199817467429,
     "mean_total_usd": 0.00035596,
     "mean_n_retrieve": 1.0,
     "usd_per_correct": 0.0106788
@@ -26,7 +26,7 @@
   "correctness_faithfulness_cost": {
     "mean_em": 0.03333333333333333,
     "mean_f1": 0.06571428571428571,
-    "mean_reward": 0.3321199934008761,
+    "mean_reward": 0.3321200466183096,
     "mean_total_usd": 0.00035596,
     "mean_n_retrieve": 1.0,
     "usd_per_correct": 0.0106788
@@ -42,7 +42,7 @@
   "high_cost_pressure": {
     "mean_em": 0.03333333333333333,
     "mean_f1": 0.06571428571428571,
-    "mean_reward": 0.16795738819920997,
+    "mean_reward": 0.16795762705167616,
     "mean_total_usd": 0.00035596,
     "mean_n_retrieve": 1.0,
     "usd_per_correct": 0.0106788

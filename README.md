@@ -17,7 +17,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 |---|---|---|
 | Verifier | **NLI** (`lexical_nli` default; optional `neural_nli`) | Consistent across experiments; not LLM-as-judge |
 | Reward weights | Justified defaults + ablation presets | See `docs/REWARD_DESIGN.md` |
-| Complexity order | Stable baselines **before** GRPO/PPO | Rule-based / naive / always-max first |
+| Complexity order | Stable baselines **before** GRPO/PPO | Rule-based / naive / max-tools first |
 | Action space | Five actions only | V1 discipline; semantic/keyword/expand deferred |
 
 ## Quick start
@@ -53,9 +53,9 @@ HuggingFace NQ + Hotpot eval pilot (40 examples, extractive generator, `default`
 |---|---:|---:|---:|---:|---:|
 | naive_rag | 0.050 | 0.091 | 9.6e-5 | 1.0 | 0.361 |
 | rule_based | 0.025 | 0.066 | 3.6e-4 | 1.0 | 0.285 |
-| always_max | 0.075 | 0.143 | 5.4e-4 | 3.0 | 0.303 |
+| max_tools | 0.075 | 0.143 | 5.4e-4 | 3.0 | 0.303 |
 
-Always-max is slightly best on quality; naive wins on reward because extra tools cost more when answers stay weak. Full interpretation: [`docs/RESULTS.md`](docs/RESULTS.md).
+Max-tools is slightly best on quality; naive wins on reward because extra tools cost more when answers stay weak. Full interpretation: [`docs/RESULTS.md`](docs/RESULTS.md).
 
 ## Layout
 

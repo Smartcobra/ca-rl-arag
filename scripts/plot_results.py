@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+"""Convert pilot / ablation metric runs into figures under results/figs."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+POLICY_ORDER = ("naive_rag", "rule_based", "max_tools")
+POLICY_LABELS = {
+    "naive_rag": "naive RAG",
+    "rule_based": "rule-based",
+    "max_tools": "max-tools",
+    "always_max": "max-tools",  # legacy key in older metric dumps
+}
+ABLATION_ORDER = (
+    "correctness_only",
+    "correctness_grounding",
+    "correctness_faithfulness_cost",
+    "default",
+    "lambda_zero",
+    "high_cost_pressure",
+)
+COLORS = {
+    "naive_rag": "#2A6F97",
+    "rule_based": "#E07A3D",
+    "max_tools": "#3A5A40",
+    "always_max": "#3A5A40",
+}
+
+
+def _load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _save(fig: plt.Figure, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Wrote {path}")
+
+
+def _normalize_results(results: dict) -> dict:
+    """Map legacy always_max key → max_tools for plotting."""
+    out = dict(results)
+    if "always_max" in out and "max_tools" not in out:
+        out["max_tools"] = out.pop("always_max")
+    elif "always_max" in out and "max_tools" in out:
+        out.pop("always_max")
+    return out
+
+
+def _ordered_policies(results: dict) -> list[str]:
+    known = [p for p in POLICY_ORDER if p in results]
+    extra = [p for p in results if p not in known]
+    return known + sorted(extra)
+
+
+def plot_policy_quality_reward(results: dict, out_dir: Path) -> None:
+    policies = _ordered_policies(results)
+    labels = [POLICY_LABELS.get(p, p) for p in policies]
+    x = np.arange(len(policies))
+    width = 0.25
+    em = [results[p]["mean_em"] for p in policies]
+    f1 = [results[p]["mean_f1"] for p in policies]
+    reward = [results[p]["mean_reward"] for p in policies]
+
+    fig, ax = plt.subplots(figsize=(7.5, 4.2))
+    ax.bar(x - width, em, width, label="mean EM", color="#4C6EF5")
+    ax.bar(x, f1, width, label="mean F1", color="#12B886")
+    ax.bar(x + width, reward, width, label="mean reward", color="#F08C00")
+    ax.set_xticks(x, labels)
+    ax.set_ylabel("Score")
+    ax.set_title("Policy comparison — quality & reward")
+    ax.legend(frameon=False)
+    ax.set_ylim(bottom=min(0.0, min(reward) - 0.05))
+    ax.axhline(0.0, color="#888", linewidth=0.6)
+    fig.tight_layout()
+    _save(fig, out_dir / "policy_quality_reward.png")
+
+
+def plot_policy_cost(results: dict, out_dir: Path) -> None:
+    policies = _ordered_policies(results)
+    labels = [POLICY_LABELS.get(p, p) for p in policies]
+    usd = [results[p]["mean_total_usd"] for p in policies]
+    tokens = [results[p]["mean_total_tokens"] for p in policies]
+    colors = [COLORS.get(p, "#666") for p in policies]
+
+    fig, axes = plt.subplots(1, 2, figsize=(8.5, 3.8))
+    axes[0].bar(labels, usd, color=colors)
+    axes[0].set_ylabel("Mean USD / example")
+    axes[0].set_title("Cost ($)")
+    axes[0].tick_params(axis="x", rotation=15)
+
+    axes[1].bar(labels, tokens, color=colors)
+    axes[1].set_ylabel("Mean tokens / example")
+    axes[1].set_title("Tokens")
+    axes[1].tick_params(axis="x", rotation=15)
+    fig.suptitle("Policy comparison — efficiency", y=1.02)
+    fig.tight_layout()
+    _save(fig, out_dir / "policy_cost.png")
+
+
+def plot_action_mix(results: dict, out_dir: Path) -> None:
+    policies = _ordered_policies(results)
+    labels = [POLICY_LABELS.get(p, p) for p in policies]
+    actions = ("mean_n_retrieve", "mean_n_rewrite", "mean_n_rerank", "mean_n_verify")
+    action_labels = ("retrieve", "rewrite", "rerank", "verify")
+    palette = ("#2A6F97", "#90BE6D", "#F9C74F", "#F94144")
+
+    fig, ax = plt.subplots(figsize=(7.2, 4.0))
+    bottom = np.zeros(len(policies))
+    for key, name, color in zip(actions, action_labels, palette):
+        vals = np.array([results[p].get(key, 0.0) for p in policies], dtype=float)
+        ax.bar(labels, vals, bottom=bottom, label=name, color=color)
+        bottom += vals
+    ax.set_ylabel("Mean actions / example")
+    ax.set_title("Action mix by policy")
+    ax.legend(frameon=False, ncol=4, loc="upper left")
+    fig.tight_layout()
+    _save(fig, out_dir / "policy_action_mix.png")
+
+
+def plot_reward_components(results: dict, out_dir: Path) -> None:
+    policies = _ordered_policies(results)
+    labels = [POLICY_LABELS.get(p, p) for p in policies]
+    keys = ("mean_q_ans", "mean_q_ground", "mean_q_cal", "mean_p_hall")
+    names = ("Q_ans", "Q_ground", "Q_cal", "P_hall")
+    x = np.arange(len(policies))
+    width = 0.2
+
+    fig, ax = plt.subplots(figsize=(7.8, 4.2))
+    for i, (key, name) in enumerate(zip(keys, names)):
+        vals = [results[p].get(key, 0.0) for p in policies]
+        ax.bar(x + (i - 1.5) * width, vals, width, label=name)
+    ax.set_xticks(x, labels)
+    ax.set_ylabel("Mean component")
+    ax.set_title("Reward components by policy")
+    ax.axhline(0.0, color="#888", linewidth=0.6)
+    ax.legend(frameon=False, ncol=4)
+    fig.tight_layout()
+    _save(fig, out_dir / "policy_reward_components.png")
+
+
+def plot_pareto(results: dict, out_dir: Path) -> None:
+    policies = _ordered_policies(results)
+    fig, ax = plt.subplots(figsize=(6.2, 4.4))
+    for p in policies:
+        x = results[p]["mean_total_usd"]
+        y = results[p]["mean_em"]
+        ax.scatter(x, y, s=90, color=COLORS.get(p, "#666"), label=POLICY_LABELS.get(p, p), zorder=3)
+        ax.annotate(POLICY_LABELS.get(p, p), (x, y), textcoords="offset points", xytext=(6, 6), fontsize=9)
+    ax.set_xlabel("Mean USD / example")
+    ax.set_ylabel("Mean EM")
+    ax.set_title("Quality–cost Pareto (pilot)")
+    ax.grid(True, alpha=0.3)
+    ax.legend(frameon=False)
+    fig.tight_layout()
+    _save(fig, out_dir / "policy_pareto_em_usd.png")
+
+
+def plot_reward_ablation(table: dict, out_dir: Path) -> None:
+    presets = [p for p in ABLATION_ORDER if p in table] + [p for p in table if p not in ABLATION_ORDER]
+    rewards = [table[p]["mean_reward"] for p in presets]
+    labels = [p.replace("_", "\n") for p in presets]
+
+    fig, ax = plt.subplots(figsize=(8.2, 4.2))
+    bars = ax.bar(labels, rewards, color="#5C7CFA")
+    for bar, val in zip(bars, rewards):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01, f"{val:.3f}", ha="center", va="bottom", fontsize=8)
+    ax.set_ylabel("Mean reward")
+    ax.set_title("Reward-weight ablation (fixed rule_based policy)")
+    ax.set_ylim(0, max(rewards) * 1.18 if rewards else 1.0)
+    fig.tight_layout()
+    _save(fig, out_dir / "reward_ablation.png")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Plot pilot/ablation metrics into results/figs")
+    parser.add_argument("--metrics-dir", default="results/metrics")
+    parser.add_argument("--out-dir", default="results/figs")
+    parser.add_argument("--pilot-summary", default=None, help="Override pilot summary JSON path")
+    parser.add_argument("--ablation-table", default=None, help="Override ablation table JSON path")
+    args = parser.parse_args()
+
+    metrics_dir = (ROOT / args.metrics_dir).resolve() if not Path(args.metrics_dir).is_absolute() else Path(args.metrics_dir)
+    out_dir = (ROOT / args.out_dir).resolve() if not Path(args.out_dir).is_absolute() else Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    pilot_path = Path(args.pilot_summary) if args.pilot_summary else metrics_dir / "pilot_summary_default.json"
+    ablation_path = Path(args.ablation_table) if args.ablation_table else metrics_dir / "reward_ablation_table.json"
+
+    if not pilot_path.is_absolute():
+        pilot_path = ROOT / pilot_path
+    if not ablation_path.is_absolute():
+        ablation_path = ROOT / ablation_path
+
+    if not pilot_path.exists():
+        raise SystemExit(f"Missing pilot summary: {pilot_path}")
+
+    pilot = _load_json(pilot_path)
+    results = pilot.get("results") or pilot
+    if not isinstance(results, dict) or not results:
+        raise SystemExit(f"No policy results in {pilot_path}")
+    results = _normalize_results(results)
+
+    plot_policy_quality_reward(results, out_dir)
+    plot_policy_cost(results, out_dir)
+    plot_action_mix(results, out_dir)
+    plot_reward_components(results, out_dir)
+    plot_pareto(results, out_dir)
+
+    if ablation_path.exists():
+        plot_reward_ablation(_load_json(ablation_path), out_dir)
+    else:
+        print(f"Skip ablation figure (missing {ablation_path})")
+
+    print(f"Done. Figures in {out_dir}")
+
+
+if __name__ == "__main__":
+    main()

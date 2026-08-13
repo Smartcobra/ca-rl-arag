@@ -8,7 +8,7 @@
     "mean_p_hall": 0.0,
     "mean_reward": 0.049523809523809526,
     "mean_total_usd": 0.00035596,
-    "mean_total_latency_ms": 1.6192389664865914,
+    "mean_total_latency_ms": 1.530524800002316,
     "mean_total_tokens": 625.9333333333333,
     "mean_n_steps": 4.0,
     "mean_n_retrieve": 1.0,

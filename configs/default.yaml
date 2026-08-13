@@ -68,9 +68,10 @@ reward:
 
 policy:
   # Milestone 2: stable baselines before RL algorithm optimization
-  name: rule_based  # naive_rag | rule_based | always_max | random
+  name: rule_based  # naive_rag | rule_based | max_tools | random
 
 logging:
   save_trajectories: true
   trajectory_dir: results/trajectories
   metrics_dir: results/metrics
+  figs_dir: results/figs

@@ -6,9 +6,9 @@
     "mean_q_ground": 0.9,
     "mean_q_cal": -0.34750000000000003,
     "mean_p_hall": 0.0,
-    "mean_reward": 0.303016931042399,
+    "mean_reward": 0.30301706974546133,
     "mean_total_usd": 0.000539485,
-    "mean_total_latency_ms": 3.5905342495880177,
+    "mean_total_latency_ms": 3.313128124990783,
     "mean_total_tokens": 594.475,
     "mean_n_steps": 7.0,
     "mean_n_retrieve": 3.0,
@@ -22,6 +22,6 @@
     "usd_per_correct": 0.007193133333333334
   },
   "meta": {
-    "policy": "always_max"
+    "policy": "max_tools"
   }
 }

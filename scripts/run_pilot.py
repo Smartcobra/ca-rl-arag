@@ -27,7 +27,7 @@ def main() -> None:
     parser.add_argument("--reward-preset", default=None)
     parser.add_argument("--split", choices=["eval", "train"], default="eval")
     parser.add_argument("--limit", type=int, default=50)
-    parser.add_argument("--policies", default="naive_rag,rule_based,always_max")
+    parser.add_argument("--policies", default="naive_rag,rule_based,max_tools")
     parser.add_argument("--run-env-check", action="store_true", help="Roll a few Gymnasium episodes")
     args = parser.parse_args()
 
