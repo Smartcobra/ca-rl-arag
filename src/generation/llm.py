@@ -204,9 +204,202 @@ class ExtractiveGenerator:
         return truncate(candidates[0][1], 80)
 
 
+class HuggingFaceGenerator:
+    """Local instruct-model generator (downloads weights to HF cache, runs on device).
+
+    Intended default: Qwen/Qwen2.5-3B-Instruct. Same generate/rewrite API as extractive.
+    """
+
+    def __init__(
+        self,
+        model_name: str = "Qwen/Qwen2.5-3B-Instruct",
+        max_answer_tokens: int = 64,
+        temperature: float = 0.0,
+        device: str = "auto",
+        max_input_tokens: int = 2048,
+        torch_dtype: str = "auto",
+    ):
+        try:
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+        except ImportError as e:
+            raise ImportError(
+                "HuggingFace generator requires torch and transformers. "
+                "Install with: pip install torch transformers accelerate"
+            ) from e
+
+        self.model_name = model_name
+        self.max_answer_tokens = max_answer_tokens
+        self.temperature = float(temperature)
+        self.max_input_tokens = int(max_input_tokens)
+        self._torch = torch
+
+        self.device = self._resolve_device(device)
+        dtype = self._resolve_dtype(torch_dtype)
+
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        load_kwargs: dict[str, Any] = {"trust_remote_code": True}
+        if dtype is not None:
+            load_kwargs["torch_dtype"] = dtype
+        # device_map="auto" needs accelerate; for single-device put model explicitly.
+        if self.device == "cuda" and torch.cuda.device_count() > 1:
+            load_kwargs["device_map"] = "auto"
+            self.model = AutoModelForCausalLM.from_pretrained(model_name, **load_kwargs)
+        else:
+            self.model = AutoModelForCausalLM.from_pretrained(model_name, **load_kwargs)
+            self.model.to(self.device)
+        self.model.eval()
+
+    def _resolve_device(self, device: str) -> str:
+        torch = self._torch
+        if device and device != "auto":
+            return device
+        if torch.cuda.is_available():
+            return "cuda"
+        if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            return "mps"
+        return "cpu"
+
+    def _resolve_dtype(self, torch_dtype: str):
+        torch = self._torch
+        if torch_dtype and torch_dtype != "auto":
+            return getattr(torch, torch_dtype)
+        if self.device == "cuda":
+            return torch.float16
+        if self.device == "mps":
+            return torch.float16
+        return torch.float32
+
+    def _format_evidence(self, evidence: list[dict[str, Any]], max_passages: int = 5) -> str:
+        blocks = []
+        for i, e in enumerate(evidence[:max_passages], start=1):
+            title = (e.get("title") or "").strip()
+            text = truncate(e.get("text") or "", 600)
+            head = f"[{i}] {title}".strip() if title else f"[{i}]"
+            blocks.append(f"{head}\n{text}")
+        return "\n\n".join(blocks) if blocks else "(no evidence)"
+
+    def _chat(self, messages: list[dict[str, str]], max_new_tokens: int) -> tuple[str, dict[str, int]]:
+        torch = self._torch
+        prompt = self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        inputs = self.tokenizer(
+            prompt,
+            return_tensors="pt",
+            truncation=True,
+            max_length=self.max_input_tokens,
+        )
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        prompt_tokens = int(inputs["input_ids"].shape[-1])
+
+        gen_kwargs: dict[str, Any] = {
+            "max_new_tokens": max_new_tokens,
+            "pad_token_id": self.tokenizer.pad_token_id,
+            "eos_token_id": self.tokenizer.eos_token_id,
+            "do_sample": self.temperature > 0,
+        }
+        if self.temperature > 0:
+            gen_kwargs["temperature"] = self.temperature
+
+        with torch.inference_mode():
+            out = self.model.generate(**inputs, **gen_kwargs)
+        new_tokens = out[0, prompt_tokens:]
+        text = self.tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+        completion_tokens = int(new_tokens.shape[-1])
+        return text, {"prompt_tokens": prompt_tokens, "completion_tokens": max(completion_tokens, 1)}
+
+    def rewrite(self, question: str, evidence: list[dict[str, Any]] | None = None) -> tuple[str, dict[str, int]]:
+        evidence = evidence or []
+        ev = self._format_evidence(evidence, max_passages=3)
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You rewrite search queries for retrieval. "
+                    "Return only the rewritten query, no quotes or explanation."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Original question:\n{question}\n\n"
+                    f"Current evidence (may be incomplete):\n{ev}\n\n"
+                    "Rewritten query:"
+                ),
+            },
+        ]
+        text, usage = self._chat(messages, max_new_tokens=min(48, self.max_answer_tokens))
+        rewritten = text.splitlines()[0].strip().strip('"').strip("'") if text else question
+        if not rewritten:
+            rewritten = question
+        return rewritten, usage
+
+    def generate(
+        self,
+        question: str,
+        evidence: list[dict[str, Any]],
+        allow_abstain: bool = True,
+    ) -> tuple[str, str, dict[str, int]]:
+        ev = self._format_evidence(evidence)
+        abstain_rule = (
+            'If evidence is insufficient, reply with exactly "ABSTAIN".'
+            if allow_abstain
+            else "Always give your best short answer from the evidence."
+        )
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a concise open-domain QA assistant. "
+                    "Answer using only the provided evidence. "
+                    "Reply with a short answer span (a few words when possible). "
+                    f"{abstain_rule}"
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Evidence:\n{ev}\n\nQuestion: {question}\n\nAnswer:",
+            },
+        ]
+        text, usage = self._chat(messages, max_new_tokens=self.max_answer_tokens)
+        answer = text.splitlines()[0].strip() if text else ""
+        # Strip common prefixes
+        for prefix in ("Answer:", "Final answer:", "A:"):
+            if answer.lower().startswith(prefix.lower()):
+                answer = answer[len(prefix) :].strip()
+        if allow_abstain and (not answer or answer.upper() == "ABSTAIN" or "ABSTAIN" in answer.upper()[:20]):
+            if not evidence or answer.upper().startswith("ABSTAIN") or not answer:
+                return "ABSTAIN", "abstain", usage
+        if not answer:
+            return ("ABSTAIN", "abstain", usage) if allow_abstain else ("", "answer", usage)
+        return truncate(answer, 200), "answer", usage
+
+
 def build_generator(cfg: dict[str, Any]):
-    backend = cfg.get("generation", {}).get("backend", "extractive")
-    max_tok = int(cfg.get("generation", {}).get("max_answer_tokens", 64))
-    if backend in {"extractive", "openai", "huggingface"}:
+    gcfg = cfg.get("generation", {})
+    backend = gcfg.get("backend", "extractive")
+    max_tok = int(gcfg.get("max_answer_tokens", 64))
+    if backend == "extractive":
         return ExtractiveGenerator(max_answer_tokens=max_tok)
+    if backend in {"huggingface", "hf", "qwen"}:
+        model_name = gcfg.get("model_name") or "Qwen/Qwen2.5-3B-Instruct"
+        return HuggingFaceGenerator(
+            model_name=model_name,
+            max_answer_tokens=max_tok,
+            temperature=float(gcfg.get("temperature", 0.0)),
+            device=str(gcfg.get("device", "auto")),
+            max_input_tokens=int(gcfg.get("max_input_tokens", 2048)),
+            torch_dtype=str(gcfg.get("torch_dtype", "auto")),
+        )
+    if backend == "openai":
+        raise NotImplementedError(
+            "OpenAI generation backend is not wired yet. "
+            "Use generation.backend: huggingface with Qwen/Qwen2.5-3B-Instruct, or extractive."
+        )
     raise ValueError(f"Unknown generation backend: {backend}")

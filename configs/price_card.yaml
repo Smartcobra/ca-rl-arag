@@ -5,10 +5,11 @@
 currency: USD
 
 llm:
-  # Approximate public API mid-tier pricing (per 1M tokens), for instrumentation.
+  # Proxy FinOps rates (per 1M tokens). Local Qwen uses real token counts from the
+  # tokenizer but these $ rates remain a transferable instrumentation scale.
   input_per_1m: 0.15
   output_per_1m: 0.60
-  # Extractive / local backends still accrue "virtual" tokens for fair comparison.
+  # Extractive backend still accrues "virtual" tokens for fair comparison.
   extractive_prompt_tokens_per_call: 200
   extractive_completion_tokens_per_call: 32
 

@@ -42,10 +42,15 @@ agent:
     - stop
 
 generation:
-  backend: extractive  # extractive | openai | huggingface
-  model_name: null
+  # Baseline default: local Qwen instruct (downloads to ~/.cache/huggingface).
+  # Use extractive for fast offline smoke tests.
+  backend: huggingface  # extractive | huggingface | openai(not wired)
+  model_name: Qwen/Qwen2.5-3B-Instruct
   max_answer_tokens: 64
   temperature: 0.0
+  device: auto          # auto | cuda | mps | cpu
+  max_input_tokens: 2048
+  torch_dtype: auto     # auto | float16 | bfloat16 | float32
 
 verification:
   # LOCKED DECISION (V1): NLI-style claim support, not LLM-as-judge.
@@ -59,7 +64,8 @@ verification:
 budget:
   max_usd: 0.05
   max_tokens: 8000
-  max_latency_ms: 30000
+  # Higher default for local 3B decode (esp. CPU/MPS); GPU pilots finish well under this.
+  max_latency_ms: 180000
   force_stop_on_exhaustion: true
 
 reward:

@@ -21,6 +21,8 @@ from src.utils import read_jsonl, set_seed
 
 def main() -> None:
     cfg = load_config()
+    # Keep smoke offline/fast even if default.yaml points at Qwen.
+    cfg.setdefault("generation", {})["backend"] = "extractive"
     set_seed(0)
     train, eval_set, passages = build_synthetic_pilot(
         n_train_hotpot=12, n_train_nq=8, n_eval_hotpot=8, n_eval_nq=6

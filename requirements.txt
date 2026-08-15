@@ -13,9 +13,12 @@ pydantic>=2.0
 tenacity>=8.0
 matplotlib>=3.8
 
-# Optional heavy deps (install when moving beyond extractive / lexical NLI)
-# torch
-# transformers
+# Required for generation.backend: huggingface (Qwen/Qwen2.5-3B-Instruct)
+torch>=2.2
+transformers>=4.44
+accelerate>=0.33
+
+# Optional later
 # sentence-transformers
 # faiss-cpu
 # openai

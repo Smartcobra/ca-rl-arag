@@ -26,17 +26,18 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 # from repo root or this folder
 cd agentic_rag_rl
 source ../.venv/bin/activate   # or your venv
-pip install -r requirements.txt
+pip install -r requirements.txt   # torch + transformers for Qwen
 
-# 1) offline smoke test (no network)
+# 1) offline smoke test (forces extractive; no model download)
 python scripts/smoke_test.py
 
 # 2) prepare data (HF if available, else synthetic pilot)
 python scripts/prepare_data.py --synthetic
 # or: python scripts/prepare_data.py --hf
 
-# 3) run pilot baselines + agentic policies + env check
+# 3) run pilot with local Qwen/Qwen2.5-3B-Instruct (default.yaml)
 python scripts/run_pilot.py --limit 30 --run-env-check
+# extractive-only: python scripts/run_pilot.py --config configs/extractive.yaml --limit 30
 
 # 4) reward-weight ablation table
 python scripts/run_reward_ablation.py --limit 30
@@ -47,7 +48,7 @@ python scripts/run_reward_ablation.py --limit 30
 
 ## Pilot results (snapshot)
 
-HuggingFace NQ + Hotpot eval pilot (40 examples, extractive generator, `default` reward):
+Legacy extractive pilot (40 examples) — treat as pipeline sanity, not quality–cost claims:
 
 | Policy | EM | F1 | mean $ | retrieves | mean reward |
 |---|---:|---:|---:|---:|---:|
@@ -55,7 +56,7 @@ HuggingFace NQ + Hotpot eval pilot (40 examples, extractive generator, `default`
 | rule_based | 0.025 | 0.066 | 3.6e-4 | 1.0 | 0.285 |
 | max_tools | 0.075 | 0.143 | 5.4e-4 | 3.0 | 0.303 |
 
-Max-tools is slightly best on quality; naive wins on reward because extra tools cost more when answers stay weak. Full interpretation: [`docs/RESULTS.md`](docs/RESULTS.md).
+Default baseline now uses **Qwen/Qwen2.5-3B-Instruct** locally; re-run the pilot before citing rankings. Full interpretation: [`docs/RESULTS.md`](docs/RESULTS.md).
 
 ## Layout
 
