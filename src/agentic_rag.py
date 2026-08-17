@@ -57,16 +57,33 @@ class AgentState:
 
 
 class AgenticRAG:
-    def __init__(self, cfg: dict[str, Any], retriever, reward_computer: RewardComputer | None = None):
+    def __init__(
+        self,
+        cfg: dict[str, Any],
+        retriever,
+        reward_computer: RewardComputer | None = None,
+        generator=None,
+    ):
         self.cfg = cfg
         self.retriever = retriever
-        self.generator = build_generator(cfg)
+        self._owns_generator = generator is None
+        self.generator = generator if generator is not None else build_generator(cfg)
         self.reranker = LexicalReranker()
         self.verifier = build_verifier(cfg)
         self.reward_computer = reward_computer or RewardComputer(cfg["reward_weights"], cfg.get("price_card"))
         self.top_k = int(cfg.get("retrieval", {}).get("top_k", 5))
         self.pool_size = int(cfg.get("retrieval", {}).get("candidate_pool_size", 20))
         self.rerank_n = int(cfg.get("retrieval", {}).get("rerank_top_n", 5))
+
+    def close(self) -> None:
+        if self._owns_generator:
+            closer = getattr(self.generator, "close", None)
+            if callable(closer):
+                closer()
+        self.generator = None
+        verifier_close = getattr(self.verifier, "close", None)
+        if callable(verifier_close):
+            verifier_close()
 
     def new_state(self, example: dict[str, Any]) -> AgentState:
         q = example["question"]

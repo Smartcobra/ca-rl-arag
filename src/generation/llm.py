@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 import re
 from typing import Any
 
@@ -203,6 +204,10 @@ class ExtractiveGenerator:
         candidates.sort(key=lambda x: x[0], reverse=True)
         return truncate(candidates[0][1], 80)
 
+    def close(self) -> None:
+        """No GPU resources; present so callers can close any generator uniformly."""
+        return
+
 
 class HuggingFaceGenerator:
     """Local instruct-model generator (downloads weights to HF cache, runs on device).
@@ -236,6 +241,8 @@ class HuggingFaceGenerator:
 
         self.device = self._resolve_device(device)
         dtype = self._resolve_dtype(torch_dtype)
+        self._closed = False
+        self._uses_device_map = False
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         if self.tokenizer.pad_token_id is None:
@@ -243,15 +250,18 @@ class HuggingFaceGenerator:
 
         load_kwargs: dict[str, Any] = {"trust_remote_code": True}
         if dtype is not None:
-            load_kwargs["torch_dtype"] = dtype
-        # device_map="auto" needs accelerate; for single-device put model explicitly.
+            # Transformers >=4.56 / 5.x: `dtype`. Older releases: `torch_dtype`.
+            load_kwargs["dtype"] = dtype
+        # device_map="auto" needs accelerate; never combine it with model.to(...).
         if self.device == "cuda" and torch.cuda.device_count() > 1:
             load_kwargs["device_map"] = "auto"
-            self.model = AutoModelForCausalLM.from_pretrained(model_name, **load_kwargs)
+            self._uses_device_map = True
+            self.model = self._from_pretrained(AutoModelForCausalLM, model_name, load_kwargs)
         else:
-            self.model = AutoModelForCausalLM.from_pretrained(model_name, **load_kwargs)
+            self.model = self._from_pretrained(AutoModelForCausalLM, model_name, load_kwargs)
             self.model.to(self.device)
         self.model.eval()
+        self.model.requires_grad_(False)
 
     def _resolve_device(self, device: str) -> str:
         torch = self._torch
@@ -272,6 +282,49 @@ class HuggingFaceGenerator:
         if self.device == "mps":
             return torch.float16
         return torch.float32
+
+    @staticmethod
+    def _from_pretrained(model_cls, model_name: str, load_kwargs: dict[str, Any]):
+        try:
+            return model_cls.from_pretrained(model_name, **load_kwargs)
+        except TypeError as e:
+            msg = str(e)
+            if "dtype" in load_kwargs and ("dtype" in msg or "unexpected keyword" in msg.lower()):
+                fallback = dict(load_kwargs)
+                fallback["torch_dtype"] = fallback.pop("dtype")
+                return model_cls.from_pretrained(model_name, **fallback)
+            raise
+
+    def _input_device(self):
+        if getattr(self, "model", None) is None:
+            return self.device
+        try:
+            return next(self.model.parameters()).device
+        except StopIteration:
+            return self.device
+
+    def close(self) -> None:
+        """Drop model/tokenizer refs so CUDA memory can be returned to the driver."""
+        if getattr(self, "_closed", False):
+            return
+        self._closed = True
+        if getattr(self, "model", None) is not None:
+            del self.model
+            self.model = None
+        if getattr(self, "tokenizer", None) is not None:
+            del self.tokenizer
+            self.tokenizer = None
+        gc.collect()
+        torch = getattr(self, "_torch", None)
+        if torch is None:
+            return
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            if hasattr(torch.cuda, "ipc_collect"):
+                torch.cuda.ipc_collect()
+        elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
+                torch.mps.empty_cache()
 
     def _format_evidence(self, evidence: list[dict[str, Any]], max_passages: int = 5) -> str:
         blocks = []
@@ -295,7 +348,8 @@ class HuggingFaceGenerator:
             truncation=True,
             max_length=self.max_input_tokens,
         )
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        device = self._input_device()
+        inputs = {k: v.to(device) for k, v in inputs.items()}
         prompt_tokens = int(inputs["input_ids"].shape[-1])
 
         gen_kwargs: dict[str, Any] = {
@@ -312,6 +366,8 @@ class HuggingFaceGenerator:
         new_tokens = out[0, prompt_tokens:]
         text = self.tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
         completion_tokens = int(new_tokens.shape[-1])
+        # Drop generate() tensors immediately; results are Python strings/ints only.
+        del out, new_tokens, inputs
         return text, {"prompt_tokens": prompt_tokens, "completion_tokens": max(completion_tokens, 1)}
 
     def rewrite(self, question: str, evidence: list[dict[str, Any]] | None = None) -> tuple[str, dict[str, int]]:

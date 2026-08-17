@@ -11,12 +11,26 @@ from .utils import ms_since, timed
 
 
 class RAGBaseline:
-    def __init__(self, cfg: dict[str, Any], retriever, reward_computer: RewardComputer | None = None):
+    def __init__(
+        self,
+        cfg: dict[str, Any],
+        retriever,
+        reward_computer: RewardComputer | None = None,
+        generator=None,
+    ):
         self.cfg = cfg
         self.retriever = retriever
-        self.generator = build_generator(cfg)
+        self._owns_generator = generator is None
+        self.generator = generator if generator is not None else build_generator(cfg)
         self.reward_computer = reward_computer or RewardComputer(cfg["reward_weights"], cfg.get("price_card"))
         self.top_k = int(cfg.get("retrieval", {}).get("top_k", 5))
+
+    def close(self) -> None:
+        if self._owns_generator:
+            closer = getattr(self.generator, "close", None)
+            if callable(closer):
+                closer()
+        self.generator = None
 
     def run(self, example: dict[str, Any]) -> dict[str, Any]:
         tracker = CostTracker(self.cfg["price_card"])

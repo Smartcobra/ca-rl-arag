@@ -33,11 +33,13 @@ class AgenticRAGEnv(gym.Env):
         examples: list[dict[str, Any]],
         reward_computer: RewardComputer | None = None,
         seed: int | None = 42,
+        agent: AgenticRAG | None = None,
     ):
         super().__init__()
         self.cfg = cfg
         self.examples = examples
-        self.agent = AgenticRAG(cfg, retriever, reward_computer)
+        self._owns_agent = agent is None
+        self.agent = agent if agent is not None else AgenticRAG(cfg, retriever, reward_computer)
         self.reward_computer = self.agent.reward_computer
         self.action_space = spaces.Discrete(len(ACTIONS))
         # Compact vector observation for bandit/RL heads (Milestone 3+)
@@ -177,3 +179,10 @@ class AgenticRAGEnv(gym.Env):
         result = last_info.get("episode_result", {})
         result["reward"] = total_reward
         return result
+
+    def close(self) -> None:
+        if self._owns_agent:
+            closer = getattr(self.agent, "close", None)
+            if callable(closer):
+                closer()
+        self.agent = None
