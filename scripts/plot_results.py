@@ -167,6 +167,36 @@ def plot_pareto(results: dict, out_dir: Path) -> None:
     _save(fig, out_dir / "policy_pareto_em_usd.png")
 
 
+def write_figures(pilot_path: Path, out_dir: Path, ablation_path: Path | None = None) -> None:
+    """Render pilot (and optional ablation) figures from already-written metric JSON."""
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    pilot_path = Path(pilot_path)
+    if not pilot_path.exists():
+        raise FileNotFoundError(f"Missing pilot summary: {pilot_path}")
+
+    pilot = _load_json(pilot_path)
+    results = pilot.get("results") or pilot
+    if not isinstance(results, dict) or not results:
+        raise ValueError(f"No policy results in {pilot_path}")
+    results = _normalize_results(results)
+
+    plot_policy_quality_reward(results, out_dir)
+    plot_policy_cost(results, out_dir)
+    plot_action_mix(results, out_dir)
+    plot_reward_components(results, out_dir)
+    plot_pareto(results, out_dir)
+
+    if ablation_path is not None:
+        ablation_path = Path(ablation_path)
+        if ablation_path.exists():
+            plot_reward_ablation(_load_json(ablation_path), out_dir)
+        else:
+            print(f"Skip ablation figure (missing {ablation_path})")
+
+    print(f"Done. Figures in {out_dir}")
+
+
 def plot_reward_ablation(table: dict, out_dir: Path) -> None:
     presets = [p for p in ABLATION_ORDER if p in table] + [p for p in table if p not in ABLATION_ORDER]
     rewards = [table[p]["mean_reward"] for p in presets]
@@ -203,27 +233,10 @@ def main() -> None:
     if not ablation_path.is_absolute():
         ablation_path = ROOT / ablation_path
 
-    if not pilot_path.exists():
-        raise SystemExit(f"Missing pilot summary: {pilot_path}")
-
-    pilot = _load_json(pilot_path)
-    results = pilot.get("results") or pilot
-    if not isinstance(results, dict) or not results:
-        raise SystemExit(f"No policy results in {pilot_path}")
-    results = _normalize_results(results)
-
-    plot_policy_quality_reward(results, out_dir)
-    plot_policy_cost(results, out_dir)
-    plot_action_mix(results, out_dir)
-    plot_reward_components(results, out_dir)
-    plot_pareto(results, out_dir)
-
-    if ablation_path.exists():
-        plot_reward_ablation(_load_json(ablation_path), out_dir)
-    else:
-        print(f"Skip ablation figure (missing {ablation_path})")
-
-    print(f"Done. Figures in {out_dir}")
+    try:
+        write_figures(pilot_path, out_dir, ablation_path)
+    except (FileNotFoundError, ValueError) as e:
+        raise SystemExit(str(e)) from e
 
 
 if __name__ == "__main__":

@@ -29,6 +29,15 @@ from src.retrieval import BM25Retriever
 from src.utils import ensure_dir, read_jsonl, set_seed, write_jsonl
 
 
+def _write_result_figures(summary_path: Path, figs_dir: Path, ablation_path: Path) -> None:
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from plot_results import write_figures
+
+    write_figures(summary_path, figs_dir, ablation_path)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/default.yaml")
@@ -145,6 +154,8 @@ def main() -> None:
             encoding="utf-8",
         )
         print(f"Wrote {summary_path}")
+        figs_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["figs_dir"]))
+        _write_result_figures(summary_path, figs_dir, metrics_dir / "reward_ablation_table.json")
     finally:
         log_gpu_memory("before cleanup")
         cleanup_gpu_resources(env, agent, baseline, generator)
