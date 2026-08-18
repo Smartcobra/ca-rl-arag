@@ -12,8 +12,8 @@
     "natural_questions": 25
   },
   "paths": {
-    "train": "/Users/parsuram/Desktop/research/cursor/agentic_rag_rl/data/processed/train_slice.jsonl",
-    "eval": "/Users/parsuram/Desktop/research/cursor/agentic_rag_rl/data/processed/eval_slice.jsonl",
-    "corpus": "/Users/parsuram/Desktop/research/cursor/agentic_rag_rl/data/processed/corpus.jsonl"
+    "train": "/content/drive/MyDrive/carlarag/ca-rl-arag/data/processed/train_slice.jsonl",
+    "eval": "/content/drive/MyDrive/carlarag/ca-rl-arag/data/processed/eval_slice.jsonl",
+    "corpus": "/content/drive/MyDrive/carlarag/ca-rl-arag/data/processed/corpus.jsonl"
   }
 }
