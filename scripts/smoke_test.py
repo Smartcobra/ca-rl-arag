@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT))
 from src.agentic_rag import AgenticRAG
 from src.config import load_config
 from src.data.loaders import build_synthetic_pilot, save_processed
+from src.metrics import aggregate_metrics
 from src.policies import get_policy
 from src.rag_baseline import RAGBaseline
 from src.rag_env import ACTION_TO_IDX, AgenticRAGEnv
@@ -40,6 +41,22 @@ def main() -> None:
     baseline = RAGBaseline(cfg, retriever)
     r0 = baseline.run(examples[0])
     assert "reward" in r0 and "prediction" in r0
+
+    mix_rows = [
+        {"dataset": "hotpot_qa", "em": 0.0, "f1": 0.0, "reward": 0.1, "abstained": True},
+        {"dataset": "hotpot_qa", "em": 1.0, "f1": 1.0, "reward": 0.9, "abstained": False},
+        {"dataset": "natural_questions", "em": 1.0, "f1": 1.0, "reward": 0.8, "abstained": False},
+        {"dataset": "natural_questions", "em": 1.0, "f1": 1.0, "reward": 0.8, "abstained": False},
+    ]
+    mix = aggregate_metrics(mix_rows)
+    assert mix["mean_em"] == 0.75
+    assert mix["n_correct"] == 3.0
+    assert mix["n_abstained"] == 1.0
+    assert mix["by_dataset"]["hotpot_qa"]["mean_em"] == 0.5
+    assert mix["by_dataset"]["hotpot_qa"]["n_correct"] == 1.0
+    assert mix["by_dataset"]["hotpot_qa"]["abstain_rate"] == 0.5
+    assert mix["by_dataset"]["natural_questions"]["mean_em"] == 1.0
+    assert mix["by_dataset"]["natural_questions"]["n_examples"] == 2.0
 
     agent = AgenticRAG(cfg, retriever)
     policy_fn, name = get_policy("rule_based")

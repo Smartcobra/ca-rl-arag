@@ -22,6 +22,7 @@ from src.config import load_config, resolve_path
 from src.evaluate import evaluate_agent, evaluate_baseline, save_metrics
 from src.generation import build_generator
 from src.gpu import cleanup_gpu_resources, log_gpu_memory
+from src.metrics import counts_by_dataset, format_eval_summary
 from src.policies import get_policy
 from src.rag_baseline import RAGBaseline
 from src.rag_env import ACTION_TO_IDX, AgenticRAGEnv
@@ -84,7 +85,7 @@ def main() -> None:
         base_out = evaluate_baseline(baseline, examples, out_path=base_path)
         save_metrics(metrics_dir / f"baseline_{cfg['reward_preset_name']}.json", base_out["summary"], {"policy": "naive_rag"})
         results["naive_rag"] = base_out["summary"]
-        print("naive_rag:", json.dumps(base_out["summary"], indent=2))
+        print(format_eval_summary("naive_rag", base_out["summary"]))
         del base_out
         log_gpu_memory("after naive_rag")
 
@@ -101,7 +102,7 @@ def main() -> None:
             out = evaluate_agent(agent, examples, policy_fn, policy_name, out_path=out_path)
             save_metrics(metrics_dir / f"{policy_name}_{cfg['reward_preset_name']}.json", out["summary"], {"policy": policy_name})
             results[policy_name] = out["summary"]
-            print(f"{policy_name}:", json.dumps(out["summary"], indent=2))
+            print(format_eval_summary(policy_name, out["summary"]))
             del out
             log_gpu_memory(f"after {policy_name}")
 
@@ -139,12 +140,14 @@ def main() -> None:
             print("env_rollouts:", json.dumps(env_rows, indent=2))
             log_gpu_memory("after env_check")
 
+        n_by_dataset = counts_by_dataset(examples)
         summary_path = metrics_dir / f"pilot_summary_{cfg['reward_preset_name']}.json"
         summary_path.write_text(
             json.dumps(
                 {
                     "reward_preset": cfg["reward_preset_name"],
                     "n_examples": len(examples),
+                    "n_examples_by_dataset": n_by_dataset,
                     "split": args.split,
                     "results": results,
                     "ablation_presets_available": cfg["reward_ablation_presets"],

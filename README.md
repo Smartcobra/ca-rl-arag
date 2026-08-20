@@ -48,7 +48,40 @@ python scripts/run_reward_ablation.py --limit 30
 
 ## Pilot results (snapshot)
 
-Legacy extractive pilot (40 examples) — treat as pipeline sanity, not quality–cost claims:
+**Not a ranking.** The Qwen 40-example headline mixes two regimes: 25 HotpotQA + 15 NQ. NQ EM is **0.933 for every policy** (answer-anchor passages in `prepare_data.py`). Overall EM 0.45 / 0.425 / 0.475 is `(Hotpot correct + 14 NQ correct) / 40`. Every summary, printout, plot, and table now shows Hotpot and NQ separately so NQ padding cannot be treated as a policy result. Hotpot gaps are 1–2 EM hits on 25 examples — still not significant. Ranking waits on n≈250.
+
+Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, `default` reward, `--limit 40`).
+
+### Overall (mix-weighted headline)
+
+| Policy | EM | F1 | n_correct | abstain | mean $ | mean reward |
+|---|---:|---:|---:|---:|---:|---:|
+| naive_rag | 0.450 | 0.488 | 18/40 | 0.325 | 1.45e-4 | 0.788 |
+| rule_based | 0.425 | 0.463 | 17/40 | 0.350 | 4.57e-4 | 0.721 |
+| max_tools | 0.475 | 0.515 | 19/40 | 0.275 | 6.87e-4 | 0.726 |
+
+### HotpotQA (n=25; only discriminative split)
+
+| Policy | EM | F1 | n_correct | abstain | mean reward |
+|---|---:|---:|---:|---:|---:|
+| naive_rag | 0.160 | 0.221 | 4/25 | 0.480 | 0.396 |
+| rule_based | 0.120 | 0.181 | 3/25 | 0.520 | 0.313 |
+| max_tools | 0.200 | 0.264 | 5/25 | 0.400 | 0.358 |
+
+### Natural Questions (n=15; saturated)
+
+| Policy | EM | F1 | n_correct | abstain | mean reward |
+|---|---:|---:|---:|---:|---:|
+| naive_rag | 0.933 | 0.933 | 14/15 | 0.067 | 1.441 |
+| rule_based | 0.933 | 0.933 | 14/15 | 0.067 | 1.399 |
+| max_tools | 0.933 | 0.933 | 14/15 | 0.067 | 1.338 |
+
+NQ is identical across policies. That is expected given answer-anchor passages (`The answer is {ans}`). NQ currently cannot rank policies.
+
+Pilot console print and `plot_results.py` (`policy_by_dataset.png`) use the same split. Full interpretation: [`docs/RESULTS.md`](docs/RESULTS.md). Eval contract: [`docs/IMPLEMENTATION_DECISIONS.md`](docs/IMPLEMENTATION_DECISIONS.md).
+
+<details>
+<summary>Legacy extractive, 40-ex, pipeline sanity only (different generator; do not compare to the table above)</summary>
 
 | Policy | EM | F1 | mean $ | retrieves | mean reward |
 |---|---:|---:|---:|---:|---:|
@@ -56,7 +89,8 @@ Legacy extractive pilot (40 examples) — treat as pipeline sanity, not quality�
 | rule_based | 0.025 | 0.066 | 3.6e-4 | 1.0 | 0.285 |
 | max_tools | 0.075 | 0.143 | 5.4e-4 | 3.0 | 0.303 |
 
-Default baseline now uses **Qwen/Qwen2.5-3B-Instruct** locally; re-run the pilot before citing rankings. Full interpretation: [`docs/RESULTS.md`](docs/RESULTS.md).
+</details>
+
 
 ## Layout
 

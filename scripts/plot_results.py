@@ -14,6 +14,8 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from src.metrics import DATASET_LABELS, ordered_dataset_names
+
 POLICY_ORDER = ("naive_rag", "rule_based", "max_tools")
 POLICY_LABELS = {
     "naive_rag": "naive RAG",
@@ -79,7 +81,7 @@ def plot_policy_quality_reward(results: dict, out_dir: Path) -> None:
     ax.bar(x + width, reward, width, label="mean reward", color="#F08C00")
     ax.set_xticks(x, labels)
     ax.set_ylabel("Score")
-    ax.set_title("Policy comparison — quality & reward")
+    ax.set_title("Policy comparison — quality & reward (overall, mix-weighted)")
     ax.legend(frameon=False)
     ax.set_ylim(bottom=min(0.0, min(reward) - 0.05))
     ax.axhline(0.0, color="#888", linewidth=0.6)
@@ -104,7 +106,7 @@ def plot_policy_cost(results: dict, out_dir: Path) -> None:
     axes[1].set_ylabel("Mean tokens / example")
     axes[1].set_title("Tokens")
     axes[1].tick_params(axis="x", rotation=15)
-    fig.suptitle("Policy comparison — efficiency", y=1.02)
+    fig.suptitle("Policy comparison — efficiency (overall, mix-weighted)", y=1.02)
     fig.tight_layout()
     _save(fig, out_dir / "policy_cost.png")
 
@@ -123,7 +125,7 @@ def plot_action_mix(results: dict, out_dir: Path) -> None:
         ax.bar(labels, vals, bottom=bottom, label=name, color=color)
         bottom += vals
     ax.set_ylabel("Mean actions / example")
-    ax.set_title("Action mix by policy")
+    ax.set_title("Action mix by policy (overall, mix-weighted)")
     ax.legend(frameon=False, ncol=4, loc="upper left")
     fig.tight_layout()
     _save(fig, out_dir / "policy_action_mix.png")
@@ -143,7 +145,7 @@ def plot_reward_components(results: dict, out_dir: Path) -> None:
         ax.bar(x + (i - 1.5) * width, vals, width, label=name)
     ax.set_xticks(x, labels)
     ax.set_ylabel("Mean component")
-    ax.set_title("Reward components by policy")
+    ax.set_title("Reward components by policy (overall, mix-weighted)")
     ax.axhline(0.0, color="#888", linewidth=0.6)
     ax.legend(frameon=False, ncol=4)
     fig.tight_layout()
@@ -160,11 +162,95 @@ def plot_pareto(results: dict, out_dir: Path) -> None:
         ax.annotate(POLICY_LABELS.get(p, p), (x, y), textcoords="offset points", xytext=(6, 6), fontsize=9)
     ax.set_xlabel("Mean USD / example")
     ax.set_ylabel("Mean EM")
-    ax.set_title("Quality–cost Pareto (pilot)")
+    ax.set_title("Quality–cost Pareto (overall EM, mix-weighted)")
     ax.grid(True, alpha=0.3)
     ax.legend(frameon=False)
     fig.tight_layout()
     _save(fig, out_dir / "policy_pareto_em_usd.png")
+
+
+def _metric_from_slice(policy_stats: dict, key: str, dataset: str | None) -> float:
+    if dataset is None:
+        val = policy_stats.get(key)
+    else:
+        val = (policy_stats.get("by_dataset") or {}).get(dataset, {}).get(key)
+    if val is None:
+        return 0.0
+    return float(val)
+
+
+def plot_policy_by_dataset(results: dict, out_dir: Path) -> None:
+    """Grouped bars: Hotpot vs NQ vs overall for EM/F1/reward/abstain. Overall is mix-weighted."""
+    policies = _ordered_policies(results)
+    if not any(isinstance(results[p].get("by_dataset"), dict) and results[p]["by_dataset"] for p in policies):
+        print("Skip by-dataset figure (no by_dataset in summary)")
+        return
+
+    labels = [POLICY_LABELS.get(p, p) for p in policies]
+    x = np.arange(len(policies))
+    width = 0.25
+    series = [
+        (None, "Overall (mix-weighted)", "#6C757D"),
+        ("hotpot_qa", "HotpotQA", "#2A6F97"),
+        ("natural_questions", "Natural Questions", "#E07A3D"),
+    ]
+    panels = (
+        ("mean_em", "Exact match"),
+        ("mean_f1", "Token F1"),
+        ("mean_reward", "Mean reward"),
+        ("abstain_rate", "Abstain rate"),
+    )
+
+    fig, axes = plt.subplots(2, 2, figsize=(10.8, 7.0))
+    for ax, (key, title) in zip(axes.ravel(), panels):
+        for i, (ds, name, color) in enumerate(series):
+            vals = [_metric_from_slice(results[p], key, ds) for p in policies]
+            ax.bar(x + (i - 1) * width, vals, width, label=name, color=color)
+        ax.set_xticks(x, labels)
+        ax.set_ylabel("Score")
+        ax.set_title(title)
+        ax.axhline(0.0, color="#888", linewidth=0.6)
+    handles, legend_labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(handles, legend_labels, loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.02))
+    fig.suptitle(
+        "Policy comparison by dataset — NQ is saturated; do not rank from Overall",
+        y=1.07,
+        fontsize=12,
+    )
+    fig.tight_layout()
+    _save(fig, out_dir / "policy_by_dataset.png")
+
+
+def plot_reward_ablation_by_dataset(by_dataset_table: dict, out_dir: Path) -> None:
+    datasets = ordered_dataset_names(by_dataset_table)
+    if not datasets:
+        return
+    n = len(datasets)
+    fig, axes = plt.subplots(1, n, figsize=(4.2 * n, 4.2), sharey=True)
+    if n == 1:
+        axes = [axes]
+    for ax, ds in zip(axes, datasets):
+        table = by_dataset_table[ds]
+        presets = [p for p in ABLATION_ORDER if p in table] + [p for p in table if p not in ABLATION_ORDER]
+        rewards = [table[p]["mean_reward"] for p in presets]
+        labels = [p.replace("_", "\n") for p in presets]
+        bars = ax.bar(labels, rewards, color="#5C7CFA")
+        for bar, val in zip(bars, rewards):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.01,
+                f"{val:.3f}",
+                ha="center",
+                va="bottom",
+                fontsize=7,
+            )
+        ax.set_title(DATASET_LABELS.get(ds, ds))
+        ax.set_ylabel("Mean reward")
+        ymax = max(rewards) * 1.18 if rewards else 1.0
+        ax.set_ylim(0, ymax)
+    fig.suptitle("Reward-weight ablation by dataset (fixed rule_based)")
+    fig.tight_layout()
+    _save(fig, out_dir / "reward_ablation_by_dataset.png")
 
 
 def write_figures(pilot_path: Path, out_dir: Path, ablation_path: Path | None = None) -> None:
@@ -186,11 +272,25 @@ def write_figures(pilot_path: Path, out_dir: Path, ablation_path: Path | None = 
     plot_action_mix(results, out_dir)
     plot_reward_components(results, out_dir)
     plot_pareto(results, out_dir)
+    plot_policy_by_dataset(results, out_dir)
 
     if ablation_path is not None:
         ablation_path = Path(ablation_path)
         if ablation_path.exists():
-            plot_reward_ablation(_load_json(ablation_path), out_dir)
+            ablation = _load_json(ablation_path)
+            plot_reward_ablation(ablation, out_dir)
+            nested = {k: v.get("by_dataset") for k, v in ablation.items() if isinstance(v, dict) and v.get("by_dataset")}
+            sibling = ablation_path.with_name("reward_ablation_by_dataset.json")
+            if sibling.exists():
+                plot_reward_ablation_by_dataset(_load_json(sibling), out_dir)
+            elif nested:
+                by_ds: dict[str, dict] = {}
+                for preset, ds_map in nested.items():
+                    for ds, stats in ds_map.items():
+                        by_ds.setdefault(ds, {})[preset] = stats
+                plot_reward_ablation_by_dataset(by_ds, out_dir)
+            else:
+                print("Skip ablation by-dataset figure (no by_dataset in table)")
         else:
             print(f"Skip ablation figure (missing {ablation_path})")
 
@@ -207,7 +307,7 @@ def plot_reward_ablation(table: dict, out_dir: Path) -> None:
     for bar, val in zip(bars, rewards):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01, f"{val:.3f}", ha="center", va="bottom", fontsize=8)
     ax.set_ylabel("Mean reward")
-    ax.set_title("Reward-weight ablation (fixed rule_based policy)")
+    ax.set_title("Reward-weight ablation (overall, mix-weighted; fixed rule_based)")
     ax.set_ylim(0, max(rewards) * 1.18 if rewards else 1.0)
     fig.tight_layout()
     _save(fig, out_dir / "reward_ablation.png")

@@ -20,6 +20,7 @@ from src.config import load_config, resolve_path
 from src.evaluate import evaluate_agent, save_metrics
 from src.generation import build_generator
 from src.gpu import cleanup_gpu_resources, log_gpu_memory
+from src.metrics import compact_ablation_row, format_eval_summary, ordered_dataset_names
 from src.policies import get_policy
 from src.retrieval import BM25Retriever
 from src.utils import ensure_dir, read_jsonl, set_seed
@@ -59,15 +60,8 @@ def main() -> None:
             agent = AgenticRAG(cfg, retriever, generator=generator)
             out = evaluate_agent(agent, examples, policy_fn, policy_name)
             save_metrics(metrics_dir / f"ablation_{policy_name}_{preset}.json", out["summary"], {"preset": preset})
-            table[preset] = {
-                "mean_em": out["summary"].get("mean_em"),
-                "mean_f1": out["summary"].get("mean_f1"),
-                "mean_reward": out["summary"].get("mean_reward"),
-                "mean_total_usd": out["summary"].get("mean_total_usd"),
-                "mean_n_retrieve": out["summary"].get("mean_n_retrieve"),
-                "usd_per_correct": out["summary"].get("usd_per_correct"),
-            }
-            print(preset, table[preset])
+            table[preset] = compact_ablation_row(out["summary"])
+            print(format_eval_summary(preset, out["summary"]))
             del out
             # Agent does not own the shared generator; drop the wrapper between presets.
             agent.close()
@@ -77,6 +71,13 @@ def main() -> None:
         out_path = metrics_dir / "reward_ablation_table.json"
         out_path.write_text(json.dumps(table, indent=2), encoding="utf-8")
         print(f"Wrote {out_path}")
+        by_ds_table: dict[str, dict] = {}
+        for preset, row in table.items():
+            for ds in ordered_dataset_names(row.get("by_dataset") or {}):
+                by_ds_table.setdefault(ds, {})[preset] = row["by_dataset"][ds]
+        by_ds_path = metrics_dir / "reward_ablation_by_dataset.json"
+        by_ds_path.write_text(json.dumps(by_ds_table, indent=2), encoding="utf-8")
+        print(f"Wrote {by_ds_path}")
     finally:
         log_gpu_memory("before cleanup")
         cleanup_gpu_resources(agent, generator)
