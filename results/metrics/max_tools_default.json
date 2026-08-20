@@ -6,9 +6,9 @@
     "mean_q_ground": 0.7461309523809524,
     "mean_q_cal": 0.20749999999999996,
     "mean_p_hall": 0.02358333333333333,
-    "mean_reward": 0.7255806627248902,
+    "mean_reward": 0.7255865618667652,
     "mean_total_usd": 0.0006872650000000001,
-    "mean_total_latency_ms": 2051.215044724998,
+    "mean_total_latency_ms": 2039.416760974997,
     "mean_total_tokens": 1661.2,
     "mean_n_steps": 7.0,
     "mean_n_retrieve": 3.0,
@@ -30,9 +30,9 @@
         "mean_q_ground": 0.6138095238095238,
         "mean_q_cal": 0.13999999999999999,
         "mean_p_hall": 0.03773333333333333,
-        "mean_reward": 0.3581521940549844,
+        "mean_reward": 0.3581664092063044,
         "mean_total_usd": 0.0007024660000000001,
-        "mean_total_latency_ms": 2310.556681240023,
+        "mean_total_latency_ms": 2282.126378600003,
         "mean_total_tokens": 1757.36,
         "mean_n_steps": 7.0,
         "mean_n_retrieve": 3.0,
@@ -54,9 +54,9 @@
         "mean_q_ground": 0.9666666666666667,
         "mean_q_cal": 0.32,
         "mean_p_hall": 0.0,
-        "mean_reward": 1.3379614438413998,
+        "mean_reward": 1.337953482967533,
         "mean_total_usd": 0.00066193,
-        "mean_total_latency_ms": 1618.978983866623,
+        "mean_total_latency_ms": 1634.900731599987,
         "mean_total_tokens": 1500.9333333333334,
         "mean_n_steps": 7.0,
         "mean_n_retrieve": 3.0,
@@ -74,7 +74,6 @@
     }
   },
   "meta": {
-    "policy": "max_tools",
-    "resummarized_from": "max_tools_default.jsonl"
+    "policy": "max_tools"
   }
 }
