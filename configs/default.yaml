@@ -13,11 +13,12 @@ data:
   train_file: data/processed/train_slice.jsonl
   eval_file: data/processed/eval_slice.jsonl
   corpus_file: data/processed/corpus.jsonl
-  # Pilot sizes (roadmap: 20–50 for debugging; scale later)
+  # Locked ranking slice: 150 Hotpot + 150 NQ = 300 eval.
+  # Train stays small. NQ still uses answer-anchor passages (ceiling, not signal).
   train_nq: 40
   train_hotpot: 60
-  eval_nq: 25
-  eval_hotpot: 25
+  eval_nq: 150
+  eval_hotpot: 150
   # Synthetic corpus is smaller; prepare_data caps splits automatically.
   # For HuggingFace downloads these counts are used as-is.
   hotpot_config: distractor

@@ -120,11 +120,22 @@ def main() -> None:
         source = "synthetic"
 
     paths = save_processed(train, eval_set, passages, str(out_dir))
+    seed = int(cfg.get("experiment", {}).get("seed", 42))
+    data_cfg = cfg["data"]
     meta = {
         "source": source,
+        "seed": seed,
         "n_train": len(train),
         "n_eval": len(eval_set),
         "n_passages": len(passages),
+        "train_target": {
+            "hotpot_qa": int(data_cfg["train_hotpot"]),
+            "natural_questions": int(data_cfg["train_nq"]),
+        },
+        "eval_target": {
+            "hotpot_qa": int(data_cfg["eval_hotpot"]),
+            "natural_questions": int(data_cfg["eval_nq"]),
+        },
         "train_by_dataset": {
             "hotpot_qa": sum(1 for e in train if e["dataset"] == "hotpot_qa"),
             "natural_questions": sum(1 for e in train if e["dataset"] == "natural_questions"),
@@ -133,6 +144,9 @@ def main() -> None:
             "hotpot_qa": sum(1 for e in eval_set if e["dataset"] == "hotpot_qa"),
             "natural_questions": sum(1 for e in eval_set if e["dataset"] == "natural_questions"),
         },
+        "nq_corpus": "answer_anchor_passages",
+        "nq_ceiling_note": "NQ EM near 1.0 is the answer-anchor ceiling, not a policy result",
+        "ranking": "deferred_until_hotpot_n_approx_150_read_separately",
         "paths": paths,
     }
     (out_dir / "slice_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")

@@ -301,3 +301,61 @@ def save_processed(
     write_jsonl(paths["eval"], eval_set)
     write_jsonl(paths["corpus"], passages)
     return paths
+
+
+def stratified_limit(
+    examples: list[dict[str, Any]],
+    limit: int | None,
+    *,
+    seed: int = 42,
+) -> list[dict[str, Any]]:
+    """Take ``limit`` examples while preserving the dataset mix.
+
+    Prefix ``examples[:limit]`` on a hotpot-first JSONL rewrites the mix
+    (e.g. 150+150 with ``--limit 40`` becomes 40 Hotpot + 0 NQ). This keeps
+    approximately ``round(limit * n_ds / n_total)`` from each ``dataset``,
+    then adjusts leftover rounding so ``len(out) == limit`` (or all rows if
+    fewer exist). Within each dataset, original JSONL order is kept (HF
+    validation prefix). ``seed`` is reserved for leftover-tie stability and
+    is currently unused because ties break by dataset name order.
+    """
+    del seed  # documented; leftover ties use dataset display order
+    if not examples or limit is None or limit <= 0 or limit >= len(examples):
+        return list(examples)
+
+    from ..metrics import ordered_dataset_names
+
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for ex in examples:
+        ds = str(ex.get("dataset") or "unknown")
+        groups.setdefault(ds, []).append(ex)
+
+    n_total = len(examples)
+    names = ordered_dataset_names(groups)
+    quotas: dict[str, int] = {}
+    remainders: list[tuple[float, str]] = []
+    for ds in names:
+        exact = limit * len(groups[ds]) / n_total
+        floor = min(int(exact), len(groups[ds]))
+        quotas[ds] = floor
+        remainders.append((exact - int(exact), ds))
+
+    leftover = min(limit, n_total) - sum(quotas.values())
+    remainders.sort(key=lambda item: (-item[0], names.index(item[1])))
+    for _, ds in remainders:
+        if leftover <= 0:
+            break
+        if quotas[ds] < len(groups[ds]):
+            quotas[ds] += 1
+            leftover -= 1
+    if leftover > 0:
+        for ds in names:
+            if leftover <= 0:
+                break
+            spare = len(groups[ds]) - quotas[ds]
+            take = min(spare, leftover)
+            quotas[ds] += take
+            leftover -= take
+
+    keep = {id(ex) for ds in names for ex in groups[ds][: quotas[ds]]}
+    return [ex for ex in examples if id(ex) in keep]

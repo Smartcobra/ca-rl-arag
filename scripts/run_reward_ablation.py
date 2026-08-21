@@ -17,10 +17,11 @@ sys.path.insert(0, str(ROOT))
 
 from src.agentic_rag import AgenticRAG
 from src.config import load_config, resolve_path
+from src.data.loaders import stratified_limit
 from src.evaluate import evaluate_agent, save_metrics
 from src.generation import build_generator
 from src.gpu import cleanup_gpu_resources, log_gpu_memory
-from src.metrics import compact_ablation_row, format_eval_summary, ordered_dataset_names
+from src.metrics import compact_ablation_row, counts_by_dataset, format_eval_summary, ordered_dataset_names
 from src.policies import get_policy
 from src.retrieval import BM25Retriever
 from src.utils import ensure_dir, read_jsonl, set_seed
@@ -29,7 +30,13 @@ from src.utils import ensure_dir, read_jsonl, set_seed
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/default.yaml")
-    parser.add_argument("--limit", type=int, default=30)
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        help="Stratified cap from the eval file (default 100 = 50/50 on a 150+150 slice). "
+        "Pass 0 to use the full eval. Not the ranking table; that is the full 300-example pilot.",
+    )
     parser.add_argument(
         "--presets",
         default="default,correctness_only,correctness_grounding,correctness_faithfulness_cost,lambda_zero,high_cost_pressure",
@@ -40,7 +47,12 @@ def main() -> None:
     base_cfg = load_config(args.config)
     set_seed(int(base_cfg["experiment"]["seed"]))
     corpus = read_jsonl(resolve_path(base_cfg, base_cfg["data"]["corpus_file"]))
-    examples = read_jsonl(resolve_path(base_cfg, base_cfg["data"]["eval_file"]))[: args.limit]
+    examples = read_jsonl(resolve_path(base_cfg, base_cfg["data"]["eval_file"]))
+    n_file = counts_by_dataset(examples)
+    limit = None if args.limit == 0 else args.limit
+    examples = stratified_limit(examples, limit, seed=int(base_cfg["experiment"]["seed"]))
+    n_run = counts_by_dataset(examples)
+    print(f"Ablation slice: n={len(examples)} by_dataset={n_run} (eval file was {n_file}; not a ranking table)")
     retriever = BM25Retriever(corpus)
     policy_fn, policy_name = get_policy(args.policy)
 

@@ -1,5 +1,5 @@
 # Offline / fast baseline — same as default except extractive generator.
-# Usage: python scripts/run_pilot.py --config configs/extractive.yaml --limit 40
+# Usage: python scripts/run_pilot.py --config configs/extractive.yaml
 
 experiment:
   name: ca_rl_arag_m2_extractive
@@ -14,8 +14,8 @@ data:
   corpus_file: data/processed/corpus.jsonl
   train_nq: 40
   train_hotpot: 60
-  eval_nq: 25
-  eval_hotpot: 25
+  eval_nq: 150
+  eval_hotpot: 150
   hotpot_config: distractor
 
 retrieval:

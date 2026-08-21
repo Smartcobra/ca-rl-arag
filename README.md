@@ -35,12 +35,12 @@ python scripts/smoke_test.py
 python scripts/prepare_data.py --synthetic
 # or: python scripts/prepare_data.py --hf
 
-# 3) run pilot with local Qwen/Qwen2.5-3B-Instruct (default.yaml)
-python scripts/run_pilot.py --limit 30 --run-env-check
-# extractive-only: python scripts/run_pilot.py --config configs/extractive.yaml --limit 30
+# 3) run pilot on the full 300-example eval (Qwen/Qwen2.5-3B-Instruct)
+python scripts/run_pilot.py --run-env-check
+# extractive debug: python scripts/run_pilot.py --config configs/extractive.yaml --limit 50
 
-# 4) reward-weight ablation table
-python scripts/run_reward_ablation.py --limit 30
+# 4) reward-weight ablation (stratified 100 from the same eval; not the ranking table)
+python scripts/run_reward_ablation.py
 ```
 
 **Full guide** (why each command, datasets, evaluation matrix, outputs): [`docs/HOW_TO_RUN.md`](docs/HOW_TO_RUN.md).  
@@ -48,9 +48,9 @@ python scripts/run_reward_ablation.py --limit 30
 
 ## Pilot results (snapshot)
 
-**Not a ranking.** The Qwen 40-example headline mixes two regimes: 25 HotpotQA + 15 NQ. NQ EM is **0.933 for every policy** (answer-anchor passages in `prepare_data.py`). Overall EM 0.45 / 0.425 / 0.475 is `(Hotpot correct + 14 NQ correct) / 40`. Every summary, printout, plot, and table now shows Hotpot and NQ separately so NQ padding cannot be treated as a policy result. Hotpot gaps are 1–2 EM hits on 25 examples — still not significant. Ranking waits on n≈250.
+**Not a ranking.** Eval is now locked at **300 examples (150 Hotpot + 150 NQ)** in `configs/default.yaml` / `slice_meta.json`. The Qwen numbers below are still the old 40-example mix (25 Hotpot + 15 NQ) from before that slice. NQ EM is **0.933 for every policy** (answer-anchor passages). Overall EM 0.45 / 0.425 / 0.475 is `(Hotpot correct + 14 NQ correct) / 40`. Hotpot gaps are 1–2 EM hits on 25 examples. Ranking waits on the full 300-example Qwen run; read Hotpot, not Overall. Growing NQ does not buy policy signal until anchors go away.
 
-Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, `default` reward, `--limit 40`).
+Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, `default` reward, **legacy `--limit 40`**). Re-run `python scripts/run_pilot.py` with no `--limit` after `prepare_data.py --hf` before citing anything.
 
 ### Overall (mix-weighted headline)
 

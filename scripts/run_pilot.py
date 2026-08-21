@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.agentic_rag import AgenticRAG
 from src.config import load_config, resolve_path
+from src.data.loaders import stratified_limit
 from src.evaluate import evaluate_agent, evaluate_baseline, save_metrics
 from src.generation import build_generator
 from src.gpu import cleanup_gpu_resources, log_gpu_memory
@@ -44,7 +45,12 @@ def main() -> None:
     parser.add_argument("--config", default="configs/default.yaml")
     parser.add_argument("--reward-preset", default=None)
     parser.add_argument("--split", choices=["eval", "train"], default="eval")
-    parser.add_argument("--limit", type=int, default=50)
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Optional stratified cap (preserves Hotpot/NQ mix). Default: full eval file.",
+    )
     parser.add_argument("--policies", default="naive_rag,rule_based,max_tools")
     parser.add_argument("--run-env-check", action="store_true", help="Roll a few Gymnasium episodes")
     args = parser.parse_args()
@@ -54,11 +60,17 @@ def main() -> None:
 
     corpus = read_jsonl(resolve_path(cfg, cfg["data"]["corpus_file"]))
     examples = read_jsonl(resolve_path(cfg, cfg["data"][f"{args.split}_file"]))
+    n_file = counts_by_dataset(examples)
+    examples = stratified_limit(examples, args.limit, seed=int(cfg["experiment"]["seed"]))
+    n_run = counts_by_dataset(examples)
     if args.limit:
-        examples = examples[: args.limit]
+        print(f"Stratified --limit {args.limit}: {n_file} -> {n_run}")
 
     retriever = BM25Retriever(corpus)
-    print(f"Corpus={len(retriever)} examples={len(examples)} preset={cfg['reward_preset_name']}")
+    print(
+        f"Corpus={len(retriever)} examples={len(examples)} by_dataset={n_run} "
+        f"preset={cfg['reward_preset_name']}"
+    )
 
     traj_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["trajectory_dir"]))
     metrics_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["metrics_dir"]))
@@ -148,6 +160,9 @@ def main() -> None:
                     "reward_preset": cfg["reward_preset_name"],
                     "n_examples": len(examples),
                     "n_examples_by_dataset": n_by_dataset,
+                    "n_examples_in_file": sum(n_file.values()),
+                    "n_examples_by_dataset_in_file": n_file,
+                    "limit": args.limit,
                     "split": args.split,
                     "results": results,
                     "ablation_presets_available": cfg["reward_ablation_presets"],
