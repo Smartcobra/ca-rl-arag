@@ -48,37 +48,50 @@ python scripts/run_reward_ablation.py
 
 ## Pilot results (snapshot)
 
-**Not a ranking.** Eval is now locked at **300 examples (150 Hotpot + 150 NQ)** in `configs/default.yaml` / `slice_meta.json`. The Qwen numbers below are still the old 40-example mix (25 Hotpot + 15 NQ) from before that slice. NQ EM is **0.933 for every policy** (answer-anchor passages). Overall EM 0.45 / 0.425 / 0.475 is `(Hotpot correct + 14 NQ correct) / 40`. Hotpot gaps are 1–2 EM hits on 25 examples. Ranking waits on the full 300-example Qwen run; read Hotpot, not Overall. Growing NQ does not buy policy signal until anchors go away.
+**Not a ranking.** Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**, corpus 2276 passages (`data/processed/slice_meta.json`).
 
-Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, `default` reward, **legacy `--limit 40`**). Re-run `python scripts/run_pilot.py` with no `--limit` after `prepare_data.py --hf` before citing anything.
+Read **Hotpot**, not Overall. NQ is near-ceiling from answer-anchor passages (`The answer is {ans}`). Overall EM is mix-weighted. Hotpot is 43–48 / 150 (gaps of a few items). NQ is 143–144 / 150 and almost flat.
 
 ### Overall (mix-weighted headline)
 
 | Policy | EM | F1 | n_correct | abstain | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.450 | 0.488 | 18/40 | 0.325 | 1.45e-4 | 0.788 |
-| rule_based | 0.425 | 0.463 | 17/40 | 0.350 | 4.57e-4 | 0.721 |
-| max_tools | 0.475 | 0.515 | 19/40 | 0.275 | 6.87e-4 | 0.726 |
+| naive_rag | 0.633 | 0.684 | 190/300 | 0.160 | 1.43e-4 | 1.059 |
+| rule_based | 0.623 | 0.675 | 187/300 | 0.150 | 4.48e-4 | 1.006 |
+| max_tools | 0.637 | 0.688 | 191/300 | 0.137 | 6.85e-4 | 0.964 |
 
-### HotpotQA (n=25; only discriminative split)
-
-| Policy | EM | F1 | n_correct | abstain | mean reward |
-|---|---:|---:|---:|---:|---:|
-| naive_rag | 0.160 | 0.221 | 4/25 | 0.480 | 0.396 |
-| rule_based | 0.120 | 0.181 | 3/25 | 0.520 | 0.313 |
-| max_tools | 0.200 | 0.264 | 5/25 | 0.400 | 0.358 |
-
-### Natural Questions (n=15; saturated)
+### HotpotQA (n=150; ranking split)
 
 | Policy | EM | F1 | n_correct | abstain | mean reward |
 |---|---:|---:|---:|---:|---:|
-| naive_rag | 0.933 | 0.933 | 14/15 | 0.067 | 1.441 |
-| rule_based | 0.933 | 0.933 | 14/15 | 0.067 | 1.399 |
-| max_tools | 0.933 | 0.933 | 14/15 | 0.067 | 1.338 |
+| naive_rag | 0.307 | 0.393 | 46/150 | 0.313 | 0.635 |
+| rule_based | 0.287 | 0.374 | 43/150 | 0.300 | 0.568 |
+| max_tools | 0.320 | 0.406 | 48/150 | 0.267 | 0.556 |
 
-NQ is identical across policies. That is expected given answer-anchor passages (`The answer is {ans}`). NQ currently cannot rank policies.
+### Natural Questions (n=150; saturated)
 
-Pilot console print and `plot_results.py` (`policy_by_dataset.png`) use the same split. Full interpretation: [`docs/RESULTS.md`](docs/RESULTS.md). Eval contract: [`docs/IMPLEMENTATION_DECISIONS.md`](docs/IMPLEMENTATION_DECISIONS.md).
+| Policy | EM | F1 | n_correct | abstain | mean reward |
+|---|---:|---:|---:|---:|---:|
+| naive_rag | 0.960 | 0.974 | 144/150 | 0.007 | 1.482 |
+| rule_based | 0.960 | 0.977 | 144/150 | 0.000 | 1.443 |
+| max_tools | 0.953 | 0.970 | 143/150 | 0.007 | 1.372 |
+
+NQ cannot rank policies. Extra tools mainly add cost, so overall reward still ranks naive > rule > max_tools.
+
+### Reward-weight ablation (not a ranking table)
+
+Fixed `rule_based` policy, **stratified 100** from the same 300-file (50 Hotpot + 50 NQ). EM/F1/$ stay flat; only the scalar reward changes. Source: `results/metrics/reward_ablation_table.json`.
+
+| Preset | overall reward | Hotpot reward | NQ reward |
+|---|---:|---:|---:|
+| correctness_only | 0.624 | 0.299 | 0.949 |
+| correctness_grounding | 0.949 | 0.549 | 1.348 |
+| correctness_faithfulness_cost | 0.947 | 0.514 | 1.380 |
+| default | 0.977 | 0.535 | 1.418 |
+| lambda_zero | 0.978 | 0.536 | 1.420 |
+| high_cost_pressure | 0.952 | 0.473 | 1.430 |
+
+Full interpretation: [`docs/RESULTS.md`](docs/RESULTS.md). Eval contract: [`docs/IMPLEMENTATION_DECISIONS.md`](docs/IMPLEMENTATION_DECISIONS.md).
 
 <details>
 <summary>Legacy extractive, 40-ex, pipeline sanity only (different generator; do not compare to the table above)</summary>
