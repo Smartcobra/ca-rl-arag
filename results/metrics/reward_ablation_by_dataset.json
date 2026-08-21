@@ -1,0 +1,150 @@
+{
+  "hotpot_qa": {
+    "default": {
+      "mean_em": 0.26,
+      "mean_f1": 0.3377777777777778,
+      "mean_reward": 0.5349206159297522,
+      "mean_total_usd": 0.000466028,
+      "mean_n_retrieve": 1.0,
+      "usd_per_correct": 0.0017924153846153846,
+      "n_examples": 50.0,
+      "n_correct": 13.0,
+      "n_abstained": 18.0,
+      "abstain_rate": 0.36
+    },
+    "correctness_only": {
+      "mean_em": 0.26,
+      "mean_f1": 0.3377777777777778,
+      "mean_reward": 0.29888888888888887,
+      "mean_total_usd": 0.000466028,
+      "mean_n_retrieve": 1.0,
+      "usd_per_correct": 0.0017924153846153846,
+      "n_examples": 50.0,
+      "n_correct": 13.0,
+      "n_abstained": 18.0,
+      "abstain_rate": 0.36
+    },
+    "correctness_grounding": {
+      "mean_em": 0.26,
+      "mean_f1": 0.3377777777777778,
+      "mean_reward": 0.5493222222222223,
+      "mean_total_usd": 0.000466028,
+      "mean_n_retrieve": 1.0,
+      "usd_per_correct": 0.0017924153846153846,
+      "n_examples": 50.0,
+      "n_correct": 13.0,
+      "n_abstained": 18.0,
+      "abstain_rate": 0.36
+    },
+    "correctness_faithfulness_cost": {
+      "mean_em": 0.26,
+      "mean_f1": 0.3377777777777778,
+      "mean_reward": 0.5135663872697122,
+      "mean_total_usd": 0.000466028,
+      "mean_n_retrieve": 1.0,
+      "usd_per_correct": 0.0017924153846153846,
+      "n_examples": 50.0,
+      "n_correct": 13.0,
+      "n_abstained": 18.0,
+      "abstain_rate": 0.36
+    },
+    "lambda_zero": {
+      "mean_em": 0.26,
+      "mean_f1": 0.3377777777777778,
+      "mean_reward": 0.5363811702222222,
+      "mean_total_usd": 0.000466028,
+      "mean_n_retrieve": 1.0,
+      "usd_per_correct": 0.0017924153846153846,
+      "n_examples": 50.0,
+      "n_correct": 13.0,
+      "n_abstained": 18.0,
+      "abstain_rate": 0.36
+    },
+    "high_cost_pressure": {
+      "mean_em": 0.26,
+      "mean_f1": 0.3377777777777778,
+      "mean_reward": 0.4731901421640221,
+      "mean_total_usd": 0.000466028,
+      "mean_n_retrieve": 1.0,
+      "usd_per_correct": 0.0017924153846153846,
+      "n_examples": 50.0,
+      "n_correct": 13.0,
+      "n_abstained": 18.0,
+      "abstain_rate": 0.36
+    }
+  },
+  "natural_questions": {
+    "default": {
+      "mean_em": 0.94,
+      "mean_f1": 0.9572307692307692,
+      "mean_reward": 1.4182759780663305,
+      "mean_total_usd": 0.00043784000000000005,
+      "mean_n_retrieve": 1.0,
+      "usd_per_correct": 0.00046578723404255325,
+      "n_examples": 50.0,
+      "n_correct": 47.0,
+      "n_abstained": 0.0,
+      "abstain_rate": 0.0
+    },
+    "correctness_only": {
+      "mean_em": 0.94,
+      "mean_f1": 0.9572307692307692,
+      "mean_reward": 0.9486153846153846,
+      "mean_total_usd": 0.00043784000000000005,
+      "mean_n_retrieve": 1.0,
+      "usd_per_correct": 0.00046578723404255325,
+      "n_examples": 50.0,
+      "n_correct": 47.0,
+      "n_abstained": 0.0,
+      "abstain_rate": 0.0
+    },
+    "correctness_grounding": {
+      "mean_em": 0.94,
+      "mean_f1": 0.9572307692307692,
+      "mean_reward": 1.3477692307692306,
+      "mean_total_usd": 0.00043784000000000005,
+      "mean_n_retrieve": 1.0,
+      "usd_per_correct": 0.00046578723404255325,
+      "n_examples": 50.0,
+      "n_correct": 47.0,
+      "n_abstained": 0.0,
+      "abstain_rate": 0.0
+    },
+    "correctness_faithfulness_cost": {
+      "mean_em": 0.94,
+      "mean_f1": 0.9572307692307692,
+      "mean_reward": 1.3795441057550608,
+      "mean_total_usd": 0.00043784000000000005,
+      "mean_n_retrieve": 1.0,
+      "usd_per_correct": 0.00046578723404255325,
+      "n_examples": 50.0,
+      "n_correct": 47.0,
+      "n_abstained": 0.0,
+      "abstain_rate": 0.0
+    },
+    "lambda_zero": {
+      "mean_em": 0.94,
+      "mean_f1": 0.9572307692307692,
+      "mean_reward": 1.4196476227692307,
+      "mean_total_usd": 0.00043784000000000005,
+      "mean_n_retrieve": 1.0,
+      "usd_per_correct": 0.00046578723404255325,
+      "n_examples": 50.0,
+      "n_correct": 47.0,
+      "n_abstained": 0.0,
+      "abstain_rate": 0.0
+    },
+    "high_cost_pressure": {
+      "mean_em": 0.94,
+      "mean_f1": 0.9572307692307692,
+      "mean_reward": 1.4301027874844707,
+      "mean_total_usd": 0.00043784000000000005,
+      "mean_n_retrieve": 1.0,
+      "usd_per_correct": 0.00046578723404255325,
+      "n_examples": 50.0,
+      "n_correct": 47.0,
+      "n_abstained": 0.0,
+      "abstain_rate": 0.0
+    }
+  }
+}

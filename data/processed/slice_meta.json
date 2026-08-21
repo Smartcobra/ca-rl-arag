@@ -1,16 +1,28 @@
 {
   "source": "huggingface_nq_hotpot",
+  "seed": 42,
   "n_train": 100,
-  "n_eval": 50,
-  "n_passages": 911,
+  "n_eval": 300,
+  "n_passages": 2276,
+  "train_target": {
+    "hotpot_qa": 60,
+    "natural_questions": 40
+  },
+  "eval_target": {
+    "hotpot_qa": 150,
+    "natural_questions": 150
+  },
   "train_by_dataset": {
     "hotpot_qa": 60,
     "natural_questions": 40
   },
   "eval_by_dataset": {
-    "hotpot_qa": 25,
-    "natural_questions": 25
+    "hotpot_qa": 150,
+    "natural_questions": 150
   },
+  "nq_corpus": "answer_anchor_passages",
+  "nq_ceiling_note": "NQ EM near 1.0 is the answer-anchor ceiling, not a policy result",
+  "ranking": "deferred_until_hotpot_n_approx_150_read_separately",
   "paths": {
     "train": "/content/drive/MyDrive/carlarag/ca-rl-arag/data/processed/train_slice.jsonl",
     "eval": "/content/drive/MyDrive/carlarag/ca-rl-arag/data/processed/eval_slice.jsonl",
