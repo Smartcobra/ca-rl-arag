@@ -2,7 +2,7 @@
   "default": {
     "mean_em": 0.69,
     "mean_f1": 0.7407380952380953,
-    "mean_reward": 1.0203919596996975,
+    "mean_reward": 1.0204211553479225,
     "mean_total_usd": 0.000469991,
     "mean_n_retrieve": 1.0,
     "usd_per_correct": 0.0006811463768115943,
@@ -14,7 +14,7 @@
       "hotpot_qa": {
         "mean_em": 0.4,
         "mean_f1": 0.4843333333333333,
-        "mean_reward": 0.5736460883697467,
+        "mean_reward": 0.5736975292795267,
         "mean_total_usd": 0.00048257000000000004,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0012064250000000001,
@@ -26,7 +26,7 @@
       "natural_questions": {
         "mean_em": 0.98,
         "mean_f1": 0.9971428571428571,
-        "mean_reward": 1.4671378310296483,
+        "mean_reward": 1.4671447814163185,
         "mean_total_usd": 0.00045741200000000003,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0004667469387755102,
@@ -116,7 +116,7 @@
   "correctness_faithfulness_cost": {
     "mean_em": 0.69,
     "mean_f1": 0.7407380952380953,
-    "mean_reward": 0.9974512263625523,
+    "mean_reward": 0.9974504458188826,
     "mean_total_usd": 0.000469991,
     "mean_n_retrieve": 1.0,
     "usd_per_correct": 0.0006811463768115943,
@@ -128,7 +128,7 @@
       "hotpot_qa": {
         "mean_em": 0.4,
         "mean_f1": 0.4843333333333333,
-        "mean_reward": 0.5706679852030765,
+        "mean_reward": 0.5706645510975367,
         "mean_total_usd": 0.00048257000000000004,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0012064250000000001,
@@ -140,7 +140,7 @@
       "natural_questions": {
         "mean_em": 0.98,
         "mean_f1": 0.9971428571428571,
-        "mean_reward": 1.424234467522028,
+        "mean_reward": 1.4242363405402287,
         "mean_total_usd": 0.00045741200000000003,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0004667469387755102,
@@ -192,7 +192,7 @@
   "high_cost_pressure": {
     "mean_em": 0.69,
     "mean_f1": 0.7407380952380953,
-    "mean_reward": 1.0019646081790468,
+    "mean_reward": 1.0019707638003081,
     "mean_total_usd": 0.000469991,
     "mean_n_retrieve": 1.0,
     "usd_per_correct": 0.0006811463768115943,
@@ -204,7 +204,7 @@
       "hotpot_qa": {
         "mean_em": 0.4,
         "mean_f1": 0.4843333333333333,
-        "mean_reward": 0.5197230821594662,
+        "mean_reward": 0.5197175008476269,
         "mean_total_usd": 0.00048257000000000004,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0012064250000000001,
@@ -216,7 +216,7 @@
       "natural_questions": {
         "mean_em": 0.98,
         "mean_f1": 0.9971428571428571,
-        "mean_reward": 1.4842061341986272,
+        "mean_reward": 1.4842240267529894,
         "mean_total_usd": 0.00045741200000000003,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0004667469387755102,
