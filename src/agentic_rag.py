@@ -142,7 +142,7 @@ class AgenticRAG:
             # Ensure draft exists
             if not state.draft_answer:
                 t_g = timed()
-                ans, mode, usage = self.generator.generate(state.question, state.evidence, allow_abstain=True)
+                ans, mode, usage = self.generator.generate(state.question, state.evidence)
                 tracker.price_generate(ms_since(t_g), usage["prompt_tokens"], usage["completion_tokens"], action="stop")
                 state.draft_answer = ans
                 info["draft_created"] = True
@@ -156,7 +156,7 @@ class AgenticRAG:
 
         elif action == "stop":
             t0 = timed()
-            ans, mode, usage = self.generator.generate(state.question, state.evidence, allow_abstain=True)
+            ans, mode, usage = self.generator.generate(state.question, state.evidence)
             # If verify suggested contradiction / low support, prefer abstain
             if state.verify_out:
                 if state.verify_out.get("label") == "contradiction" or (

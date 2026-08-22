@@ -48,48 +48,71 @@ python scripts/run_reward_ablation.py
 
 ## Pilot results (snapshot)
 
-**Not a ranking.** Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**, corpus 2276 passages (`data/processed/slice_meta.json`).
+Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**, corpus 2276 passages (`data/processed/slice_meta.json`). BM25 + lexical NLI.
 
-Read **Hotpot**, not Overall. NQ is near-ceiling from answer-anchor passages (`The answer is {ans}`). Overall EM is mix-weighted. Hotpot is 43–48 / 150 (gaps of a few items). NQ is 143–144 / 150 and almost flat.
+**Comparison in one line:** on Hotpot, `max_tools` is the worst frozen policy, not a quality ceiling. Extra retrieve/rewrite/rerank/verify cost ~4.7× naive and **lose** exact matches (37 → 34 / 150). Reward ranks **naive > rule > max_tools** because quality is flat-to-worse while spend is not.
 
-### Overall (mix-weighted headline)
-
-| Policy | EM | F1 | n_correct | abstain | mean $ | mean reward |
-|---|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.633 | 0.684 | 190/300 | 0.160 | 1.43e-4 | 1.059 |
-| rule_based | 0.623 | 0.675 | 187/300 | 0.150 | 4.48e-4 | 1.006 |
-| max_tools | 0.637 | 0.688 | 191/300 | 0.137 | 6.85e-4 | 0.964 |
+Read **Hotpot**, not Overall. NQ is near-ceiling from answer-anchor passages (`The answer is {ans}`). Overall EM is mix-weighted and hides the ranking split.
 
 ### HotpotQA (n=150; ranking split)
 
-| Policy | EM | F1 | n_correct | abstain | mean reward |
-|---|---:|---:|---:|---:|---:|
-| naive_rag | 0.307 | 0.393 | 46/150 | 0.313 | 0.635 |
-| rule_based | 0.287 | 0.374 | 43/150 | 0.300 | 0.568 |
-| max_tools | 0.320 | 0.406 | 48/150 | 0.267 | 0.556 |
+| Policy | EM | F1 | n_correct | abstain | mean $ | mean reward |
+|---|---:|---:|---:|---:|---:|---:|
+| naive_rag | **0.247** | **0.298** | **37/150** | 0.493 | 1.56e-4 | **0.551** |
+| rule_based | 0.233 | 0.288 | 35/150 | 0.507 | 4.73e-4 | 0.494 |
+| max_tools | 0.227 | 0.285 | 34/150 | 0.493 | 7.12e-4 | 0.435 |
+
+`max_tools` vs `naive_rag` on Hotpot is **4 regressions / 1 recovery** (net −3 EM). All four losses had evidence reordered or swapped after the unconditional rewrite + 3rd retrieve + rerank (on the rewritten query). When the top-5 passages stayed identical to naive (74/150), EM matched naive exactly (0.270). When they changed, max EM dropped. The second retrieve is a no-op (same query → same top-5 on 150/150). Rewrite changed the query on 147/150 Hotpot items and only once recovered a miss (Usher); one rewrite injected a distractor (*Crime and Punishment*) and flipped 1866 → 2011.
+
+`max_tools` is a **high-cost reference**, not a better agent. Unconditional tools pollute context; they do not search more carefully.
+
+### Overall (mix-weighted; do not rank from this)
+
+| Policy | EM | F1 | n_correct | abstain | mean $ | mean steps | mean reward |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| naive_rag | 0.583 | 0.612 | 175/300 | 0.280 | 1.48e-4 | 2.0 | 0.989 |
+| rule_based | 0.573 | 0.604 | 172/300 | 0.290 | 4.59e-4 | 4.0 | 0.936 |
+| max_tools | 0.567 | 0.600 | 170/300 | 0.283 | 6.95e-4 | 7.0 | 0.872 |
 
 ### Natural Questions (n=150; saturated)
 
-| Policy | EM | F1 | n_correct | abstain | mean reward |
-|---|---:|---:|---:|---:|---:|
-| naive_rag | 0.960 | 0.974 | 144/150 | 0.007 | 1.482 |
-| rule_based | 0.960 | 0.977 | 144/150 | 0.000 | 1.443 |
-| max_tools | 0.953 | 0.970 | 143/150 | 0.007 | 1.372 |
+| Policy | EM | F1 | n_correct | abstain | mean $ | mean reward |
+|---|---:|---:|---:|---:|---:|---:|
+| naive_rag | 0.920 | 0.925 | 138/150 | 0.067 | 1.40e-4 | 1.427 |
+| rule_based | 0.913 | 0.919 | 137/150 | 0.073 | 4.45e-4 | 1.377 |
+| max_tools | 0.907 | 0.915 | 136/150 | 0.073 | 6.77e-4 | 1.310 |
 
-NQ cannot rank policies. Extra tools mainly add cost, so overall reward still ranks naive > rule > max_tools.
+### Cost and action mix
+
+| Policy | retrieve | rewrite | rerank | verify | mean $ | latency | tokens |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.48e-4 | 496 ms | 640 |
+| rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 4.59e-4 | 1032 ms | 1300 |
+| max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 6.95e-4 | 1819 ms | 1665 |
+
+### What the three policies show
+
+- **Hotpot quality:** `max_tools` is last (34/150), then rule (35), then naive (37). Extra tools are a quality **regression**, not a ceiling. Three of the four naive→max losses became ABSTAIN after context shuffle.
+- **Cost:** spend scales with the frozen scripts (~1× / 3.1× / 4.7× mean $). Latency and tokens follow the same order. The 2nd retrieve in `max_tools` never changes the hit list.
+- **Reward:** λ/$ plus slightly worse EM: naive 0.989 > rule 0.936 > max_tools 0.872 (Hotpot 0.551 > 0.494 > 0.435).
+- **Grounding vs cost:** `max_tools` has the highest overall `Q_ground` (0.790 vs 0.784 / 0.778) and still fewer gold answers. More passages ≠ better answers when rewrite/rerank reorder the prompt.
+- **Abstain:** Hotpot abstain is ~49–51% for all three (parser/policy mix). NQ abstain is ~7%.
+- **NQ cannot rank policies.** Extra tools mainly add cost on an answer-anchor ceiling (and still lose 2 EM net vs naive).
+
+Milestone 3 takeaway: a learned controller must **select** tools. Always-on `max_tools` is the wrong operating point on Hotpot.
 
 ### Reward-weight ablation (not a ranking table)
 
-Fixed `rule_based` policy, **stratified 100** from the same 300-file (50 Hotpot + 50 NQ). EM/F1/$ stay flat; only the scalar reward changes. Source: `results/metrics/reward_ablation_table.json`.
+Fixed `rule_based` policy, **stratified 100** from the same 300-file (50 Hotpot + 50 NQ). EM/F1/$ stay flat (EM 0.56); only the scalar reward changes. Source: `results/metrics/reward_ablation_table.json`.
 
 | Preset | overall reward | Hotpot reward | NQ reward |
 |---|---:|---:|---:|
-| correctness_only | 0.624 | 0.299 | 0.949 |
-| correctness_grounding | 0.949 | 0.549 | 1.348 |
-| correctness_faithfulness_cost | 0.947 | 0.514 | 1.380 |
-| default | 0.977 | 0.535 | 1.418 |
-| lambda_zero | 0.978 | 0.536 | 1.420 |
-| high_cost_pressure | 0.952 | 0.473 | 1.430 |
+| correctness_only | 0.567 | 0.213 | 0.920 |
+| correctness_grounding | 0.868 | 0.427 | 1.308 |
+| correctness_faithfulness_cost | 0.862 | 0.386 | 1.338 |
+| default | 0.912 | 0.440 | 1.383 |
+| lambda_zero | 0.913 | 0.441 | 1.385 |
+| high_cost_pressure | 0.889 | 0.383 | 1.396 |
 
 Full interpretation: [`docs/RESULTS.md`](docs/RESULTS.md). Eval contract: [`docs/IMPLEMENTATION_DECISIONS.md`](docs/IMPLEMENTATION_DECISIONS.md).
 

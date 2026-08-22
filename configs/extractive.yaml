@@ -42,6 +42,8 @@ generation:
   model_name: null
   max_answer_tokens: 64
   temperature: 0.0
+  allow_abstain: true
+  force_yes_no: true
 
 verification:
   backend: lexical_nli

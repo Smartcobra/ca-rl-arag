@@ -52,6 +52,11 @@ generation:
   device: auto          # auto | cuda | mps | cpu
   max_input_tokens: 2048
   torch_dtype: auto     # auto | float16 | bfloat16 | float32
+  # allow_abstain: true keeps ABSTAIN for span questions when evidence cannot support any answer.
+  # Set false (or run_pilot.py --no-abstain) for the refusal ablation.
+  allow_abstain: true
+  # Comparison questions (Are/Were/Do …?) must emit yes or no — never ABSTAIN.
+  force_yes_no: true
 
 verification:
   # LOCKED DECISION (V1): NLI-style claim support, not LLM-as-judge.

@@ -53,9 +53,16 @@ def main() -> None:
     )
     parser.add_argument("--policies", default="naive_rag,rule_based,max_tools")
     parser.add_argument("--run-env-check", action="store_true", help="Roll a few Gymnasium episodes")
+    parser.add_argument(
+        "--no-abstain",
+        action="store_true",
+        help="Refusal ablation: never emit ABSTAIN (generation.allow_abstain=false).",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config, reward_preset=args.reward_preset)
+    if args.no_abstain:
+        cfg.setdefault("generation", {})["allow_abstain"] = False
     set_seed(int(cfg["experiment"]["seed"]))
 
     corpus = read_jsonl(resolve_path(cfg, cfg["data"]["corpus_file"]))
