@@ -86,12 +86,16 @@ def test_yes_no_questions() -> None:
         "Are the Laleli Mosque and Esma Sultan Mansion located in the same neighborhood?",
         "Do the drinks Gibson and Zurracapote both contain gin?",
         "Are both Dictyosperma, and Huernia described as a genus?",
+        "Is there a difference between Local H and For Against?",
     ]
     not_yn = [
         "What science fantasy young adult series, told in first person, has companion books?",
         "Who was known by his stage name Aladin?",
         "In what city did the Prince of tenors star in a film?",
         "How are Local H and For Against related?",
+        "is there a name for the at symbol",
+        "Is there a word for the @ sign?",
+        "Is there any term for the at symbol",
     ]
     for q in yn:
         assert is_yes_no_question(q), q

@@ -19,12 +19,27 @@ _YES_NO_AUX = re.compile(
 )
 _YES_WORD = re.compile(r"^yes\b", re.IGNORECASE)
 _NO_WORD = re.compile(r"^no\b", re.IGNORECASE)
+# "is there a name for X" asks for a noun, not yes/no.
+_NAME_SEEKING = re.compile(
+    r"^(is|are|was|were)\s+there\s+(a|an|any)\s+(name|word|term|title|called)\b",
+    re.IGNORECASE,
+)
+_EXISTENTIAL_THERE = re.compile(r"^(is|are|was|were)\s+there\b", re.IGNORECASE)
+_COMPARISON_CUE = re.compile(r"\b(and|both|same)\b", re.IGNORECASE)
 
 
 def is_yes_no_question(question: str) -> bool:
-    """Hotpot-style comparison questions: Are/Were/Do X and Y …? not WH-questions."""
+    """Polar / Hotpot comparison questions only — not name-seeking existentials.
+
+    ``is there a name for the at symbol`` is a span question. ``Are X and Y
+    both plants?`` is yes/no.
+    """
     q = (question or "").strip()
     if not q or _WH_QUESTION.match(q):
+        return False
+    if _NAME_SEEKING.match(q):
+        return False
+    if _EXISTENTIAL_THERE.match(q) and not _COMPARISON_CUE.search(q):
         return False
     return bool(_YES_NO_AUX.match(q))
 

@@ -48,71 +48,70 @@ python scripts/run_reward_ablation.py
 
 ## Pilot results (snapshot)
 
-Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**, corpus 2276 passages (`data/processed/slice_meta.json`). BM25 + lexical NLI.
+Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**, corpus 2276 passages. BM25 + lexical NLI. This run includes **forced yes/no** and a **tighter ABSTAIN prompt** (`force_yes_no: true`, `allow_abstain: true`).
 
-**Comparison in one line:** on Hotpot, `max_tools` is the worst frozen policy, not a quality ceiling. Extra retrieve/rewrite/rerank/verify cost ~4.7× naive and **lose** exact matches (37 → 34 / 150). Reward ranks **naive > rule > max_tools** because quality is flat-to-worse while spend is not.
+**Comparison in one line:** after the abstain fix, Hotpot quality is nearly tied (60 / 58 / 59). Extra tools still do not beat naive. Reward ranks **naive > rule > max_tools** because spend is ~1× / 3.1× / 4.6×.
 
-Read **Hotpot**, not Overall. NQ is near-ceiling from answer-anchor passages (`The answer is {ans}`). Overall EM is mix-weighted and hides the ranking split.
+Read **Hotpot**, not Overall. NQ is saturated (147/150, 0 abstain) from answer-anchor passages.
 
 ### HotpotQA (n=150; ranking split)
 
-| Policy | EM | F1 | n_correct | abstain | mean $ | mean reward |
-|---|---:|---:|---:|---:|---:|---:|
-| naive_rag | **0.247** | **0.298** | **37/150** | 0.493 | 1.56e-4 | **0.551** |
-| rule_based | 0.233 | 0.288 | 35/150 | 0.507 | 4.73e-4 | 0.494 |
-| max_tools | 0.227 | 0.285 | 34/150 | 0.493 | 7.12e-4 | 0.435 |
+| Policy | EM | F1 | n_correct | n_abstained | abstain | mean $ | mean reward |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| naive_rag | **0.400** | 0.488 | **60/150** | 20 | 0.133 | 1.60e-4 | **0.691** |
+| rule_based | 0.387 | 0.481 | 58/150 | 17 | 0.113 | 4.81e-4 | 0.628 |
+| max_tools | 0.393 | **0.494** | 59/150 | 19 | 0.127 | 7.20e-4 | 0.593 |
 
-`max_tools` vs `naive_rag` on Hotpot is **4 regressions / 1 recovery** (net −3 EM). All four losses had evidence reordered or swapped after the unconditional rewrite + 3rd retrieve + rerank (on the rewritten query). When the top-5 passages stayed identical to naive (74/150), EM matched naive exactly (0.270). When they changed, max EM dropped. The second retrieve is a no-op (same query → same top-5 on 150/150). Rewrite changed the query on 147/150 Hotpot items and only once recovered a miss (Usher); one rewrite injected a distractor (*Crime and Punishment*) and flipped 1866 → 2011.
+`max_tools` vs naive is **2 regressions / 1 recovery** (net −1). Yes/no items: **0/14 abstain**, 9/14 EM (model biased to `no`).
 
-`max_tools` is a **high-cost reference**, not a better agent. Unconditional tools pollute context; they do not search more carefully.
+Versus the previous Qwen 300-run (hedge-heavy prompt): naive Hotpot **37 → 60**, abstain **74 → 20**. The jump is refusal, not tools.
 
 ### Overall (mix-weighted; do not rank from this)
 
-| Policy | EM | F1 | n_correct | abstain | mean $ | mean steps | mean reward |
+| Policy | EM | F1 | n_correct | n_abstained | mean $ | mean steps | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.583 | 0.612 | 175/300 | 0.280 | 1.48e-4 | 2.0 | 0.989 |
-| rule_based | 0.573 | 0.604 | 172/300 | 0.290 | 4.59e-4 | 4.0 | 0.936 |
-| max_tools | 0.567 | 0.600 | 170/300 | 0.283 | 6.95e-4 | 7.0 | 0.872 |
+| naive_rag | 0.690 | 0.740 | 207/300 | 20 | 1.52e-4 | 2.0 | 1.096 |
+| rule_based | 0.683 | 0.736 | 205/300 | 17 | 4.67e-4 | 4.0 | 1.046 |
+| max_tools | 0.687 | 0.743 | 206/300 | 19 | 7.03e-4 | 7.0 | 0.998 |
 
 ### Natural Questions (n=150; saturated)
 
-| Policy | EM | F1 | n_correct | abstain | mean $ | mean reward |
+| Policy | EM | F1 | n_correct | n_abstained | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.920 | 0.925 | 138/150 | 0.067 | 1.40e-4 | 1.427 |
-| rule_based | 0.913 | 0.919 | 137/150 | 0.073 | 4.45e-4 | 1.377 |
-| max_tools | 0.907 | 0.915 | 136/150 | 0.073 | 6.77e-4 | 1.310 |
+| naive_rag | 0.980 | 0.991 | 147/150 | 0 | 1.45e-4 | 1.501 |
+| rule_based | 0.980 | 0.991 | 147/150 | 0 | 4.53e-4 | 1.464 |
+| max_tools | 0.980 | 0.991 | 147/150 | 0 | 6.85e-4 | 1.403 |
 
 ### Cost and action mix
 
 | Policy | retrieve | rewrite | rerank | verify | mean $ | latency | tokens |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.48e-4 | 496 ms | 640 |
-| rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 4.59e-4 | 1032 ms | 1300 |
-| max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 6.95e-4 | 1819 ms | 1665 |
+| naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.52e-4 | 506 ms | 666 |
+| rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 4.67e-4 | 1078 ms | 1351 |
+| max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 7.03e-4 | 1862 ms | 1717 |
 
 ### What the three policies show
 
-- **Hotpot quality:** `max_tools` is last (34/150), then rule (35), then naive (37). Extra tools are a quality **regression**, not a ceiling. Three of the four naive→max losses became ABSTAIN after context shuffle.
-- **Cost:** spend scales with the frozen scripts (~1× / 3.1× / 4.7× mean $). Latency and tokens follow the same order. The 2nd retrieve in `max_tools` never changes the hit list.
-- **Reward:** λ/$ plus slightly worse EM: naive 0.989 > rule 0.936 > max_tools 0.872 (Hotpot 0.551 > 0.494 > 0.435).
-- **Grounding vs cost:** `max_tools` has the highest overall `Q_ground` (0.790 vs 0.784 / 0.778) and still fewer gold answers. More passages ≠ better answers when rewrite/rerank reorder the prompt.
-- **Abstain:** Hotpot abstain is ~49–51% for all three (parser/policy mix). NQ abstain is ~7%.
-- **NQ cannot rank policies.** Extra tools mainly add cost on an answer-anchor ceiling (and still lose 2 EM net vs naive).
+- **Hotpot quality is now a 1–2 hit race** (60 / 58 / 59). `max_tools` is not a ceiling; it is also not the clear last-place collapse from the hedge-heavy run.
+- **Abstain dropped** from ~50% to ~12–13% on Hotpot. `n_abstained` is 20 / 17 / 19. NQ abstain is 0.
+- **Cost still decides reward:** naive 1.096 > rule 1.046 > max_tools 0.998 (Hotpot 0.691 > 0.628 > 0.593).
+- **NQ cannot rank policies.** All three are 147/150.
+- **Yes/no force works as a refuse-fix, not as accuracy:** 14/14 now answer; 9/14 correct; 13 of 14 predictions are `no`.
 
-Milestone 3 takeaway: a learned controller must **select** tools. Always-on `max_tools` is the wrong operating point on Hotpot.
+Milestone 3 takeaway: a learned controller must **select** tools. Quality is no longer hidden under 50% abstain; extra tools still do not pay for themselves.
 
 ### Reward-weight ablation (not a ranking table)
 
-Fixed `rule_based` policy, **stratified 100** from the same 300-file (50 Hotpot + 50 NQ). EM/F1/$ stay flat (EM 0.56); only the scalar reward changes. Source: `results/metrics/reward_ablation_table.json`.
+Fixed `rule_based` policy, **stratified 100** from the same 300-file (50 Hotpot + 50 NQ). EM/F1/$ stay flat (EM 0.69); only the scalar reward changes. Source: `results/metrics/reward_ablation_table.json`.
 
 | Preset | overall reward | Hotpot reward | NQ reward |
 |---|---:|---:|---:|
-| correctness_only | 0.567 | 0.213 | 0.920 |
-| correctness_grounding | 0.868 | 0.427 | 1.308 |
-| correctness_faithfulness_cost | 0.862 | 0.386 | 1.338 |
-| default | 0.912 | 0.440 | 1.383 |
-| lambda_zero | 0.913 | 0.441 | 1.385 |
-| high_cost_pressure | 0.889 | 0.383 | 1.396 |
+| correctness_only | 0.715 | 0.442 | 0.989 |
+| correctness_grounding | 0.991 | 0.593 | 1.389 |
+| correctness_faithfulness_cost | 0.997 | 0.571 | 1.424 |
+| default | 1.020 | 0.574 | 1.467 |
+| lambda_zero | 1.022 | 0.575 | 1.469 |
+| high_cost_pressure | 1.002 | 0.520 | 1.484 |
 
 Full interpretation: [`docs/RESULTS.md`](docs/RESULTS.md). Eval contract: [`docs/IMPLEMENTATION_DECISIONS.md`](docs/IMPLEMENTATION_DECISIONS.md).
 
