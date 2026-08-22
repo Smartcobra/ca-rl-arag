@@ -48,7 +48,7 @@ class RAGBaseline:
             action="stop",
         )
 
-        abstained = mode == "abstain" or answer.upper() == "ABSTAIN"
+        abstained = mode == "abstain"
         budget = {
             "max_usd": float(self.cfg.get("budget", {}).get("max_usd", 0.05)),
             "violated": tracker.total_usd > float(self.cfg.get("budget", {}).get("max_usd", 0.05)),

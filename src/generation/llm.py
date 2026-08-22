@@ -8,6 +8,72 @@ from typing import Any
 
 from ..utils import tokenize, truncate
 
+_ANSWER_PREFIXES = ("Answer:", "Final answer:", "A:")
+_PURE_ABSTAIN = re.compile(r"^ABSTAIN[.:!?]*$", re.IGNORECASE)
+_TRAILING_ABSTAIN = re.compile(r"(?:\s+)ABSTAIN[.:!?]*\s*$", re.IGNORECASE)
+_LEADING_ABSTAIN = re.compile(r"^ABSTAIN\b", re.IGNORECASE)
+
+
+def parse_answer_or_abstain(
+    text: str,
+    allow_abstain: bool = True,
+    max_chars: int = 200,
+) -> tuple[str, str]:
+    """Parse generator output as exclusive XOR: a clean span or ABSTAIN, never both.
+
+    Trailing ``ABSTAIN`` is stripped and the remainder is kept as an answer
+    (the model answered, then hedged). A leading ``ABSTAIN`` is a refuse.
+    The old ``answer.upper()[:20]`` substring check is intentionally gone:
+    it missed trailing leaks and kept mixed strings when evidence existed.
+    """
+    def _abstain() -> tuple[str, str]:
+        return ("ABSTAIN", "abstain") if allow_abstain else ("", "answer")
+
+    raw = (text or "").strip()
+    if not raw:
+        return _abstain()
+
+    raw, _ = _strip_trailing_abstain(raw)
+    answer = ""
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if stripped:
+            answer = stripped
+            break
+    answer = _strip_answer_prefixes(answer)
+    if not answer:
+        return _abstain()
+    if _PURE_ABSTAIN.match(answer):
+        return _abstain()
+
+    answer, had_trailing = _strip_trailing_abstain(answer)
+    if had_trailing:
+        if not answer:
+            return _abstain()
+        return truncate(answer, max_chars), "answer"
+    if _LEADING_ABSTAIN.match(answer):
+        return _abstain()
+    return truncate(answer, max_chars), "answer"
+
+
+def _strip_answer_prefixes(answer: str) -> str:
+    changed = True
+    while changed and answer:
+        changed = False
+        for prefix in _ANSWER_PREFIXES:
+            if answer.lower().startswith(prefix.lower()):
+                answer = answer[len(prefix) :].strip()
+                changed = True
+                break
+    return answer
+
+
+def _strip_trailing_abstain(text: str) -> tuple[str, bool]:
+    match = _TRAILING_ABSTAIN.search(text)
+    if not match:
+        return text, False
+    return text[: match.start()].rstrip(), True
+
 
 class ExtractiveGenerator:
     """Deterministic extractive QA for stable Milestone-2 baselines.
@@ -403,11 +469,18 @@ class HuggingFaceGenerator:
         allow_abstain: bool = True,
     ) -> tuple[str, str, dict[str, int]]:
         ev = self._format_evidence(evidence)
-        abstain_rule = (
-            'If evidence is insufficient, reply with exactly "ABSTAIN".'
-            if allow_abstain
-            else "Always give your best short answer from the evidence."
-        )
+        if allow_abstain:
+            abstain_rule = (
+                "Reply with either a short answer span or the single token ABSTAIN, never both. "
+                "Never append ABSTAIN after an answer. Never answer after ABSTAIN. "
+                "No explanation and no quotes. "
+                "If evidence is insufficient, reply with exactly ABSTAIN."
+            )
+        else:
+            abstain_rule = (
+                "Always give your best short answer from the evidence. "
+                "Do not reply with ABSTAIN."
+            )
         messages = [
             {
                 "role": "system",
@@ -424,17 +497,8 @@ class HuggingFaceGenerator:
             },
         ]
         text, usage = self._chat(messages, max_new_tokens=self.max_answer_tokens)
-        answer = text.splitlines()[0].strip() if text else ""
-        # Strip common prefixes
-        for prefix in ("Answer:", "Final answer:", "A:"):
-            if answer.lower().startswith(prefix.lower()):
-                answer = answer[len(prefix) :].strip()
-        if allow_abstain and (not answer or answer.upper() == "ABSTAIN" or "ABSTAIN" in answer.upper()[:20]):
-            if not evidence or answer.upper().startswith("ABSTAIN") or not answer:
-                return "ABSTAIN", "abstain", usage
-        if not answer:
-            return ("ABSTAIN", "abstain", usage) if allow_abstain else ("", "answer", usage)
-        return truncate(answer, 200), "answer", usage
+        answer, mode = parse_answer_or_abstain(text, allow_abstain=allow_abstain)
+        return answer, mode, usage
 
 
 def build_generator(cfg: dict[str, Any]):

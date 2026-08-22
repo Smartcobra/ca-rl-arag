@@ -202,7 +202,7 @@ class AgenticRAG:
             state, info = self.step(state, "stop", tracker)
             trajectory.append(info)
 
-        abstained = state.stop_mode == "abstain" or state.draft_answer.upper() == "ABSTAIN"
+        abstained = state.stop_mode == "abstain"
         budget = {
             "max_usd": float(self.cfg.get("budget", {}).get("max_usd", 0.05)),
             "violated": self.budget_exhausted(tracker),

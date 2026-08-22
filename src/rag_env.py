@@ -130,7 +130,7 @@ class AgenticRAGEnv(gym.Env):
         info: dict[str, Any] = {"action": action_name, "step_info": step_info}
 
         if terminated:
-            abstained = self._state.stop_mode == "abstain" or self._state.draft_answer.upper() == "ABSTAIN"
+            abstained = self._state.stop_mode == "abstain"
             budget = {
                 "max_usd": float(self.cfg.get("budget", {}).get("max_usd", 0.05)),
                 "violated": self.agent.budget_exhausted(self._tracker),
