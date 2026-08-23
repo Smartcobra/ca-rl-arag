@@ -3,7 +3,7 @@
 Source: `results/metrics/pilot_summary_default.json` and `results/trajectories/{baseline,rule_based,max_tools}_default.jsonl`.  
 Setup: Qwen2.5-3B-Instruct, `force_yes_no: true`, tighter ABSTAIN prompt, BM25, lexical NLI, 150 Natural Questions eval items. Corpus uses **answer-anchor passages** (`The answer is {ans}`), so NQ is a ceiling, not a retrieval ranking split.
 
-**Short answer:** on this run Max-Tools is **not worse on NQ quality**. EM, F1, and the three misses are identical to naive and rule-based. It is worse on **cost, latency, tokens, and reward** because it always fires unused tools. The extra retrieve/rewrite/rerank/verify do not flip answers; they add spend and sometimes shuffle distractors around an anchor that already contains the gold.
+**Short answer:** Max-Tools is **not worse on NQ quality**. EM/F1 match naive and rule (148/150 after the yes/no detector fix). It is worse on **cost, latency, tokens, and reward** because it always fires unused tools. The remaining two misses are the same `in …` span mismatch on all policies.
 
 ---
 
@@ -11,17 +11,17 @@ Setup: Qwen2.5-3B-Instruct, `force_yes_no: true`, tighter ABSTAIN prompt, BM25, 
 
 | Metric | naive_rag | rule_based | max_tools |
 |---|---:|---:|---:|
-| **EM** | 0.980 | 0.980 | 0.980 |
-| **F1** | 0.991 | 0.991 | 0.991 |
-| n_correct | 147/150 | 147/150 | 147/150 |
+| **EM** | 0.987 | 0.987 | 0.987 |
+| **F1** | 0.998 | 0.998 | 0.998 |
+| n_correct | 148/150 | 148/150 | 148/150 |
 | n_abstained | 0 | 0 | 0 |
 | Q_ans | 0.986 | 0.986 | 0.986 |
-| **Q_ground** | 0.997 | **1.000** | **1.000** |
-| Q_cal | 0.286 | 0.286 | 0.286 |
-| **P_hall** | 0.003 | **0.000** | **0.000** |
-| mean reward | **1.501** | 1.464 | 1.403 |
-| mean $ | **1.45e-4** | 4.53e-4 (3.1×) | 6.85e-4 (4.7×) |
-| latency | **500 ms** | 1021 ms | 1638 ms |
+| **Q_ground** | 1.000 | 1.000 | 1.000 |
+| Q_cal | 0.291 | 0.291 | 0.291 |
+| **P_hall** | 0.000 | 0.000 | 0.000 |
+| mean reward | **1.514** | 1.472 | 1.411 |
+| mean $ | **1.45e-4** | 4.54e-4 (3.1×) | 6.86e-4 (4.7×) |
+| latency | **492 ms** | 1031 ms | 1632 ms |
 | tokens | **616** | 1260 | 1584 |
 | retrieve | 1.0 | 1.0 | 3.0 |
 | rewrite | 0.0 | 0.0 | 1.0 |
@@ -29,7 +29,7 @@ Setup: Qwen2.5-3B-Instruct, `force_yes_no: true`, tighter ABSTAIN prompt, BM25, 
 | verify | 0.0 | 1.0 | 1.0 |
 | steps | 2.0 | 4.0 | 7.0 |
 
-Quality columns are the same to three decimals except grounding / hallucination, which differ on **one** item (`nq_eval_72`, below). Reward falls only because spend rises.
+Quality columns match to three decimals. Reward falls only because spend rises. The old `nq_eval_72` grounding/hall gap is gone: all three now predict `commercial at` (EM 1).
 
 Per-example EM/F1 vs naive:
 
@@ -38,13 +38,13 @@ Per-example EM/F1 vs naive:
 | Max EM worse than naive | **0** |
 | Max EM better than naive | **0** |
 | Max F1 worse than naive | **0** |
-| Max reward worse than naive | **149 / 150** |
+| Max reward worse than naive | **150 / 150** |
 
 There are no NQ cases where Max-Tools gets a worse answer than naive. “Worse” on NQ means **unnecessary actions and cost**, not a wrong span.
 
 ---
 
-## 2. The three NQ misses (shared by all policies)
+## 2. The two remaining NQ misses (shared by all policies)
 
 These are the only EM = 0 rows. Predictions match across naive / rule / max.
 
@@ -52,21 +52,12 @@ These are the only EM = 0 rows. Predictions match across naive / rule / max.
 |---|---|---|---|---|---|
 | `nq_eval_46` | where is lord's prayer found in bible | `in the Gospel of Luke` | `Gospel of Luke` | 0 / 0.86 | Span is right; gold wants the preposition `in …`. Metric, not tools. |
 | `nq_eval_63` | where does route 66 start on the west coast | `in Santa Monica` | `Santa Monica` | 0 / 0.80 | Same span-vs-`in …` mismatch. |
-| `nq_eval_72` | is there a name for the at symbol | `commercial at` / `at symbol` / `at sign` | `no` | 0 / 0.00 | **Yes/no force false positive.** Question starts with `is`, so all three policies must emit yes/no. Gold is a name. |
 
-None of these are Max-Tools-specific. Extra tools do not recover them.
+Neither is Max-Tools-specific. Extra tools do not recover them.
 
-### `nq_eval_72` is the only NQ grounding/hallucination gap
+### `nq_eval_72` is now a hit (yes/no detector)
 
-| Policy | pred | Q_ground | P_hall | reward |
-|---|---|---:|---:|---:|
-| naive | `no` | 0.50 | 0.455 | **−0.336** |
-| rule_based | `no` | 1.00 | 0.00 | 0.279 |
-| max_tools | `no` | 1.00 | 0.00 | 0.218 |
-
-Naive’s tiny NQ `P_hall` (0.003) and `Q_ground` (0.997 vs 1.0) are **this one row**. After rerank, rule/max keep the NQ anchor and the lexical verifier marks claim `no` as supported (the token appears in the pool). That is a verifier rubber-stamp, not a better answer. This is also the **only** NQ item where Max reward > naive reward (naive is punished for hall; max is not).
-
-Fix for this miss is the yes/no detector (`is there a name for …` is not a comparison question), not more retrieves.
+Previously all three predicted `no` because `is there a name for the at symbol` was treated as yes/no. After tightening `is_yes_no_question`, all three predict `commercial at` (EM 1, Q_ground 1, P_hall 0). That is the NQ 147 → 148 jump. It is not a tool effect.
 
 ---
 
@@ -134,10 +125,10 @@ Rule-based on NQ is the same quality at 3.1× cost (one rerank + one verify, no 
 
 ## 6. Conclusions
 
-1. **Do not say Max-Tools is worse on NQ EM/F1 on this run.** It is tied (147/150, same three misses, same predictions).
-2. **Max-Tools is worse on NQ as a cost policy:** 4.7× $, 3.3× latency, lower reward on 149/150. That is the intended cost-ceiling signal (Scope Memo: NQ teaches when *not* to over-retrieve).
+1. **Do not say Max-Tools is worse on NQ EM/F1 on this run.** It is tied (148/150, same two misses, same predictions).
+2. **Max-Tools is worse on NQ as a cost policy:** 4.7× $, 3.3× latency, lower reward on **150/150**. That is the intended cost-ceiling signal (Scope Memo: NQ teaches when *not* to over-retrieve).
 3. **Mechanism is unused tools, not a bad verify call.** Duplicate retrieve, unconditional rewrite (148/150), rerank, and a verify that always supports. Evidence membership changes on 72 items but EM does not, because the answer-anchor stays.
-4. **The three misses are not tool failures.** Two are `in X` vs `X` EM strictness. One is the yes/no head firing on `is there a name for the at symbol`.
+4. **The two remaining misses are not tool failures.** Both are `in X` vs `X` EM strictness. The old at-symbol miss is fixed by the yes/no detector.
 5. **NQ still cannot rank policies** until the corpus is real Wikipedia/DPR passages. Until then, treat NQ as a **cost-overuse diagnostic**, not a quality table.
 
 ### What would actually make Max-Tools less bad on NQ

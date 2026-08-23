@@ -64,7 +64,7 @@ These runs validate the **pipeline, costs, and frozen-policy reward ranking**, n
 
 ## 3. Main policy comparison (Qwen, 300 eval examples)
 
-**Comparison in one line:** after forced yes/no + a tighter ABSTAIN prompt, Hotpot is nearly tied (60 / 58 / 59). Extra tools still do not beat naive. Reward ranks **naive > rule > max_tools** on cost (~1× / 3.1× / 4.6×).
+**Comparison in one line:** Hotpot is nearly tied (60 / 58 / 59). Extra tools still do not beat naive. Reward ranks **naive > rule > max_tools** on cost (~1× / 3.1× / 4.6×). NQ is 148/150 for every policy.
 
 Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, `limit: null`, `force_yes_no: true`).
 
@@ -80,44 +80,43 @@ Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, 
 
 | Policy | mean EM | mean F1 | n_correct | n_abstained | mean $ | mean steps | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| **naive_rag** | 0.690 | 0.740 | 207/300 | 20 | 1.52e-4 | 2.0 | 1.096 |
-| **rule_based** | 0.683 | 0.736 | 205/300 | 17 | 4.67e-4 | 4.0 | 1.046 |
-| **max_tools** | 0.687 | 0.743 | 206/300 | 19 | 7.03e-4 | 7.0 | 0.998 |
+| **naive_rag** | 0.693 | 0.743 | 208/300 | 20 | 1.52e-4 | 2.0 | 1.102 |
+| **rule_based** | 0.687 | 0.740 | 206/300 | 17 | 4.67e-4 | 4.0 | 1.050 |
+| **max_tools** | 0.690 | 0.746 | 207/300 | 19 | 7.03e-4 | 7.0 | 1.002 |
 
 ### Natural Questions (n=150; saturated)
 
 | Policy | mean EM | mean F1 | n_correct | n_abstained | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.980 | 0.991 | 147/150 | 0 | 1.45e-4 | 1.501 |
-| rule_based | 0.980 | 0.991 | 147/150 | 0 | 4.53e-4 | 1.464 |
-| max_tools | 0.980 | 0.991 | 147/150 | 0 | 6.85e-4 | 1.403 |
+| naive_rag | 0.987 | 0.998 | 148/150 | 0 | 1.45e-4 | 1.514 |
+| rule_based | 0.987 | 0.998 | 148/150 | 0 | 4.54e-4 | 1.472 |
+| max_tools | 0.987 | 0.998 | 148/150 | 0 | 6.86e-4 | 1.411 |
 
 ### How to read this table
 
 **Quality**
-- **Read Hotpot, not Overall.** NQ is 147/150 for every policy (answer-anchor ceiling).
+- **Read Hotpot, not Overall.** NQ is 148/150 for every policy (answer-anchor ceiling).
 - Hotpot is a 1–2 hit race: 60 / 58 / 59. `max_tools` vs naive is 2 regressions / 1 recovery.
-- Versus the previous hedge-heavy Qwen 300-run: naive Hotpot 37 → 60, abstain 74 → 20. That jump is refusal, not tools.
-- Yes/no: 0/14 abstain, 9/14 EM; 13 of 14 predictions are `no`.
+- Versus the hedge-heavy Qwen 300-run: naive Hotpot 37 → 60, abstain 74 → 20. Versus the last run: NQ 147 → 148 (`is there a name for the at symbol` → `commercial at` after the yes/no detector tighten). Hotpot unchanged.
 
 **Cost / behavior**
-- **naive_rag:** 1 retrieve → answer; 506 ms; 666 tokens.
-- **rule_based:** rerank + verify (4 steps; 3.1× $; 1078 ms; 1351 tokens).
-- **max_tools:** retrieve×3 + rewrite + rerank + verify (7 steps; 4.6× $; 1862 ms; 1717 tokens). High-cost reference, not a better agent.
+- **naive_rag:** 1 retrieve → answer; 502 ms; 666 tokens.
+- **rule_based:** rerank + verify (4 steps; 3.1× $; 1083 ms; 1352 tokens).
+- **max_tools:** retrieve×3 + rewrite + rerank + verify (7 steps; 4.6× $; 1856 ms; 1717 tokens). High-cost reference, not a better agent.
 
 **Reward**
-- Overall: naive 1.096 > rule 1.046 > max_tools 0.998. Hotpot: 0.691 > 0.628 > 0.593. Quality is flat; λ/$ decides the ranking.
+- Overall: naive 1.102 > rule 1.050 > max_tools 1.002. Hotpot: 0.691 > 0.628 > 0.593. Quality is flat; λ/$ decides the ranking.
 
 **$/correct**
-- Overall $/correct is 2.20e-4 / 6.84e-4 / 1.02e-3.
+- Overall $/correct is 2.19e-4 / 6.80e-4 / 1.02e-3.
 
 ### Reward components (same run, overall)
 
 | Policy | mean Q_ans | mean Q_ground | mean Q_cal | mean P_hall |
 |---|---:|---:|---:|---:|
-| naive_rag | 0.715 | 0.858 | 0.150 | 0.033 |
-| rule_based | 0.710 | 0.860 | 0.135 | 0.034 |
-| max_tools | 0.715 | 0.869 | 0.144 | 0.031 |
+| naive_rag | 0.718 | 0.860 | 0.152 | 0.031 |
+| rule_based | 0.713 | 0.860 | 0.137 | 0.034 |
+| max_tools | 0.718 | 0.869 | 0.146 | 0.031 |
 
 - **Q_ans / Q_ground overall are NQ-inflated.** On Hotpot, Q_ans is 0.444 / 0.434 / 0.444.
 - **Q_cal dropped** vs the hedge-heavy run because Hotpot abstain is ~12–13%, not ~50%. That is the intended effect of forcing answers.

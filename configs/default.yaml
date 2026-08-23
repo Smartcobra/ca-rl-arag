@@ -22,6 +22,10 @@ data:
   # Synthetic corpus is smaller; prepare_data caps splits automatically.
   # For HuggingFace downloads these counts are used as-is.
   hotpot_config: distractor
+  # Unused Hotpot contexts only (not extra questions). 0 disables.
+  # 50k–100k so first-shot BM25 is no longer near-perfect. nq_open has no
+  # passages, so the pool cannot fix the NQ answer-anchor ceiling.
+  distractor_pool_target: 80000
 
 retrieval:
   top_k: 5

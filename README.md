@@ -50,9 +50,9 @@ python scripts/run_reward_ablation.py
 
 Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**, corpus 2276 passages. BM25 + lexical NLI. This run includes **forced yes/no** and a **tighter ABSTAIN prompt** (`force_yes_no: true`, `allow_abstain: true`).
 
-**Comparison in one line:** after the abstain fix, Hotpot quality is nearly tied (60 / 58 / 59). Extra tools still do not beat naive. Reward ranks **naive > rule > max_tools** because spend is ~1× / 3.1× / 4.6×.
+**Comparison in one line:** Hotpot is still a 1–2 hit race (60 / 58 / 59). Extra tools still do not beat naive. Reward ranks **naive > rule > max_tools** (~1× / 3.1× / 4.6×). NQ is 148/150 for every policy after the yes/no detector fix.
 
-Read **Hotpot**, not Overall. NQ is saturated (147/150, 0 abstain) from answer-anchor passages.
+Read **Hotpot**, not Overall. NQ is saturated from answer-anchor passages.
 
 ### HotpotQA (n=150; ranking split)
 
@@ -62,41 +62,40 @@ Read **Hotpot**, not Overall. NQ is saturated (147/150, 0 abstain) from answer-a
 | rule_based | 0.387 | 0.481 | 58/150 | 17 | 0.113 | 4.81e-4 | 0.628 |
 | max_tools | 0.393 | **0.494** | 59/150 | 19 | 0.127 | 7.20e-4 | 0.593 |
 
-`max_tools` vs naive is **2 regressions / 1 recovery** (net −1). Yes/no items: **0/14 abstain**, 9/14 EM (model biased to `no`).
-
-Versus the previous Qwen 300-run (hedge-heavy prompt): naive Hotpot **37 → 60**, abstain **74 → 20**. The jump is refusal, not tools.
+`max_tools` vs naive is **2 regressions / 1 recovery** (net −1). Hotpot is unchanged vs the last Qwen run.
 
 ### Overall (mix-weighted; do not rank from this)
 
 | Policy | EM | F1 | n_correct | n_abstained | mean $ | mean steps | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.690 | 0.740 | 207/300 | 20 | 1.52e-4 | 2.0 | 1.096 |
-| rule_based | 0.683 | 0.736 | 205/300 | 17 | 4.67e-4 | 4.0 | 1.046 |
-| max_tools | 0.687 | 0.743 | 206/300 | 19 | 7.03e-4 | 7.0 | 0.998 |
+| naive_rag | 0.693 | 0.743 | 208/300 | 20 | 1.52e-4 | 2.0 | 1.102 |
+| rule_based | 0.687 | 0.740 | 206/300 | 17 | 4.67e-4 | 4.0 | 1.050 |
+| max_tools | 0.690 | 0.746 | 207/300 | 19 | 7.03e-4 | 7.0 | 1.002 |
 
 ### Natural Questions (n=150; saturated)
 
 | Policy | EM | F1 | n_correct | n_abstained | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.980 | 0.991 | 147/150 | 0 | 1.45e-4 | 1.501 |
-| rule_based | 0.980 | 0.991 | 147/150 | 0 | 4.53e-4 | 1.464 |
-| max_tools | 0.980 | 0.991 | 147/150 | 0 | 6.85e-4 | 1.403 |
+| naive_rag | 0.987 | 0.998 | 148/150 | 0 | 1.45e-4 | 1.514 |
+| rule_based | 0.987 | 0.998 | 148/150 | 0 | 4.54e-4 | 1.472 |
+| max_tools | 0.987 | 0.998 | 148/150 | 0 | 6.86e-4 | 1.411 |
+
+NQ **147 → 148** on all three: `is there a name for the at symbol` now answers `commercial at` (yes/no detector no longer forces `no`). Remaining misses are `in the Gospel of Luke` / `in Santa Monica` (span vs `in …`). Max EM worse than naive on NQ: **0**.
 
 ### Cost and action mix
 
 | Policy | retrieve | rewrite | rerank | verify | mean $ | latency | tokens |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.52e-4 | 506 ms | 666 |
-| rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 4.67e-4 | 1078 ms | 1351 |
-| max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 7.03e-4 | 1862 ms | 1717 |
+| naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.52e-4 | 502 ms | 666 |
+| rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 4.67e-4 | 1083 ms | 1352 |
+| max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 7.03e-4 | 1856 ms | 1717 |
 
 ### What the three policies show
 
-- **Hotpot quality is now a 1–2 hit race** (60 / 58 / 59). `max_tools` is not a ceiling; it is also not the clear last-place collapse from the hedge-heavy run.
-- **Abstain dropped** from ~50% to ~12–13% on Hotpot. `n_abstained` is 20 / 17 / 19. NQ abstain is 0.
-- **Cost still decides reward:** naive 1.096 > rule 1.046 > max_tools 0.998 (Hotpot 0.691 > 0.628 > 0.593).
-- **NQ cannot rank policies.** All three are 147/150.
-- **Yes/no force works as a refuse-fix, not as accuracy:** 14/14 now answer; 9/14 correct; 13 of 14 predictions are `no`.
+- **Hotpot quality is a 1–2 hit race** (60 / 58 / 59). Unchanged by the yes/no detector tightening.
+- **Abstain** on Hotpot is 20 / 17 / 19 (~12–13%). NQ abstain is 0.
+- **Cost still decides reward:** naive 1.102 > rule 1.050 > max_tools 1.002 (Hotpot 0.691 > 0.628 > 0.593).
+- **NQ cannot rank policies.** All three are 148/150. The +1 is the at-symbol name question, not tools.
 
 Milestone 3 takeaway: a learned controller must **select** tools. Quality is no longer hidden under 50% abstain; extra tools still do not pay for themselves.
 
