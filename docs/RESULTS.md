@@ -51,6 +51,8 @@ results/
 |---|---|
 | Data | HotpotQA distractor + NQ Open (`prepare_data.py --hf`) |
 | Slice | 100 train / **300 eval** locked (150 Hotpot + 150 NQ) |
+| Corpus | **80,000** passages (2,086 Hotpot slice + 190 NQ anchors + 77,724 unused-Hotpot distractors) |
+| BM25 gold recall | Hotpot R@1 0.76 / R@5 **0.927** (11 miss@5); NQ R@5 **1.0** |
 | Eval limit in pilot | Full eval (`limit: null`) |
 | Reward preset | `default` (see `configs/reward_weights.yaml`) |
 | Retriever | BM25 |
@@ -58,68 +60,75 @@ results/
 | Verifier | Lexical NLI |
 | Policies | `naive_rag`, `rule_based`, `max_tools` |
 
-These runs validate the **pipeline, costs, and frozen-policy reward ranking**, not SOTA Hotpot/NQ accuracy. NQ is an answer-anchor ceiling (`The answer is {ans}` in `prepare_data.py`).
+These runs validate the **pipeline, costs, and frozen-policy reward ranking**, not SOTA Hotpot/NQ accuracy. NQ is still an answer-anchor ceiling (`The answer is {ans}` in `prepare_data.py`); the distractor pool does not fix that. Hotpot retrieval is no longer near-perfect.
+
+Counts and recall: `data/processed/slice_meta.json`.
 
 ---
 
-## 3. Main policy comparison (Qwen, 300 eval examples)
+## 3. Main policy comparison (Qwen, 300 eval examples, 80k corpus)
 
-**Comparison in one line:** Hotpot is nearly tied (60 / 58 / 59). Extra tools still do not beat naive. Reward ranks **naive > rule > max_tools** on cost (~1× / 3.1× / 4.6×). NQ is 148/150 for every policy.
+**Comparison in one line:** Hotpot is 59 / 58 / 61. `max_tools` is +2 vs naive (3 recoveries / 1 regression) but ~4.6× $, so reward ranks **naive > rule > max_tools**. NQ is 146/150 for every policy.
 
-Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, `limit: null`, `force_yes_no: true`).
+Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, `limit: null`, `force_yes_no: true`, 80k-passage index).
 
 ### HotpotQA (n=150; ranking split)
 
 | Policy | mean EM | mean F1 | n_correct | n_abstained | abstain | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.400 | 0.488 | 60/150 | 20 | 0.133 | 1.60e-4 | 0.691 |
-| rule_based | 0.387 | 0.481 | 58/150 | 17 | 0.113 | 4.81e-4 | 0.628 |
-| max_tools | 0.393 | 0.494 | 59/150 | 19 | 0.127 | 7.20e-4 | 0.593 |
+| naive_rag | 0.393 | 0.443 | 59/150 | 29 | 0.193 | 1.59e-4 | **0.653** |
+| rule_based | 0.387 | 0.446 | 58/150 | 28 | 0.187 | 4.81e-4 | 0.604 |
+| max_tools | **0.407** | **0.476** | **61/150** | 23 | 0.153 | 7.37e-4 | 0.582 |
 
 ### Overall (mix-weighted; do not rank from this)
 
 | Policy | mean EM | mean F1 | n_correct | n_abstained | mean $ | mean steps | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| **naive_rag** | 0.693 | 0.743 | 208/300 | 20 | 1.52e-4 | 2.0 | 1.102 |
-| **rule_based** | 0.687 | 0.740 | 206/300 | 17 | 4.67e-4 | 4.0 | 1.050 |
-| **max_tools** | 0.690 | 0.746 | 207/300 | 19 | 7.03e-4 | 7.0 | 1.002 |
+| **naive_rag** | 0.683 | 0.715 | 205/300 | 29 | 1.56e-4 | 2.0 | **1.076** |
+| **rule_based** | 0.680 | 0.717 | 204/300 | 28 | 4.75e-4 | 4.0 | 1.031 |
+| **max_tools** | 0.690 | 0.732 | 207/300 | 23 | 7.21e-4 | 7.0 | 0.989 |
 
 ### Natural Questions (n=150; saturated)
 
 | Policy | mean EM | mean F1 | n_correct | n_abstained | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.987 | 0.998 | 148/150 | 0 | 1.45e-4 | 1.514 |
-| rule_based | 0.987 | 0.998 | 148/150 | 0 | 4.54e-4 | 1.472 |
-| max_tools | 0.987 | 0.998 | 148/150 | 0 | 6.86e-4 | 1.411 |
+| naive_rag | 0.973 | 0.988 | 146/150 | 0 | 1.53e-4 | 1.499 |
+| rule_based | 0.973 | 0.988 | 146/150 | 0 | 4.69e-4 | 1.458 |
+| max_tools | 0.973 | 0.988 | 146/150 | 0 | 7.06e-4 | 1.396 |
 
 ### How to read this table
 
+**Retrieval**
+- The 80k unused-Hotpot pool is why this run is not a redo of the 2,276-passage snapshot.
+- Hotpot gold is missing from BM25 top-5 on **11/150** items (R@5 0.927). First retrieve can fail.
+- NQ R@5 stays 1.0 because each item still has an answer-anchor passage.
+
 **Quality**
-- **Read Hotpot, not Overall.** NQ is 148/150 for every policy (answer-anchor ceiling).
-- Hotpot is a 1–2 hit race: 60 / 58 / 59. `max_tools` vs naive is 2 regressions / 1 recovery.
-- Versus the hedge-heavy Qwen 300-run: naive Hotpot 37 → 60, abstain 74 → 20. Versus the last run: NQ 147 → 148 (`is there a name for the at symbol` → `commercial at` after the yes/no detector tighten). Hotpot unchanged.
+- **Read Hotpot, not Overall.** NQ is 146/150 for every policy (anchor ceiling; 148→146 vs the tiny-corpus run).
+- Hotpot is a few-hit race: 59 / 58 / 61. `max_tools` vs naive is **3 recoveries / 1 regression** (net +2). Too small to call a quality winner.
+- Versus the 2,276-passage Qwen run: naive 60→59, rule 58→58, max 59→61. Abstain 20/17/19 → **29/28/23**. Harder search → more refusals, and a bit more room for extra retrieves.
 
 **Cost / behavior**
-- **naive_rag:** 1 retrieve → answer; 502 ms; 666 tokens.
-- **rule_based:** rerank + verify (4 steps; 3.1× $; 1083 ms; 1352 tokens).
-- **max_tools:** retrieve×3 + rewrite + rerank + verify (7 steps; 4.6× $; 1856 ms; 1717 tokens). High-cost reference, not a better agent.
+- **naive_rag:** 1 retrieve → answer; 1026 ms; 693 tokens.
+- **rule_based:** rerank + verify (4 steps; 3.0× $; 1600 ms; 1406 tokens).
+- **max_tools:** retrieve×3 + rewrite + rerank + verify (7 steps; 4.6× $; 3159 ms; 1774 tokens). High-cost reference. Latency is up vs the 2k index because each BM25 call scores 80k passages.
 
 **Reward**
-- Overall: naive 1.102 > rule 1.050 > max_tools 1.002. Hotpot: 0.691 > 0.628 > 0.593. Quality is flat; λ/$ decides the ranking.
+- Overall: naive 1.076 > rule 1.031 > max_tools 0.989. Hotpot: 0.653 > 0.604 > 0.582. Extra tools can move a couple of Hotpot answers; λ/$ still decides the ranking.
 
 **$/correct**
-- Overall $/correct is 2.19e-4 / 6.80e-4 / 1.02e-3.
+- Overall $/correct is 2.28e-4 / 6.99e-4 / 1.05e-3.
 
 ### Reward components (same run, overall)
 
 | Policy | mean Q_ans | mean Q_ground | mean Q_cal | mean P_hall |
 |---|---:|---:|---:|---:|
-| naive_rag | 0.718 | 0.860 | 0.152 | 0.031 |
-| rule_based | 0.713 | 0.860 | 0.137 | 0.034 |
-| max_tools | 0.718 | 0.869 | 0.146 | 0.031 |
+| naive_rag | 0.699 | 0.834 | 0.175 | 0.030 |
+| rule_based | 0.698 | 0.833 | 0.169 | 0.032 |
+| max_tools | 0.711 | 0.851 | 0.160 | 0.031 |
 
-- **Q_ans / Q_ground overall are NQ-inflated.** On Hotpot, Q_ans is 0.444 / 0.434 / 0.444.
-- **Q_cal dropped** vs the hedge-heavy run because Hotpot abstain is ~12–13%, not ~50%. That is the intended effect of forcing answers.
+- **Q_ans / Q_ground overall are NQ-inflated.** On Hotpot, Q_ans is 0.418 / 0.416 / 0.441; Q_ground is 0.668 / 0.667 / 0.702 (down vs the tiny-corpus run because gold titles compete with 77k distractors).
+- **Q_cal is higher overall than the last 300-run** because Hotpot abstain rose to ~15–19%. That is retrieval hardness, not the old parser leak.
 
 ---
 
@@ -149,16 +158,16 @@ it means: that Gym episode ended with a wrong answer and a low reward. Rows with
 ## 5. Reward-weight ablation results
 
 Source: `results/metrics/reward_ablation_table.json`  
-Fixed policy: **rule_based**, **stratified 100** from the same 300-file (50 Hotpot + 50 NQ). Same behavior → same EM/F1/$ (EM 0.69); only the **scalar reward** changes.
+Fixed policy: **rule_based**, **stratified 100** from the same 300-file (50 Hotpot + 50 NQ) on the **80k** corpus. Same behavior → same EM/F1/$ (EM 0.67; Hotpot 19/50, NQ 48/50); only the **scalar reward** changes.
 
 | Preset | overall reward | Hotpot reward | NQ reward | What it tests |
 |---|---:|---:|---:|---|
-| correctness_only | 0.715 | 0.442 | 0.989 | Search-R1-like outcome only |
-| correctness_grounding | 0.991 | 0.593 | 1.389 | Add grounding (β) |
-| correctness_faithfulness_cost | 0.997 | 0.571 | 1.424 | Add cost + hall + act penalties |
-| **default** | 1.020 | 0.574 | 1.467 | Full objective (α,β,γ,λ,μ,…) |
-| lambda_zero | 1.022 | 0.575 | 1.469 | Remove $ / latency terms |
-| high_cost_pressure | 1.002 | 0.520 | 1.484 | Larger λ/μ (cheaper operating point) |
+| correctness_only | 0.691 | 0.408 | 0.974 | Search-R1-like outcome only |
+| correctness_grounding | 0.952 | 0.530 | 1.374 | Add grounding (β) |
+| correctness_faithfulness_cost | 0.957 | 0.506 | 1.408 | Add cost + hall + act penalties |
+| **default** | 0.985 | 0.522 | 1.448 | Full objective (α,β,γ,λ,μ,…) |
+| lambda_zero | 0.987 | 0.524 | 1.450 | Remove $ / latency terms |
+| high_cost_pressure | 0.966 | 0.469 | 1.462 | Larger λ/μ (cheaper operating point) |
 
 ### Interpretation
 
@@ -207,10 +216,10 @@ Use these rows for qualitative analysis (unnecessary retrieves, bad rewrites, ye
 
 ## 8. Takeaways for the paper / next milestone
 
-1. **Pipeline OK:** data → retrieve → agent actions → NLI verify → cost → multi-component reward → logs all run on the locked 300-example eval (150 Hotpot + 150 NQ).
-2. **Reporting contract:** every table is overall + Hotpot + NQ. Overall is mix-weighted. NQ is saturated and cannot rank policies.
-3. **Abstain fix moved the bottleneck.** Hotpot naive 37 → 60, abstain 74 → 20. Frozen tools are now a 1–2 hit race (60 / 58 / 59). Reward still ranks naive because spend is 1× / 3.1× / 4.6×.
-4. **Next:** Milestone 3 is cost-aware RL. A learned controller must **select** tools. Yes/no still biases to `no` (9/14). Remaining Hotpot abstain is ~12–13%.
+1. **Pipeline OK:** data → 80k BM25 index → agent actions → NLI verify → cost → multi-component reward → logs on the locked 300-example eval (150 Hotpot + 150 NQ). Preflight requires eval=300 and corpus ≥ 50k before Qwen loads.
+2. **Reporting contract:** every table is overall + Hotpot + NQ. Overall is mix-weighted. NQ is still saturated (anchors) and cannot rank policies.
+3. **The distractor pool did what it was for.** Hotpot R@5 is 0.927 (11 misses), not ~1.0. Abstain rose (20→29 naive). `max_tools` recovers 3 Hotpot items and loses 1 (61 vs 59). Reward still ranks naive because spend is 1× / 3.0× / 4.6×.
+4. **Next:** Milestone 3 is cost-aware RL. Extra tools can now change a few answers; a learned controller must **select** when that is worth the cost. NQ still needs a real Wikipedia/DPR index before it is a ranking split.
 
 
 ---

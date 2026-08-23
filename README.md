@@ -52,69 +52,72 @@ python scripts/run_reward_ablation.py
 
 ## Pilot results (snapshot)
 
-Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**, corpus **2276 passages** (pre-pool snapshot; the next ranking run must use the ≥50k distractor pool). BM25 + lexical NLI. This run includes **forced yes/no** and a **tighter ABSTAIN prompt** (`force_yes_no: true`, `allow_abstain: true`).
+Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**, corpus **80,000 passages** (2,086 Hotpot slice + 190 NQ anchors + 77,724 unused-Hotpot distractors). BM25 gold recall@5: Hotpot **0.927** (11 misses), NQ **1.0**. Lexical NLI. `force_yes_no: true`, `allow_abstain: true`.
 
-**Comparison in one line:** Hotpot is still a 1–2 hit race (60 / 58 / 59). Extra tools still do not beat naive. Reward ranks **naive > rule > max_tools** (~1× / 3.1× / 4.6×). NQ is 148/150 for every policy after the yes/no detector fix.
+**Comparison in one line:** On the 80k index, Hotpot is 59 / 58 / 61. `max_tools` is +2 vs naive (3 recoveries / 1 regression) but costs 4.6×, so reward still ranks **naive > rule > max_tools**. NQ is 146/150 for every policy (answer-anchor ceiling).
 
-Read **Hotpot**, not Overall. NQ is saturated from answer-anchor passages.
+Read **Hotpot**, not Overall. NQ still cannot rank policies.
 
 ### HotpotQA (n=150; ranking split)
 
 | Policy | EM | F1 | n_correct | n_abstained | abstain | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | **0.400** | 0.488 | **60/150** | 20 | 0.133 | 1.60e-4 | **0.691** |
-| rule_based | 0.387 | 0.481 | 58/150 | 17 | 0.113 | 4.81e-4 | 0.628 |
-| max_tools | 0.393 | **0.494** | 59/150 | 19 | 0.127 | 7.20e-4 | 0.593 |
+| naive_rag | 0.393 | 0.443 | 59/150 | 29 | 0.193 | 1.59e-4 | **0.653** |
+| rule_based | 0.387 | 0.446 | 58/150 | 28 | 0.187 | 4.81e-4 | 0.604 |
+| max_tools | **0.407** | **0.476** | **61/150** | 23 | 0.153 | 7.37e-4 | 0.582 |
 
-`max_tools` vs naive is **2 regressions / 1 recovery** (net −1). Hotpot is unchanged vs the last Qwen run.
+Versus the old 2,276-passage run: naive 60→59, rule 58→58, max 59→61. Abstain rose (20/17/19 → 29/28/23) as first-shot BM25 got harder. `max_tools` vs naive is **3 recoveries / 1 regression** (net +2). That is still a handful of items — not a policy win.
 
 ### Overall (mix-weighted; do not rank from this)
 
 | Policy | EM | F1 | n_correct | n_abstained | mean $ | mean steps | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.693 | 0.743 | 208/300 | 20 | 1.52e-4 | 2.0 | 1.102 |
-| rule_based | 0.687 | 0.740 | 206/300 | 17 | 4.67e-4 | 4.0 | 1.050 |
-| max_tools | 0.690 | 0.746 | 207/300 | 19 | 7.03e-4 | 7.0 | 1.002 |
+| naive_rag | 0.683 | 0.715 | 205/300 | 29 | 1.56e-4 | 2.0 | **1.076** |
+| rule_based | 0.680 | 0.717 | 204/300 | 28 | 4.75e-4 | 4.0 | 1.031 |
+| max_tools | 0.690 | 0.732 | 207/300 | 23 | 7.21e-4 | 7.0 | 0.989 |
 
 ### Natural Questions (n=150; saturated)
 
 | Policy | EM | F1 | n_correct | n_abstained | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.987 | 0.998 | 148/150 | 0 | 1.45e-4 | 1.514 |
-| rule_based | 0.987 | 0.998 | 148/150 | 0 | 4.54e-4 | 1.472 |
-| max_tools | 0.987 | 0.998 | 148/150 | 0 | 6.86e-4 | 1.411 |
+| naive_rag | 0.973 | 0.988 | 146/150 | 0 | 1.53e-4 | 1.499 |
+| rule_based | 0.973 | 0.988 | 146/150 | 0 | 4.69e-4 | 1.458 |
+| max_tools | 0.973 | 0.988 | 146/150 | 0 | 7.06e-4 | 1.396 |
 
-NQ **147 → 148** on all three: `is there a name for the at symbol` now answers `commercial at` (yes/no detector no longer forces `no`). Remaining misses are `in the Gospel of Luke` / `in Santa Monica` (span vs `in …`). Max EM worse than naive on NQ: **0**.
+NQ **148 → 146** on the larger index; BM25 recall@5 is still 1.0 (anchors). Shared misses are span mismatches (`Gospel of Luke` vs `in the Gospel of Luke`, `Santa Monica` vs `in Santa Monica`) plus one list-format item. Max EM worse than naive on NQ: **0**.
 
 ### Cost and action mix
 
 | Policy | retrieve | rewrite | rerank | verify | mean $ | latency | tokens |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.52e-4 | 502 ms | 666 |
-| rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 4.67e-4 | 1083 ms | 1352 |
-| max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 7.03e-4 | 1856 ms | 1717 |
+| naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.56e-4 | 1026 ms | 693 |
+| rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 4.75e-4 | 1600 ms | 1406 |
+| max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 7.21e-4 | 3159 ms | 1774 |
+
+Latency rose vs the 2k index because BM25 scores 80k passages per query.
 
 ### What the three policies show
 
-- **Hotpot quality is a 1–2 hit race** (60 / 58 / 59). Unchanged by the yes/no detector tightening.
-- **Abstain** on Hotpot is 20 / 17 / 19 (~12–13%). NQ abstain is 0.
-- **Cost still decides reward:** naive 1.102 > rule 1.050 > max_tools 1.002 (Hotpot 0.691 > 0.628 > 0.593).
-- **NQ cannot rank policies.** All three are 148/150. The +1 is the at-symbol name question, not tools.
+- **Retrieval can fail now.** Hotpot recall@5 is 0.927 (11/150 golds missing from top-5). That was the point of the distractor pool.
+- **Hotpot quality is still a few-hit race** (59 / 58 / 61). Extra retrieves recover 3 and lose 1; not enough to pay 4.6× $.
+- **Abstain** on Hotpot is 29 / 28 / 23 (~15–19%), up from ~12–13% on the tiny corpus. NQ abstain is 0.
+- **Cost still decides reward:** naive 1.076 > rule 1.031 > max_tools 0.989 (Hotpot 0.653 > 0.604 > 0.582).
+- **NQ cannot rank policies.** All three are 146/150.
 
-Milestone 3 takeaway: a learned controller must **select** tools. Quality is no longer hidden under 50% abstain; extra tools still do not pay for themselves.
+Milestone 3 takeaway: the index is hard enough that extra tools can change a few Hotpot answers. A learned controller must **select** when that is worth the cost; blindly using max tools still loses on reward.
 
 ### Reward-weight ablation (not a ranking table)
 
-Fixed `rule_based` policy, **stratified 100** from the same 300-file (50 Hotpot + 50 NQ). EM/F1/$ stay flat (EM 0.69); only the scalar reward changes. Source: `results/metrics/reward_ablation_table.json`.
+Fixed `rule_based` policy, **stratified 100** from the same 300-file (50 Hotpot + 50 NQ). EM/F1/$ stay flat (EM 0.67); only the scalar reward changes. Source: `results/metrics/reward_ablation_table.json`.
 
 | Preset | overall reward | Hotpot reward | NQ reward |
 |---|---:|---:|---:|
-| correctness_only | 0.715 | 0.442 | 0.989 |
-| correctness_grounding | 0.991 | 0.593 | 1.389 |
-| correctness_faithfulness_cost | 0.997 | 0.571 | 1.424 |
-| default | 1.020 | 0.574 | 1.467 |
-| lambda_zero | 1.022 | 0.575 | 1.469 |
-| high_cost_pressure | 1.002 | 0.520 | 1.484 |
+| correctness_only | 0.691 | 0.408 | 0.974 |
+| correctness_grounding | 0.952 | 0.530 | 1.374 |
+| correctness_faithfulness_cost | 0.957 | 0.506 | 1.408 |
+| default | 0.985 | 0.522 | 1.448 |
+| lambda_zero | 0.987 | 0.524 | 1.450 |
+| high_cost_pressure | 0.966 | 0.469 | 1.462 |
 
 Full interpretation: [`docs/RESULTS.md`](docs/RESULTS.md). Eval contract: [`docs/IMPLEMENTATION_DECISIONS.md`](docs/IMPLEMENTATION_DECISIONS.md).
 
