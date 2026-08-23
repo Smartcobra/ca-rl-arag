@@ -1,5 +1,5 @@
 .env
 __pycache__/
-src/generation/__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
