@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT))
 from src.agentic_rag import AgenticRAG
 from src.config import load_config, resolve_path
 from src.data.loaders import stratified_limit
+from src.data.preflight import assert_ranking_data
 from src.evaluate import evaluate_agent, save_metrics
 from src.generation import build_generator
 from src.gpu import cleanup_gpu_resources, log_gpu_memory
@@ -42,12 +43,19 @@ def main() -> None:
         default="default,correctness_only,correctness_grounding,correctness_faithfulness_cost,lambda_zero,high_cost_pressure",
     )
     parser.add_argument("--policy", default="rule_based")
+    parser.add_argument(
+        "--skip-data-check",
+        action="store_true",
+        help="Skip eval-size + corpus-size preflight (synthetic / extractive debug only).",
+    )
     args = parser.parse_args()
 
     base_cfg = load_config(args.config)
     set_seed(int(base_cfg["experiment"]["seed"]))
     corpus = read_jsonl(resolve_path(base_cfg, base_cfg["data"]["corpus_file"]))
     examples = read_jsonl(resolve_path(base_cfg, base_cfg["data"]["eval_file"]))
+    if not args.skip_data_check:
+        assert_ranking_data(base_cfg, examples, corpus, split="eval")
     n_file = counts_by_dataset(examples)
     limit = None if args.limit == 0 else args.limit
     examples = stratified_limit(examples, limit, seed=int(base_cfg["experiment"]["seed"]))

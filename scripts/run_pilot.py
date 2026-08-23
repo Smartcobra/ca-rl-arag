@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT))
 from src.agentic_rag import AgenticRAG
 from src.config import load_config, resolve_path
 from src.data.loaders import stratified_limit
+from src.data.preflight import assert_ranking_data
 from src.evaluate import evaluate_agent, evaluate_baseline, save_metrics
 from src.generation import build_generator
 from src.gpu import cleanup_gpu_resources, log_gpu_memory
@@ -54,6 +55,11 @@ def main() -> None:
     parser.add_argument("--policies", default="naive_rag,rule_based,max_tools")
     parser.add_argument("--run-env-check", action="store_true", help="Roll a few Gymnasium episodes")
     parser.add_argument(
+        "--skip-data-check",
+        action="store_true",
+        help="Skip eval-size + corpus-size preflight (synthetic / extractive debug only).",
+    )
+    parser.add_argument(
         "--no-abstain",
         action="store_true",
         help="Refusal ablation: never emit ABSTAIN (generation.allow_abstain=false).",
@@ -68,6 +74,8 @@ def main() -> None:
     corpus = read_jsonl(resolve_path(cfg, cfg["data"]["corpus_file"]))
     examples = read_jsonl(resolve_path(cfg, cfg["data"][f"{args.split}_file"]))
     n_file = counts_by_dataset(examples)
+    if not args.skip_data_check:
+        assert_ranking_data(cfg, examples, corpus, split=args.split)
     examples = stratified_limit(examples, args.limit, seed=int(cfg["experiment"]["seed"]))
     n_run = counts_by_dataset(examples)
     if args.limit:

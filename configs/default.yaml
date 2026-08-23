@@ -26,6 +26,9 @@ data:
   # 50k–100k so first-shot BM25 is no longer near-perfect. nq_open has no
   # passages, so the pool cannot fix the NQ answer-anchor ceiling.
   distractor_pool_target: 80000
+  # Pilot / ablation refuse to load the GPU model below this corpus size.
+  min_corpus_passages: 50000
+  require_ranking_slice: true
 
 retrieval:
   top_k: 5

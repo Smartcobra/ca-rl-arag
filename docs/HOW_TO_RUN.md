@@ -15,18 +15,20 @@ Default generator is **local** `Qwen/Qwen2.5-3B-Instruct` (`generation.backend: 
 Recommended order (same as the quick start):
 
 ```bash
-python scripts/smoke_test.py                  # forces extractive (offline)
-python scripts/prepare_data.py --hf           # locked 150 Hotpot + 150 NQ (ignores stale 25+25 yaml)
-python scripts/run_pilot.py --run-env-check   # refuses to start unless eval file is 300
-python scripts/run_reward_ablation.py         # stratified 100 from the same file
+python scripts/smoke_test.py                  # forces extractive (offline); overwrites data/processed
+python scripts/prepare_data.py --hf           # 150+150 questions + unused-Hotpot pool (~80k passages)
+python scripts/run_pilot.py --run-env-check   # preflight: eval=300 AND corpus>=50k, then Qwen
+python scripts/run_reward_ablation.py         # same preflight; stratified 100 from the same file
 python scripts/plot_results.py                # metrics → results/figs/*.png
 ```
 
-Fast extractive-only debug (not a ranking run):
+Fast extractive-only debug (not a ranking run; `extractive.yaml` has no 50k corpus floor):
 
 ```bash
 python scripts/run_pilot.py --config configs/extractive.yaml --limit 50
 ```
+
+If you point **default.yaml** at a synthetic or 2k-passage corpus, the ranking scripts exit before loading Qwen. Use `--skip-data-check` only for that debug path.
 
 ---
 
@@ -56,7 +58,7 @@ Primary datasets follow **Scope Memo V2 §7**:
 
 | Flag | What you get |
 |---|---|
-| `--hf` | Real NQ + Hotpot slices downloaded from HuggingFace. Hotpot contexts become the shared passage corpus; NQ items get answer-anchor passages in V1 (documented limitation until a full Wikipedia index is added). |
+| `--hf` | Real NQ + Hotpot question slices, plus an unused-Hotpot **distractor pool** (target 80k passages, floor 50k). Locked eval questions stay 150+150; extra rows are passages only. NQ items still get answer-anchor passages (ceiling until a Wikipedia/DPR index). |
 | `--synthetic` | Offline closed fact corpus (capitals/scientists). Use when you have no network or want a perfect EM smoke/pilot. |
 | *(no flag)* | Tries HuggingFace first; falls back to synthetic if download fails. |
 
@@ -71,7 +73,7 @@ Locked **plan A** (balanced mix). Ranking reads Hotpot; NQ stays near-ceiling un
 
 `--limit` is optional and **stratified** (not a JSONL prefix). Prefix `--limit 40` on this file would be 40 Hotpot + 0 NQ. Ablation defaults to a stratified 100 from the same 300 (labeled as a subset, not the ranking table).
 
-Actual counts after prepare are written to `data/processed/slice_meta.json`.
+Actual counts after prepare are written to `data/processed/slice_meta.json`. After `--hf` you should see `n_eval: 300` and `n_passages` ≥ 50,000 (usually 80,000). A ~2,276-passage file is the old tiny index — do not start a Qwen ranking run on it.
 
 ### Files written by data prep
 
@@ -197,13 +199,19 @@ python scripts/prepare_data.py --config configs/default.yaml
   "seed": 42,
   "n_train": 100,
   "n_eval": 300,
+  "n_passages": 80000,
+  "n_hotpot_distractor": 77724,
+  "n_nq_anchor": 190,
   "train_by_dataset": {"hotpot_qa": 60, "natural_questions": 40},
   "eval_by_dataset": {"hotpot_qa": 150, "natural_questions": 150},
   "nq_corpus": "answer_anchor_passages",
+  "retrieval_diag": { "by_dataset": { "hotpot_qa": { "recall@5": "..." } } },
   "paths": { ... }
 }
 Wrote processed slices to .../data/processed
 ```
+
+Optional: `python scripts/prepare_data.py --hf --distractor-pool 80000` (0 disables the pool). `python scripts/retrieval_diagnostics.py` reprints BM25 gold recall@k.
 
 **Artifacts:**
 
@@ -224,34 +232,60 @@ Wrote processed slices to .../data/processed
 python scripts/run_pilot.py --run-env-check
 ```
 
+**Preflight (before Qwen loads).** With `configs/default.yaml` this is **not** `--run-env-check`. It is `src/data/preflight.py`, run on the **on-disk** files:
+
+| Check | Pass | Fail |
+|---|---|---|
+| Eval file | 300 examples, 150 Hotpot + 150 NQ | Stale / synthetic / prefix-skewed slice |
+| Corpus | `len(corpus.jsonl)` ≥ `min_corpus_passages` (50,000) | Old ~2k index or smoke-test overwrite |
+
+On success you see:
+
+```text
+Ranking data check OK: eval=300 {'hotpot_qa': 150, 'natural_questions': 150} corpus=80000 (>= 50000)
+```
+
+On failure the process exits immediately (no GPU download). Re-run `prepare_data.py --hf`. `--limit` still checks the full file and the full corpus — a 50-example debug run on a 2k library is rejected.
+
+`--run-env-check` only rolls a few Gymnasium episodes after the policies run.
+
 Debug cap (keeps the 50/50 mix; do **not** use a prefix `--limit 40`):
 
 ```bash
 python scripts/run_pilot.py --limit 50 --run-env-check
 ```
 
+Synthetic / extractive on default.yaml:
+
+```bash
+python scripts/run_pilot.py --skip-data-check --limit 50
+```
+
 **Useful flags:**
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--limit` | off (full eval) | Stratified cap. On 150+150, `--limit 40` → ~20+20, never 40 Hotpot + 0 NQ |
+| `--limit` | off (full eval) | Stratified cap. On 150+150, `--limit 40` → ~20+20, never 40 Hotpot + 0 NQ. Does **not** skip the 50k corpus check |
 | `--split` | `eval` | `eval` or `train` |
 | `--policies` | `naive_rag,rule_based,max_tools` | Which policies to run |
 | `--reward-preset` | from config (`default`) | Reward weight preset name |
-| `--run-env-check` | off | Roll a few Gymnasium episodes with the rule policy |
+| `--run-env-check` | off | Roll a few Gymnasium episodes with the rule policy (not the data preflight) |
+| `--skip-data-check` | off | Skip eval-size + corpus-size preflight (synthetic / extractive debug only) |
 | `--no-abstain` | off | Refusal ablation: never emit ABSTAIN (`generation.allow_abstain=false`) |
 | `--config` | `configs/default.yaml` | Main config |
 
 **What it does:**
 1. Loads corpus + eval examples  
-2. Runs **naive RAG** baseline  
-3. Runs **agentic** policies  
-4. Optionally rolls the RL env on a few examples  
-5. Writes trajectories + metric JSONs  
+2. **Preflight:** eval mix + corpus ≥ 50k (default.yaml), then stop if stale  
+3. Runs **naive RAG** baseline  
+4. Runs **agentic** policies  
+5. Optionally rolls the RL env on a few examples  
+6. Writes trajectories + metric JSONs  
 
 **Console output:** Prints overall, then Hotpot, then NQ per policy (not a single mix-weighted JSON blob):
 ```text
-Corpus=... examples=300 by_dataset={'hotpot_qa': 150, 'natural_questions': 150} preset=default
+Ranking data check OK: eval=300 {'hotpot_qa': 150, 'natural_questions': 150} corpus=80000 (>= 50000)
+Corpus=80000 examples=300 by_dataset={'hotpot_qa': 150, 'natural_questions': 150} preset=default
 naive_rag overall: EM=... F1=... reward=... abstain=... n_correct=.../... n_abstained=...
   HotpotQA: ...
   Natural Questions: ...
@@ -290,15 +324,16 @@ Each trajectory JSONL row includes: question, prediction, gold, EM/F1, reward co
 python scripts/run_reward_ablation.py
 ```
 
-GPU-tight default is a **stratified 100** from the 300-example eval (50 Hotpot + 50 NQ). Pass `--limit 0` for the full file. This sweep is not the ranking table.
+GPU-tight default is a **stratified 100** from the 300-example eval (50 Hotpot + 50 NQ). Pass `--limit 0` for the full file. This sweep is not the ranking table. Same ranking preflight as the pilot (eval file 300 + corpus ≥ 50k) unless `--skip-data-check`.
 
 **Useful flags:**
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--limit` | 100 | Stratified cap (`0` = full eval). Prefix slicing is gone |
+| `--limit` | 100 | Stratified cap (`0` = full eval). Prefix slicing is gone. Does not skip the corpus preflight |
 | `--policy` | `rule_based` | Fixed policy while sweeping rewards |
 | `--presets` | all named presets | Comma-separated list from `reward_weights.yaml` |
+| `--skip-data-check` | off | Skip eval-size + corpus-size preflight |
 
 **Presets swept by default:**
 - `correctness_only`
@@ -330,11 +365,10 @@ Wrote .../results/metrics/reward_ablation_by_dataset.json
 
 ## 5. Minimal “first successful run” checklist
 
-1. `smoke_test.py` prints `SMOKE OK`  
-2. `prepare_data.py --hf` writes `slice_meta.json` with `source: huggingface_nq_hotpot`, `n_eval: 300`, `eval_by_dataset` 150/150  
-3. `run_pilot.py` writes `pilot_summary_default.json` with three policy blocks, each with `by_dataset`  
+1. `smoke_test.py` prints `SMOKE OK` (then re-run `--hf` if you need the ranking corpus; smoke overwrites `data/processed/`)  
+2. `prepare_data.py --hf` writes `slice_meta.json` with `source: huggingface_nq_hotpot`, `n_eval: 300`, `eval_by_dataset` 150/150, **`n_passages` ≥ 50000**  
+3. `run_pilot.py` prints `Ranking data check OK` **before** the model loads, then writes `pilot_summary_default.json` with three policy blocks, each with `by_dataset`  
 4. `run_reward_ablation.py` writes `reward_ablation_table.json` with six presets  
-
 5. `plot_results.py` writes PNGs under `results/figs/`
 
 If anything fails, start from smoke test, then re-prepare data, then re-run pilot.

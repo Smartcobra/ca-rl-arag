@@ -31,24 +31,28 @@ pip install -r requirements.txt   # torch + transformers for Qwen
 # 1) offline smoke test (forces extractive; no model download)
 python scripts/smoke_test.py
 
-# 2) prepare data (HF if available, else synthetic pilot)
-python scripts/prepare_data.py --synthetic
-# or: python scripts/prepare_data.py --hf
+# 2) prepare data (HF builds 300 questions + ~80k-passage distractor pool)
+python scripts/prepare_data.py --hf
+# offline tiny corpus only: python scripts/prepare_data.py --synthetic
 
-# 3) run pilot on the full 300-example eval (Qwen/Qwen2.5-3B-Instruct)
+# 3) ranking pilot (Qwen). Preflight runs first: eval must be 300 and corpus >= 50k.
+#    If that fails, the script exits before loading the model.
 python scripts/run_pilot.py --run-env-check
-# extractive debug: python scripts/run_pilot.py --config configs/extractive.yaml --limit 50
+# extractive debug (no 50k gate): python scripts/run_pilot.py --config configs/extractive.yaml --limit 50
+# synthetic / stale files on default.yaml: add --skip-data-check
 
-# 4) reward-weight ablation (stratified 100 from the same eval; not the ranking table)
+# 4) reward-weight ablation (same preflight; stratified 100; not the ranking table)
 python scripts/run_reward_ablation.py
 ```
+
+**Ranking preflight.** `run_pilot.py` and `run_reward_ablation.py` (default config) refuse to load Qwen unless the **on-disk** eval file is 300 (150 Hotpot + 150 NQ) **and** `corpus.jsonl` has at least **50,000** passages. `--limit` does not skip this — a 50-question run on a 2k corpus is still the wrong experiment. `--run-env-check` only rolls a few Gym episodes; it is not the data check. Bypass with `--skip-data-check` for synthetic/extractive debug. `configs/extractive.yaml` does not set the 50k floor.
 
 **Full guide** (why each command, datasets, evaluation matrix, outputs): [`docs/HOW_TO_RUN.md`](docs/HOW_TO_RUN.md).  
 **Results explained** (pilot tables, how to read metrics/trajectories, ablations): [`docs/RESULTS.md`](docs/RESULTS.md).
 
 ## Pilot results (snapshot)
 
-Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**, corpus 2276 passages. BM25 + lexical NLI. This run includes **forced yes/no** and a **tighter ABSTAIN prompt** (`force_yes_no: true`, `allow_abstain: true`).
+Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**, corpus **2276 passages** (pre-pool snapshot; the next ranking run must use the ≥50k distractor pool). BM25 + lexical NLI. This run includes **forced yes/no** and a **tighter ABSTAIN prompt** (`force_yes_no: true`, `allow_abstain: true`).
 
 **Comparison in one line:** Hotpot is still a 1–2 hit race (60 / 58 / 59). Extra tools still do not beat naive. Reward ranks **naive > rule > max_tools** (~1× / 3.1× / 4.6×). NQ is 148/150 for every policy after the yes/no detector fix.
 
