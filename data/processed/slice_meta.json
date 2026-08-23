@@ -3,7 +3,22 @@
   "seed": 42,
   "n_train": 100,
   "n_eval": 300,
-  "n_passages": 2276,
+  "n_passages": 80000,
+  "n_gold_support": 609,
+  "n_hotpot_slice": 2086,
+  "n_hotpot_distractor": 77724,
+  "n_nq_anchor": 190,
+  "distractor_pool_target": 80000,
+  "distractor_pool": {
+    "n_passages": 80000,
+    "n_slice_passages": 2276,
+    "n_distractors_added": 77724,
+    "n_distractor_rows_scanned": 8847,
+    "n_distractor_dups_skipped": 10246,
+    "target": 80000,
+    "hit_target": true,
+    "note": "nq_open has no passages; pool is unused Hotpot contexts only"
+  },
   "train_target": {
     "hotpot_qa": 60,
     "natural_questions": 40
@@ -22,7 +37,36 @@
   },
   "nq_corpus": "answer_anchor_passages",
   "nq_ceiling_note": "NQ EM near 1.0 is the answer-anchor ceiling, not a policy result",
+  "nq_pool_note": "nq_open has no passages; unused Hotpot contexts are the distractor pool",
   "ranking": "deferred_until_hotpot_n_approx_150_read_separately",
+  "retrieval_diag": {
+    "overall": {
+      "recall@1": 0.88,
+      "recall@5": 0.9633333333333334,
+      "recall@20": 0.9933333333333333,
+      "n_examples": 300,
+      "n_miss_at_5": 11,
+      "n_corpus": 80000
+    },
+    "by_dataset": {
+      "hotpot_qa": {
+        "recall@1": 0.76,
+        "recall@5": 0.9266666666666666,
+        "recall@20": 0.9866666666666667,
+        "n_examples": 150,
+        "n_miss_at_5": 11,
+        "n_corpus": 80000
+      },
+      "natural_questions": {
+        "recall@1": 1.0,
+        "recall@5": 1.0,
+        "recall@20": 1.0,
+        "n_examples": 150,
+        "n_miss_at_5": 0,
+        "n_corpus": 80000
+      }
+    }
+  },
   "paths": {
     "train": "/content/drive/MyDrive/carlarag/ca-rl-arag/data/processed/train_slice.jsonl",
     "eval": "/content/drive/MyDrive/carlarag/ca-rl-arag/data/processed/eval_slice.jsonl",
