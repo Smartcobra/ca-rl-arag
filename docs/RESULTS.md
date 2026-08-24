@@ -1,9 +1,12 @@
 # Results Guide — What Was Produced and How to Read It
 
+**Run this doc describes:** 80k-passage Qwen ranking pilot (300 eval: 150 Hotpot + 150 NQ). Metrics committed in `2417c43` (2026-08-23). Headline artifact: `results/metrics/pilot_summary_default.json`. Ablation: same corpus, stratified 100, `results/metrics/reward_ablation_table.json` (same commit). Section 6 (synthetic) is a different run (extractive, 2026-08-07). Section 8 (verifier labels) uses the 80k `rule_based_default.jsonl` from `2417c43`.
+
 This document describes the **Milestone 2 pilot results**: where files live, what each metric means, how to interpret the current numbers, and known limitations.
 
 For how to regenerate results, see [`HOW_TO_RUN.md`](HOW_TO_RUN.md).  
-For append-only run notes, see [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
+For append-only run notes, see [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).  
+NQ max-tools mechanism (tiny-corpus 2,276-passage run `34e6585`, NQ 148/150): [`NQ_MAX_TOOLS_ANALYSIS.md`](NQ_MAX_TOOLS_ANALYSIS.md).
 
 ---
 
@@ -157,8 +160,8 @@ it means: that Gym episode ended with a wrong answer and a low reward. Rows with
 
 ## 5. Reward-weight ablation results
 
-Source: `results/metrics/reward_ablation_table.json`  
-Fixed policy: **rule_based**, **stratified 100** from the same 300-file (50 Hotpot + 50 NQ) on the **80k** corpus. Same behavior → same EM/F1/$ (EM 0.67; Hotpot 19/50, NQ 48/50); only the **scalar reward** changes.
+**Run this section describes:** same 80k Qwen corpus as the ranking pilot, commit `2417c43`. Source: `results/metrics/reward_ablation_table.json`.  
+Fixed policy: **rule_based**, **stratified 100** from the same 300-file (50 Hotpot + 50 NQ). Same behavior → same EM/F1/$ (EM 0.67; Hotpot 19/50, NQ 48/50); only the **scalar reward** changes.
 
 | Preset | overall reward | Hotpot reward | NQ reward | What it tests |
 |---|---:|---:|---:|---|
@@ -181,6 +184,8 @@ Full weight definitions: [`REWARD_DESIGN.md`](REWARD_DESIGN.md).
 ---
 
 ## 6. Synthetic pilot (sanity / offline)
+
+**Run this section describes:** extractive generator, closed synthetic corpus, 16 eval examples, 2026-08-07 (`docs/EXPERIMENT_LOG.md`). Not the 80k Qwen ranking run.
 
 When quality is saturated (extractive EM ≈ 1.0 on a closed fact corpus), reward ranks by cost:
 

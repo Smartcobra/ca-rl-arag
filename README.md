@@ -52,7 +52,7 @@ python scripts/run_reward_ablation.py
 
 ## Pilot results (snapshot)
 
-Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**, corpus **80,000 passages** (2,086 Hotpot slice + 190 NQ anchors + 77,724 unused-Hotpot distractors). BM25 gold recall@5: Hotpot **0.927** (11 misses), NQ **1.0**. Lexical NLI. `force_yes_no: true`, `allow_abstain: true`.
+**Run this section describes:** 80k-passage Qwen ranking pilot, commit `2417c43` (2026-08-23). Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**, corpus **80,000 passages** (2,086 Hotpot slice + 190 NQ anchors + 77,724 unused-Hotpot distractors). BM25 gold recall@5: Hotpot **0.927** (11 misses), NQ **1.0**. Lexical NLI. `force_yes_no: true`, `allow_abstain: true`. The tiny-corpus NQ write-up (148/150) is a different run: [`docs/NQ_MAX_TOOLS_ANALYSIS.md`](docs/NQ_MAX_TOOLS_ANALYSIS.md).
 
 **Comparison in one line:** On the 80k index, Hotpot is 59 / 58 / 61. `max_tools` is +2 vs naive (3 recoveries / 1 regression) but costs 4.6×, so reward still ranks **naive > rule > max_tools**. NQ is 146/150 for every policy (answer-anchor ceiling).
 

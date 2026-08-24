@@ -1,5 +1,7 @@
 # Eval Quality Plan
 
+**This is a hygiene plan, not a ranking table.** It describes the 40-example Qwen mix (~2026-08-20), before the locked 300-eval. Current ranking numbers live in [`RESULTS.md`](RESULTS.md) (80k run `2417c43`).
+
 Plan for fixing eval reporting, ABSTAIN parsing, slice bias, stale ablation artifacts, and repo hygiene. **No ranking conclusions until this is done.**
 
 The 40-example headline numbers mix two regimes, and several `results/` artifacts still describe a different experiment than the Qwen run.
@@ -208,7 +210,7 @@ Also add `.DS_Store` / `.idea/` while touching gitignore (both currently untrack
 
 ## Out of scope for this pass
 
-- Replacing NQ answer-anchors with a Wikipedia index (that is the real NQ-signal fix; the 300-ex run will still show NQ flat).
+- Replacing NQ answer-anchors with DPR Wikipedia passages — **done** (`src/data/wiki_passages.py`). Rebuild with `python scripts/prepare_data.py --hf` before RL; do not cite leaked-anchor NQ EM as a policy result.
 - Statistical tests / Pareto claims.
 - Changing reward weights because naive “won” on the 40-mix.
 

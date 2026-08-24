@@ -6,10 +6,12 @@ from typing import Any, Iterable
 
 from .utils import exact_match, token_f1
 
-DATASET_DISPLAY_ORDER = ("hotpot_qa", "natural_questions")
+DATASET_DISPLAY_ORDER = ("hotpot_qa", "natural_questions", "trivia_qa", "squad")
 DATASET_LABELS = {
     "hotpot_qa": "HotpotQA",
     "natural_questions": "Natural Questions",
+    "trivia_qa": "TriviaQA",
+    "squad": "SQuAD",
 }
 
 _MEAN_KEYS = [

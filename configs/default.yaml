@@ -14,7 +14,8 @@ data:
   eval_file: data/processed/eval_slice.jsonl
   corpus_file: data/processed/corpus.jsonl
   # Locked ranking slice: 150 Hotpot + 150 NQ = 300 eval.
-  # Train stays small. NQ still uses answer-anchor passages (ceiling, not signal).
+  # Train stays small. NQ uses DPR Wikipedia 100-word passages
+  # (Tevatron/wikipedia-nq). Answer-anchor leakage is forbidden.
   train_nq: 40
   train_hotpot: 60
   eval_nq: 150
@@ -23,12 +24,15 @@ data:
   # For HuggingFace downloads these counts are used as-is.
   hotpot_config: distractor
   # Unused Hotpot contexts only (not extra questions). 0 disables.
-  # 50k–100k so first-shot BM25 is no longer near-perfect. nq_open has no
-  # passages, so the pool cannot fix the NQ answer-anchor ceiling.
+  # 50k–100k so first-shot BM25 is no longer near-perfect.
   distractor_pool_target: 80000
   # Pilot / ablation refuse to load the GPU model below this corpus size.
   min_corpus_passages: 50000
   require_ranking_slice: true
+  # DPR NQ evidence (not nq_open). TriviaQA / SQuAD are automatic fallbacks
+  # if this download is too heavy. Never writes {{question}} The answer is {{gold}}.
+  nq_passage_dataset: Tevatron/wikipedia-nq
+  nq_negatives_per_query: 8
 
 retrieval:
   top_k: 5

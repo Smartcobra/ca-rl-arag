@@ -52,19 +52,19 @@ Primary datasets follow **Scope Memo V2 §7**:
 | Dataset | HuggingFace id (when `--hf`) | Role |
 |---|---|---|
 | **HotpotQA** (distractor) | `hotpotqa/hotpot_qa` | Multi-hop QA; supporting titles enable grounding metrics |
-| **Natural Questions** (NQ Open) | `google-research-datasets/nq_open` | Single-hop QA; teaches when *not* to over-retrieve |
+| **Natural Questions** | `Tevatron/wikipedia-nq` (DPR Wikipedia 100-word passages) | Single-hop QA with real evidence; teaches when *not* to over-retrieve. Fallback: TriviaQA or SQuAD. |
 
 ### Modes
 
 | Flag | What you get |
 |---|---|
-| `--hf` | Real NQ + Hotpot question slices, plus an unused-Hotpot **distractor pool** (target 80k passages, floor 50k). Locked eval questions stay 150+150; extra rows are passages only. NQ items still get answer-anchor passages (ceiling until a Wikipedia/DPR index). |
+| `--hf` | Real Hotpot + NQ (DPR Wikipedia passages), plus an unused-Hotpot **distractor pool** (target 80k, floor 50k). Locked eval stays 150+150. NQ golds are Wikipedia text, not `{question} The answer is {gold}`. |
 | `--synthetic` | Offline closed fact corpus (capitals/scientists). Use when you have no network or want a perfect EM smoke/pilot. |
 | *(no flag)* | Tries HuggingFace first; falls back to synthetic if download fails. |
 
 ### Default slice sizes (`configs/default.yaml`)
 
-Locked **plan A** (balanced mix). Ranking reads Hotpot; NQ stays near-ceiling until answer-anchors go away.
+Locked **plan A** (balanced mix). After rebuilding with `--hf`, NQ uses real Wikipedia evidence and can rank stop vs over-retrieve. Historical RESULTS tables from the answer-anchor corpus are a different run.
 
 | Split | Hotpot | NQ | Typical total |
 |---|---|---|---|
@@ -94,7 +94,7 @@ More detail: `docs/data_cards/hotpotqa.md`, `docs/data_cards/natural_questions.m
 
 The project reports **quality**, **grounding/safety**, **efficiency/cost**, and the **aggregate reward**. This matches Scope Memo V2 §9 (quality–cost trade-off is the headline).
 
-**Always split HotpotQA and Natural Questions.** `aggregate_metrics` groups rows by `dataset` and emits the same means under `by_dataset`. Overall is mix-weighted and is a headline only after you have seen the mix. NQ is currently saturated (answer-anchor passages); do not rank policies from overall EM.
+**Always split HotpotQA and Natural Questions.** `aggregate_metrics` groups rows by `dataset` and emits the same means under `by_dataset`. Overall is mix-weighted and is a headline only after you have seen the mix. Rebuild the corpus with `--hf` before RL; preflight rejects leftover NQ answer-anchors.
 
 ### Quality
 
@@ -144,7 +144,7 @@ Defaults and ablation presets: `configs/reward_weights.yaml`, `docs/REWARD_DESIG
 | **rule_based** | Threshold policy over retrieve/rewrite/rerank/verify/stop. It *runs* verify, but on the current trajectories it does **not** re-retrieve or rewrite after a contradiction — it just stops. |
 | **max_tools** | Uses tools up to caps (high-cost reference) |
 
-**Verifier vs frozen policy (read this before RL).** Lexical NLI is not a dummy label. On Hotpot it returns a real mix (14 contradiction / 34 neutral / 102 support). On NQ it returns support 150/150, because that split is still an answer-anchor ceiling. So the verify signal is informative *exactly where ranking happens*. `rule_based` currently ignores it as a control signal. That gap — signal exists, frozen policy does not act on it — is where a learned policy should win. Details: [`RESULTS.md` §8](RESULTS.md).
+**Verifier vs frozen policy (read this before RL).** Lexical NLI is not a dummy label. On the 80k **answer-anchor** run (`2417c43`), Hotpot was 14 contradiction / 34 neutral / 102 support and NQ was support 150/150 because gold was planted. After rebuilding with DPR Wikipedia passages, NQ verify should mix; the unused-control-signal argument for RL is the Hotpot gap (`rule_based` still stops after contradiction). Details: [`RESULTS.md` §8](RESULTS.md) (historical leaked-NQ numbers) and [`IMPLEMENTATION_DECISIONS.md`](IMPLEMENTATION_DECISIONS.md).
 
 ---
 
@@ -203,10 +203,12 @@ python scripts/prepare_data.py --config configs/default.yaml
   "n_eval": 300,
   "n_passages": 80000,
   "n_hotpot_distractor": 77724,
-  "n_nq_anchor": 190,
+  "n_nq_wiki": "...",
+  "n_nq_anchor": 0,
   "train_by_dataset": {"hotpot_qa": 60, "natural_questions": 40},
   "eval_by_dataset": {"hotpot_qa": 150, "natural_questions": 150},
-  "nq_corpus": "answer_anchor_passages",
+  "nq_corpus": "dpr_wikipedia_w100",
+  "nq_hf_dataset": "Tevatron/wikipedia-nq",
   "retrieval_diag": { "by_dataset": { "hotpot_qa": { "recall@5": "..." } } },
   "paths": { ... }
 }
@@ -368,8 +370,8 @@ Wrote .../results/metrics/reward_ablation_by_dataset.json
 ## 5. Minimal “first successful run” checklist
 
 1. `smoke_test.py` prints `SMOKE OK` (then re-run `--hf` if you need the ranking corpus; smoke overwrites `data/processed/`)  
-2. `prepare_data.py --hf` writes `slice_meta.json` with `source: huggingface_nq_hotpot`, `n_eval: 300`, `eval_by_dataset` 150/150, **`n_passages` ≥ 50000**  
-3. `run_pilot.py` prints `Ranking data check OK` **before** the model loads, then writes `pilot_summary_default.json` with three policy blocks, each with `by_dataset`  
+2. `prepare_data.py --hf` writes `slice_meta.json` with `source: huggingface_nq_hotpot`, `n_eval: 300`, `eval_by_dataset` 150/150, **`n_passages` ≥ 50000**, **`n_nq_anchor`: 0**, `nq_corpus: dpr_wikipedia_w100`  
+3. `run_pilot.py` prints `Ranking data check OK` **before** the model loads (and fails if leftover NQ answer-anchors are present), then writes `pilot_summary_default.json` with three policy blocks, each with `by_dataset`  
 4. `run_reward_ablation.py` writes `reward_ablation_table.json` with six presets  
 5. `plot_results.py` writes PNGs under `results/figs/`
 
@@ -382,8 +384,9 @@ If anything fails, start from smoke test, then re-prepare data, then re-run pilo
 | Doc | Topic |
 |---|---|
 | `README.md` | Project overview |
-| `docs/RESULTS.md` | **Detailed results:** tables, trajectory fields, ablation interpretation |
+| `docs/RESULTS.md` | **Detailed results:** 80k ranking run `2417c43` (leaked NQ anchors, 146/150) — not the DPR-Wikipedia corpus |
+| `docs/NQ_MAX_TOOLS_ANALYSIS.md` | NQ max-tools mechanism; tiny-corpus run `34e6585` (NQ 148/150), not the 80k snapshot |
 | `docs/REWARD_DESIGN.md` | Why reward weights were chosen |
 | `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, etc. |
-| `docs/EXPERIMENT_LOG.md` | Recorded pilot numbers |
+| `docs/EXPERIMENT_LOG.md` | Recorded pilot numbers (each dated block names its run) |
 | `docs/data_cards/*.md` | Dataset cards |

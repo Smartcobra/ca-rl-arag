@@ -189,10 +189,17 @@ def plot_policy_by_dataset(results: dict, out_dir: Path) -> None:
     labels = [POLICY_LABELS.get(p, p) for p in policies]
     x = np.arange(len(policies))
     width = 0.25
+    hop = "natural_questions"
+    for policy in policies:
+        present = set((results[policy].get("by_dataset") or {}).keys())
+        for name in ("natural_questions", "trivia_qa", "squad"):
+            if name in present:
+                hop = name
+                break
     series = [
         (None, "Overall (mix-weighted)", "#6C757D"),
         ("hotpot_qa", "HotpotQA", "#2A6F97"),
-        ("natural_questions", "Natural Questions", "#E07A3D"),
+        (hop, DATASET_LABELS.get(hop, hop), "#E07A3D"),
     ]
     panels = (
         ("mean_em", "Exact match"),
@@ -213,7 +220,7 @@ def plot_policy_by_dataset(results: dict, out_dir: Path) -> None:
     handles, legend_labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, legend_labels, loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.02))
     fig.suptitle(
-        "Policy comparison by dataset — NQ is saturated; do not rank from Overall",
+        "Policy comparison by dataset — overall is mix-weighted; read Hotpot and single-hop separately",
         y=1.07,
         fontsize=12,
     )

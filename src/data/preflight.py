@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 from ..metrics import counts_by_dataset
+from .loaders import NQ_ANCHOR_SOURCE
+from .wiki_passages import SINGLE_HOP_DATASETS
 
 
 def ranking_data_errors(
@@ -31,18 +33,26 @@ def ranking_data_errors(
     want_total = want_h + want_n
     counts = counts_by_dataset(examples)
     got_h = int(counts.get("hotpot_qa") or 0)
-    got_n = int(counts.get("natural_questions") or 0)
+    got_n = sum(int(counts.get(name) or 0) for name in SINGLE_HOP_DATASETS)
+    hop_present = [name for name in SINGLE_HOP_DATASETS if counts.get(name)]
 
     if require_slice and want_total:
         if len(examples) != want_total:
             errors.append(
                 f"{split} file has {len(examples)} examples; expected {want_total} "
-                f"({want_h} Hotpot + {want_n} NQ). Re-run: python scripts/prepare_data.py --hf"
+                f"({want_h} Hotpot + {want_n} single-hop). Re-run: python scripts/prepare_data.py --hf"
             )
         if want_h and got_h != want_h:
             errors.append(f"{split} Hotpot count is {got_h}, expected {want_h}.")
         if want_n and got_n != want_n:
-            errors.append(f"{split} NQ count is {got_n}, expected {want_n}.")
+            errors.append(
+                f"{split} single-hop count is {got_n}, expected {want_n} "
+                f"(natural_questions / trivia_qa / squad)."
+            )
+        if want_n and len(hop_present) > 1:
+            errors.append(
+                f"{split} has mixed single-hop datasets {hop_present}; expected one of {SINGLE_HOP_DATASETS}."
+            )
 
     n_passages = len(corpus)
     if min_passages > 0 and n_passages < min_passages:
@@ -50,6 +60,20 @@ def ranking_data_errors(
             f"corpus has {n_passages} passages; ranking runs need >= {min_passages}. "
             "The small index saturates BM25 (gold almost always in one shot). "
             "Re-run: python scripts/prepare_data.py --hf"
+        )
+
+    n_anchor = sum(
+        1
+        for p in corpus
+        if str(p.get("source") or "") == NQ_ANCHOR_SOURCE
+        or str(p.get("title") or "").startswith("NQ anchor")
+    )
+    if n_anchor:
+        errors.append(
+            f"corpus still has {n_anchor} NQ answer-anchor passages (label leakage). "
+            "Re-run: python scripts/prepare_data.py --hf  "
+            "(uses Tevatron/wikipedia-nq DPR Wikipedia passages; never plants "
+            "'The answer is {gold}')."
         )
     return errors
 

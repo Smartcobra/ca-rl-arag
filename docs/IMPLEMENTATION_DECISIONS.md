@@ -28,7 +28,7 @@ Living document for methodology / discussion sections. Update as experiments pro
 
 - **Primary:** Natural Questions + HotpotQA (Scope Memo V2).
 - **Pilot:** `scripts/prepare_data.py` builds a small slice; `--synthetic` enables offline debugging; `--hf` pulls HuggingFace `nq_open` + `hotpot_qa/distractor`.
-- **NQ corpus note:** without a full Wikipedia dump in M2, HF mode adds answer-anchor passages for NQ items so the shared index remains solvable; Hotpot uses distractor contexts. Documented in data cards.
+- **NQ corpus note:** `--hf` loads DPR Wikipedia 100-word passages via `Tevatron/wikipedia-nq` (see 2026-08-24). Answer-anchors are forbidden. Fallback: TriviaQA or SQuAD with real passages.
 
 ### Policies before RL
 
@@ -59,12 +59,14 @@ Living document for methodology / discussion sections. Update as experiments pro
 ## 2026-08-21 — Eval grown to 300 (balanced)
 
 - Config lock: `eval_hotpot: 150`, `eval_nq: 150` (train stays 60+40). Balanced mix for the public table; always read Hotpot as the ranking split.
-- `python scripts/prepare_data.py --hf` rebuilds `eval_slice.jsonl` / corpus. Corpus grows with more Hotpot distractor contexts. NQ still gets answer-anchor passages — that ceiling is not a model success.
+- `python scripts/prepare_data.py --hf` rebuilds `eval_slice.jsonl` / corpus. NQ golds are DPR Wikipedia passages (not answer-anchors). Corpus still grows with unused Hotpot distractors.
 - Pilot default is the **full eval file** (no prefix `--limit`). A debug `--limit` is stratified: `round(limit * n_ds / n_total)` per dataset, leftover rounding to hit `limit`. `--limit 40` on 150+150 is ~20+20, never 40 Hotpot + 0 NQ.
 - Ablation default is a **stratified 100** from the same 300, labeled as a subset. Not the ranking table.
 - Existing Qwen 40-ex metrics stay in `results/` until the 300-example GPU run. Do not rank from them.
 
 ## 2026-08-24 — Lexical NLI is informative; `rule_based` does not act on it
+
+**Run this note describes:** 80k-passage Qwen ranking pilot, commit `2417c43` (2026-08-23). Trajectories: `results/trajectories/rule_based_default.jsonl`.
 
 Trajectory counts from `results/trajectories/rule_based_default.jsonl` (150 Hotpot + 150 NQ):
 
@@ -79,8 +81,40 @@ Junior reading: `verify` is a “does the evidence agree with this answer?” ch
 
 Implication for RL: do not treat “verify did not help `rule_based`” as “verify is useless.” The env already exposes `verify_support` / `verify_contra`. A learned policy can condition retrieve / rewrite / stop on those values. That unused gap is a designed place for GRPO/PPO to beat the frozen baseline. Full write-up: `docs/RESULTS.md` §8.
 
+## 2026-08-24 — NQ answer-anchors are label leakage; replaced with DPR Wikipedia
+
+**Status:** implemented in `scripts/prepare_data.py` / `src/data/wiki_passages.py`. Old 80k ranking tables in `docs/RESULTS.md` (`2417c43`) still describe the leaked-anchor run; do not mix those numbers with a rebuilt corpus.
+
+`--hf` no longer plants `{question} The answer is {gold}`. Primary source is **Tevatron/wikipedia-nq** (DPR 100-word Wikipedia passages, Karpukhin et al. 2020 — the reviewer-expected NQ evidence). The 21M `wiki_dpr` dump is **not** downloaded (Colab). Each NQ item gets its gold Wikipedia passage(s) plus a few DPR negatives; unused Hotpot contexts still grow the shared index to ~80k.
+
+**Fallbacks** (still real passages; never anchors): Tevatron TriviaQA → Tevatron SQuAD → `rajpurkar/squad` article contexts. Preflight rejects any remaining `nq_anchor` rows.
+
+Re-run `python scripts/prepare_data.py --hf` before RL. Ranking scripts will refuse an old anchor corpus.
+
+### What the leaked corpus was (historical)
+
+`nq_open` ships questions and short answers, not Wikipedia passages. Milestone-2 scaffolding planted one synthetic gold per NQ item:
+
+```
+{question} The answer is {gold}. According to reference sources, the answer is {gold}.
+```
+
+That is **label leakage**. BM25 recall@1 = 1.0, Q_ground = 1.0, P_hall = 0, verify support 150/150, and a policy that learns to stop immediately on NQ for the wrong reason. Acceptable only as M2 pipeline scaffolding; not for GRPO/PPO.
+
+### What `--hf` writes now
+
+| Field | Meaning |
+|---|---|
+| `nq_corpus` | `dpr_wikipedia_w100` (or `trivia_qa` / `squad` on fallback) |
+| `nq_hf_dataset` | `Tevatron/wikipedia-nq` (or fallback id) |
+| `n_nq_anchor` | must be 0 |
+| `n_nq_wiki` / `n_nq_wiki_neg` | real Wikipedia golds and capped DPR negatives |
+
+After the swap, NQ recall@k should drop below 1 on the 80k index, and NQ can rank stop vs over-retrieve.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
 |---|---|---|---|
 | 2026-08-24 | Qwen 300-eval, lexical NLI, `rule_based` trajectories | Hotpot verify mix is 14 contradiction / 34 neutral / 102 support; NQ is support 150/150. After every verify, including all 14 contradictions, the next action is `stop`. | Verify is a useful state feature on the hard split. Frozen policy does not use it. Learned policy should. |
+| 2026-08-24 | NQ corpus inspection (`prepare_data.py` anchors) | Each NQ gold was `{question} The answer is {gold}` twice. Recall@1 / Q_ground / P_hall on NQ were leakage artifacts. | **Implemented:** `--hf` now uses Tevatron/wikipedia-nq DPR passages (fallback TriviaQA/SQuAD). Preflight rejects leftover anchors. Rebuild before RL. |

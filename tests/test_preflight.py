@@ -46,6 +46,21 @@ def test_ready_slice_and_corpus_passes() -> None:
     assert errors == []
 
 
+def test_nq_anchors_fail_even_if_size_ok() -> None:
+    corpus = [{"source": "nq_anchor", "title": "NQ anchor for x"}] * 80000
+    errors = ranking_data_errors(_cfg(), _examples(150, 150), corpus)
+    assert any("answer-anchor" in e for e in errors)
+
+
+def test_trivia_single_hop_passes() -> None:
+    examples = (
+        [{"dataset": "hotpot_qa", "id": f"h{i}"} for i in range(150)]
+        + [{"dataset": "trivia_qa", "id": f"t{i}"} for i in range(150)]
+    )
+    errors = ranking_data_errors(_cfg(), examples, [{}] * 80000)
+    assert errors == []
+
+
 def test_disabled_when_no_min_and_no_require() -> None:
     cfg = _cfg(min_corpus_passages=0, require_ranking_slice=False)
     errors = ranking_data_errors(cfg, _examples(10, 5), [{}] * 21)
@@ -56,6 +71,8 @@ def main() -> None:
     test_tiny_corpus_fails_even_if_eval_is_300()
     test_wrong_eval_mix_fails()
     test_ready_slice_and_corpus_passes()
+    test_nq_anchors_fail_even_if_size_ok()
+    test_trivia_single_hop_passes()
     test_disabled_when_no_min_and_no_require()
     print("PREFLIGHT OK")
 

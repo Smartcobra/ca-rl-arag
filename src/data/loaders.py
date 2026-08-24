@@ -9,7 +9,9 @@ from ..utils import write_jsonl
 
 HOTPOT_SLICE_SOURCE = "hotpot_qa"
 HOTPOT_DISTRACTOR_SOURCE = "hotpot_distractor"
-NQ_ANCHOR_SOURCE = "nq_anchor"
+NQ_ANCHOR_SOURCE = "nq_anchor"  # legacy leak; HF prepare must never write this
+NQ_WIKI_SOURCE = "nq_kilt_dpr"
+NQ_WIKI_NEG_SOURCE = "nq_wiki_distractor"
 
 
 def _stable_id(*parts: str) -> str:
@@ -60,7 +62,7 @@ def add_hotpot_distractor_pool(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Grow a corpus toward ``target_size`` using unused Hotpot contexts.
 
-    Existing slice / NQ-anchor passages are never rewritten. Dedup keeps the
+    Existing slice / NQ Wikipedia passages are never rewritten. Dedup keeps the
     first copy (the gold/slice row). ``target_size <= 0`` or already met is a
     no-op. Stops as soon as ``len(corpus) >= target_size``.
     """
@@ -113,6 +115,8 @@ def corpus_source_counts(passages: list[dict[str, Any]]) -> dict[str, int]:
         "n_gold_support": 0,
         "n_hotpot_slice": 0,
         "n_hotpot_distractor": 0,
+        "n_nq_wiki": 0,
+        "n_nq_wiki_neg": 0,
         "n_nq_anchor": 0,
     }
     for p in passages:
@@ -123,6 +127,10 @@ def corpus_source_counts(passages: list[dict[str, Any]]) -> dict[str, int]:
             counts["n_hotpot_slice"] += 1
         elif src == HOTPOT_DISTRACTOR_SOURCE:
             counts["n_hotpot_distractor"] += 1
+        elif src == NQ_WIKI_SOURCE:
+            counts["n_nq_wiki"] += 1
+        elif src == NQ_WIKI_NEG_SOURCE:
+            counts["n_nq_wiki_neg"] += 1
         elif src == NQ_ANCHOR_SOURCE:
             counts["n_nq_anchor"] += 1
     return counts
@@ -160,6 +168,7 @@ def hotpot_to_examples(raw_rows: list[dict[str, Any]], split: str) -> tuple[list
 
 
 def nq_to_examples(raw_rows: list[dict[str, Any]], split: str) -> list[dict[str, Any]]:
+    """Questions-only converter (no evidence). HF ranking data must use wiki_passages."""
     examples: list[dict[str, Any]] = []
     for i, row in enumerate(raw_rows):
         answers = row.get("answer") or row.get("answers") or []
