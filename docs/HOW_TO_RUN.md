@@ -141,8 +141,10 @@ Defaults and ablation presets: `configs/reward_weights.yaml`, `docs/REWARD_DESIG
 | Policy | Behavior |
 |---|---|
 | **naive_rag** | Retrieve once → generate/stop (Lewis-style baseline) |
-| **rule_based** | Threshold policy over retrieve/rewrite/rerank/verify/stop |
+| **rule_based** | Threshold policy over retrieve/rewrite/rerank/verify/stop. It *runs* verify, but on the current trajectories it does **not** re-retrieve or rewrite after a contradiction — it just stops. |
 | **max_tools** | Uses tools up to caps (high-cost reference) |
+
+**Verifier vs frozen policy (read this before RL).** Lexical NLI is not a dummy label. On Hotpot it returns a real mix (14 contradiction / 34 neutral / 102 support). On NQ it returns support 150/150, because that split is still an answer-anchor ceiling. So the verify signal is informative *exactly where ranking happens*. `rule_based` currently ignores it as a control signal. That gap — signal exists, frozen policy does not act on it — is where a learned policy should win. Details: [`RESULTS.md` §8](RESULTS.md).
 
 ---
 

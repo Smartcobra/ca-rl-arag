@@ -214,17 +214,52 @@ Use these rows for qualitative analysis (unnecessary retrieves, bad rewrites, ye
 
 ---
 
-## 8. Takeaways for the paper / next milestone
+## 8. Verifier signal vs frozen policy (RL implication)
+
+This is a trajectory observation, not a code change. It matters for how we design the learned policy.
+
+**What `verify` is, in one sentence.** After the agent has some passages and a draft answer, the lexical NLI verifier checks whether the evidence *agrees* with that answer. It returns one of three labels:
+
+| Label | Meaning in plain English |
+|---|---|
+| `support` | The passages look consistent with the answer. |
+| `neutral` | The passages do not clearly agree or disagree. |
+| `contradiction` | The passages look like they *disagree* with the answer. |
+
+That label is stored on each trajectory as `verify_out`. The Gym env already puts `support` and `contradiction` into the observation, so a learned policy *can* see them.
+
+**What the current run actually returned** (`rule_based_default.jsonl`, 150 + 150):
+
+| Split | contradiction | neutral | support |
+|---|---:|---:|---:|
+| HotpotQA (hard ranking split) | **14** | **34** | **102** |
+| Natural Questions (answer-anchor ceiling) | 0 | 0 | **150 / 150** |
+
+Read this the junior way: on NQ the verifier is a yes-man. Every item is `support`, because the gold string is planted in the corpus. On Hotpot it is *not* a yes-man. About one in ten answers is flagged as a contradiction, and another ~one in five is only `neutral`. That mix is exactly where a verify signal is useful: it lights up on the hard split, and stays quiet on the easy one.
+
+**What `rule_based` does with that signal: nothing that changes the search.** On this run, the next action after `verify` was `stop` on **300 / 300** items — including all 14 Hotpot contradictions. It never re-retrieved. It never rewrote the query. (There is a small “if support is very low, retrieve once more” branch in the frozen policy, but it did not fire here, and it does not look at the `contradiction` label anyway.)
+
+So we have a gap:
+
+1. The **signal exists** and is informative where it needs to be (Hotpot).
+2. The **frozen policy does not use it** to recover (no extra retrieve / rewrite after contradiction).
+
+That gap is precisely where a learned policy should win: see `contradiction` / low support in the state, then spend another retrieve or rewrite only when that looks worth the cost. The frozen baselines cannot show that behavior, so they are not a fair ceiling on what verify is worth.
+
+---
+
+## 9. Takeaways for the paper / next milestone
 
 1. **Pipeline OK:** data → 80k BM25 index → agent actions → NLI verify → cost → multi-component reward → logs on the locked 300-example eval (150 Hotpot + 150 NQ). Preflight requires eval=300 and corpus ≥ 50k before Qwen loads.
 2. **Reporting contract:** every table is overall + Hotpot + NQ. Overall is mix-weighted. NQ is still saturated (anchors) and cannot rank policies.
 3. **The distractor pool did what it was for.** Hotpot R@5 is 0.927 (11 misses), not ~1.0. Abstain rose (20→29 naive). `max_tools` recovers 3 Hotpot items and loses 1 (61 vs 59). Reward still ranks naive because spend is 1× / 3.0× / 4.6×.
-4. **Next:** Milestone 3 is cost-aware RL. Extra tools can now change a few answers; a learned controller must **select** when that is worth the cost. NQ still needs a real Wikipedia/DPR index before it is a ranking split.
+4. **Verify is informative on Hotpot and unused by `rule_based`.** Lexical NLI returns 14 contradiction / 34 neutral / 102 support on Hotpot, and support 150/150 on NQ. After every verify — including the 14 contradictions — the frozen policy just stops. That unused state feature is a Milestone-3 win condition for RL, not a reason to drop verify.
+5. **Next:** Milestone 3 is cost-aware RL. Extra tools can now change a few answers; a learned controller must **select** when that is worth the cost, including when verify says the current evidence contradicts the draft. NQ still needs a real Wikipedia/DPR index before it is a ranking split.
 
 
 ---
 
-## 9. How to regenerate and refresh this doc
+## 10. How to regenerate and refresh this doc
 
 ```bash
 python scripts/prepare_data.py --hf
