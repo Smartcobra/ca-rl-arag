@@ -184,7 +184,7 @@ def main() -> None:
     if not args.synthetic:
         try:
             train, eval_set, passages, pool_stats = load_hf_slices(cfg)
-        source = "huggingface_nq_hotpot"
+            source = "huggingface_nq_hotpot"
         except Exception as e:
             if args.hf:
                 raise
