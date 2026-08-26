@@ -2,7 +2,7 @@
 
 Append-only notes while running pilots. Prefer short factual entries. **Each dated block names the run it belongs to.** Do not cite a number from this file without that run line.
 
-For a full walkthrough of the current 80k ranking pilot (`2417c43`), see [`RESULTS.md`](RESULTS.md).
+For a full walkthrough of the current 80k ranking pilot (`e8a4423`, Hotpot + SQuAD fallback), see [`RESULTS.md`](RESULTS.md). The earlier 80k leaked-NQ snapshot is `2417c43`.
 
 ## 2026-08-07
 
@@ -67,11 +67,44 @@ Observation: extractive generator is a weak absolute QA backend on open Hotpot/N
 - Ablation default: stratified 100 from this file, not a ranking table.
 - Next GPU job: `python scripts/prepare_data.py --hf` then `python scripts/run_pilot.py --run-env-check` (full 300). Do not treat the 40-ex Qwen JSON as the 300 result.
 
-## 2026-08-24
+## 2026-08-24 (morning) — leaked-NQ 80k verify check
 
-**Run:** 80k-passage Qwen ranking pilot, commit `2417c43` (2026-08-23). Trajectories: `results/trajectories/rule_based_default.jsonl`.
+**Run:** 80k-passage Qwen ranking pilot, commit `2417c43` (2026-08-23), **leaked NQ anchors**. Superseded later the same day by `e8a4423`. Trajectories at the time: `results/trajectories/rule_based_default.jsonl`.
 
 - Trajectory check on `rule_based_default.jsonl` (lexical NLI, 150 Hotpot + 150 NQ).
 - Verify labels: Hotpot **14 contradiction / 34 neutral / 102 support**; NQ **support 150/150**.
 - After `verify`, next action was `stop` on 300/300 items, including all 14 Hotpot contradictions. Zero re-retrieve, zero rewrite after contradiction.
 - Implication: the verifier discriminates on the hard split and is already in the env observation, but `rule_based` does not use it. That is a Milestone-3 policy gap, not a dead feature. Wrote up in `docs/RESULTS.md` §8 and `docs/IMPLEMENTATION_DECISIONS.md`.
+
+## 2026-08-24 (afternoon) — SQuAD fallback ranking pilot
+
+**Run:** 80k-passage Qwen ranking pilot, commit `e8a4423`. Tevatron/wikipedia-nq was too heavy; `--hf` fell back to `rajpurkar/squad`. Slice: 150 Hotpot + 150 SQuAD. `slice_meta.json`: `nq_corpus: squad`, `n_nq_anchor: 0`, `n_nq_wiki: 16`, corpus 80,000 (2,086 Hotpot slice + 16 SQuAD contexts + 77,898 unused-Hotpot distractors). BM25 R@5: Hotpot 0.927 (11 miss), SQuAD 0.633 (55 miss). Source: `results/metrics/pilot_summary_default.json`. Reward ablation JSON was **not** regenerated (still leaked-NQ `2417c43`).
+
+### HotpotQA (n=150)
+
+| Policy | EM | F1 | n_correct | n_abstained | mean $ | mean reward |
+|---|---:|---:|---:|---:|---:|---:|
+| naive_rag | 0.393 | 0.443 | 59/150 | 29 | 1.59e-4 | 0.653 |
+| rule_based | 0.387 | 0.446 | 58/150 | 28 | 4.81e-4 | 0.604 |
+| max_tools | 0.407 | 0.476 | 61/150 | 24 | 7.37e-4 | 0.581 |
+
+### SQuAD (n=150)
+
+| Policy | EM | F1 | n_correct | n_abstained | mean $ | mean reward |
+|---|---:|---:|---:|---:|---:|---:|
+| naive_rag | 0.400 | 0.466 | 60/150 | 16 | 1.69e-4 | 0.729 |
+| rule_based | 0.420 | 0.468 | 63/150 | 15 | 5.03e-4 | 0.710 |
+| max_tools | 0.400 | 0.451 | 60/150 | 17 | 7.50e-4 | 0.618 |
+
+### Overall (mix-weighted)
+
+| Policy | EM | F1 | n_correct | n_abstained | mean $ | mean steps | mean reward |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| naive_rag | 0.397 | 0.454 | 119/300 | 45 | 1.64e-4 | 2.0 | 0.691 |
+| rule_based | 0.403 | 0.457 | 121/300 | 43 | 4.92e-4 | 4.0 | 0.657 |
+| max_tools | 0.403 | 0.463 | 121/300 | 41 | 7.43e-4 | 7.0 | 0.600 |
+
+- Action mix unchanged: naive 1 retrieve; rule retrieve+rerank+verify; max retrieve×3+rewrite+rerank+verify. Spend 1× / 3.0× / 4.5×. Latency 1037 / 1615 / 3265 ms.
+- Hotpot `max_tools` vs naive: **3 recoveries / 1 regression**. SQuAD rule vs naive: **7 / 4**. SQuAD max vs naive: **8 / 8** (tied).
+- Verify (`rule_based_default.jsonl`): Hotpot **14 contradiction / 34 neutral / 102 support**; SQuAD **0 / 24 / 126**. After every `verify`, next action is `stop` (300/300).
+- Observation: single-hop is a ranking split (~40% EM), not a 146/150 ceiling. Reward still ranks naive > rule > max_tools. Full write-up: `docs/RESULTS.md`.

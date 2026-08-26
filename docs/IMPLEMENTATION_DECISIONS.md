@@ -47,7 +47,7 @@ Living document for methodology / discussion sections. Update as experiments pro
 - Trajectories: `results/trajectories/*.jsonl`  
 - Metrics: `results/metrics/*.json`  
 - Each episode stores action history, costs, reward components, EM/F1.
-- Eval summaries **must** emit `by_dataset` (`hotpot_qa`, `natural_questions`) plus overall. Overall is mix-weighted and is not a ranking.
+- Eval summaries **must** emit `by_dataset` (`hotpot_qa` plus the loaded single-hop id: `natural_questions` / `trivia_qa` / `squad`) plus overall. Overall is mix-weighted and is not a ranking.
 
 ## 2026-08-20 — Per-dataset eval contract
 
@@ -64,26 +64,24 @@ Living document for methodology / discussion sections. Update as experiments pro
 - Ablation default is a **stratified 100** from the same 300, labeled as a subset. Not the ranking table.
 - Existing Qwen 40-ex metrics stay in `results/` until the 300-example GPU run. Do not rank from them.
 
-## 2026-08-24 — Lexical NLI is informative; `rule_based` does not act on it
+## 2026-08-24 (morning) — Lexical NLI is informative; `rule_based` does not act on it
 
-**Run this note describes:** 80k-passage Qwen ranking pilot, commit `2417c43` (2026-08-23). Trajectories: `results/trajectories/rule_based_default.jsonl`.
+**Run this note describes:** leaked-NQ 80k Qwen ranking pilot, commit `2417c43` (2026-08-23). Superseded later the same day by `e8a4423` (SQuAD). Historical trajectories: `results/trajectories/rule_based_default.jsonl` at that commit.
 
-Trajectory counts from `results/trajectories/rule_based_default.jsonl` (150 Hotpot + 150 NQ):
+Trajectory counts (150 Hotpot + 150 NQ, leaked anchors):
 
 | Split | contradiction | neutral | support |
 |---|---:|---:|---:|
 | HotpotQA | 14 | 34 | 102 |
 | Natural Questions | 0 | 0 | 150 |
 
-Junior reading: `verify` is a “does the evidence agree with this answer?” check. On NQ it always says yes (answer-anchor ceiling). On Hotpot it actually mixes — 14 contradictions, 34 neutrals — so the signal discriminates on the hard split. That makes support / contradiction a real **state feature** for the policy, not dead logging.
+Junior reading: `verify` is a “does the evidence agree with this answer?” check. On leaked NQ it always said yes (answer-anchor ceiling). On Hotpot it mixed — 14 contradictions, 34 neutrals — so the signal discriminates on the hard split.
 
-`rule_based` still ignores it for search. After every `verify` on this run the next action was `stop` (300/300), including all 14 Hotpot contradictions. No re-retrieve, no rewrite. The frozen policy was built as a stable threshold script (retrieve → rerank → verify → stop on strong scores). It was not built to *react* to a contradiction.
+`rule_based` still ignores it for search. After every `verify` the next action was `stop` (300/300). Full write-up of the **current** (SQuAD) counts: `docs/RESULTS.md` §8.
 
-Implication for RL: do not treat “verify did not help `rule_based`” as “verify is useless.” The env already exposes `verify_support` / `verify_contra`. A learned policy can condition retrieve / rewrite / stop on those values. That unused gap is a designed place for GRPO/PPO to beat the frozen baseline. Full write-up: `docs/RESULTS.md` §8.
+## 2026-08-24 — NQ answer-anchors are label leakage; replaced with DPR Wikipedia (SQuAD fallback)
 
-## 2026-08-24 — NQ answer-anchors are label leakage; replaced with DPR Wikipedia
-
-**Status:** implemented in `scripts/prepare_data.py` / `src/data/wiki_passages.py`. Old 80k ranking tables in `docs/RESULTS.md` (`2417c43`) still describe the leaked-anchor run; do not mix those numbers with a rebuilt corpus.
+**Status:** implemented in `scripts/prepare_data.py` / `src/data/wiki_passages.py`. Ranking metrics in `docs/RESULTS.md` (`e8a4423`) describe the **SQuAD fallback** run. Do not mix those numbers with leaked-anchor NQ (`2417c43`).
 
 `--hf` no longer plants `{question} The answer is {gold}`. Primary source is **Tevatron/wikipedia-nq** (DPR 100-word Wikipedia passages, Karpukhin et al. 2020 — the reviewer-expected NQ evidence). The 21M `wiki_dpr` dump is **not** downloaded (Colab). Each NQ item gets its gold Wikipedia passage(s) plus a few DPR negatives; unused Hotpot contexts still grow the shared index to ~80k.
 
@@ -110,11 +108,26 @@ That is **label leakage**. BM25 recall@1 = 1.0, Q_ground = 1.0, P_hall = 0, veri
 | `n_nq_anchor` | must be 0 |
 | `n_nq_wiki` / `n_nq_wiki_neg` | real Wikipedia golds and capped DPR negatives |
 
-After the swap, NQ recall@k should drop below 1 on the 80k index, and NQ can rank stop vs over-retrieve.
+After the swap, single-hop recall@k should drop below 1 on the 80k index, and that split can rank stop vs over-retrieve.
+
+## 2026-08-24 (afternoon) — SQuAD fallback ranking pilot (`e8a4423`)
+
+**What ran:** Tevatron/wikipedia-nq was too heavy on the Colab box. `--hf` fell back to `rajpurkar/squad` article contexts. 150 Hotpot + 150 SQuAD, 80k passages, `n_nq_anchor: 0`, only **16** unique SQuAD gold passages in the index.
+
+**Headline numbers** (`pilot_summary_default.json`): Hotpot 59 / 58 / 61. SQuAD 60 / 63 / 60. Overall EM 0.397 / 0.403 / 0.403. Reward naive 0.691 > rule 0.657 > max 0.600. Spend 1× / 3.0× / 4.5×.
+
+**Recall:** Hotpot R@5 0.927 (11 miss). SQuAD R@5 0.633 (55 miss). Overall R@5 0.78.
+
+**Verify** (`rule_based_default.jsonl`): Hotpot 14 contradiction / 34 neutral / 102 support (same mix as leaked NQ, same Hotpot items). SQuAD **0 / 24 / 126** — not a yes-man. After every verify, `stop` 300/300.
+
+**Ablation JSON was not regenerated.** `reward_ablation_table.json` is still the leaked-NQ stratified 100.
+
+Implication: both splits now rank. Milestone 3 can condition on verify. Preferred future single-hop source is still Tevatron NQ if the download fits.
 
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
 |---|---|---|---|
-| 2026-08-24 | Qwen 300-eval, lexical NLI, `rule_based` trajectories | Hotpot verify mix is 14 contradiction / 34 neutral / 102 support; NQ is support 150/150. After every verify, including all 14 contradictions, the next action is `stop`. | Verify is a useful state feature on the hard split. Frozen policy does not use it. Learned policy should. |
-| 2026-08-24 | NQ corpus inspection (`prepare_data.py` anchors) | Each NQ gold was `{question} The answer is {gold}` twice. Recall@1 / Q_ground / P_hall on NQ were leakage artifacts. | **Implemented:** `--hf` now uses Tevatron/wikipedia-nq DPR passages (fallback TriviaQA/SQuAD). Preflight rejects leftover anchors. Rebuild before RL. |
+| 2026-08-24 | Leaked-NQ 80k, `rule_based` (`2417c43`) | Hotpot verify 14 / 34 / 102; NQ support 150/150. After every verify, `stop`. | Verify was dead on leaked NQ. Frozen policy never used Hotpot contradictions. |
+| 2026-08-24 | NQ corpus inspection (`prepare_data.py` anchors) | Each NQ gold was `{question} The answer is {gold}` twice. Recall@1 / Q_ground / P_hall on NQ were leakage artifacts. | **Implemented:** `--hf` uses Tevatron/wikipedia-nq (fallback TriviaQA/SQuAD). Preflight rejects leftover anchors. |
+| 2026-08-24 | SQuAD fallback 80k Qwen 300-eval (`e8a4423`) | Overall EM 0.68 → 0.40. SQuAD 60/63/60, R@5 0.633. Verify SQuAD 0/24/126. Reward still naive > rule > max. | Single-hop is a ranking split. Extra tools still lose on λ. Re-run ablation on this slice. |

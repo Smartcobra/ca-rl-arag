@@ -8,7 +8,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 - Agentic RAG loop with frozen actions `{retrieve, rewrite, rerank, verify, stop}` (`src/agentic_rag.py`)
 - Gymnasium RL environment (`src/rag_env.py`)
 - Explicit multi-component reward + ablation presets (`src/rewards.py`, `configs/reward_weights.yaml`)
-- Dataset slices for **Natural Questions + HotpotQA** (Scope Memo V2 §7)
+- Dataset slices for **HotpotQA + single-hop** (NQ preferred; TriviaQA / SQuAD fallbacks — Scope Memo V2 §7)
 - Pilot logs, metrics, data cards, and implementation decision notes
 
 ## Design locks (review comments)
@@ -45,18 +45,18 @@ python scripts/run_pilot.py --run-env-check
 python scripts/run_reward_ablation.py
 ```
 
-**Ranking preflight.** `run_pilot.py` and `run_reward_ablation.py` (default config) refuse to load Qwen unless the **on-disk** eval file is 300 (150 Hotpot + 150 NQ) **and** `corpus.jsonl` has at least **50,000** passages. `--limit` does not skip this — a 50-question run on a 2k corpus is still the wrong experiment. `--run-env-check` only rolls a few Gym episodes; it is not the data check. Bypass with `--skip-data-check` for synthetic/extractive debug. `configs/extractive.yaml` does not set the 50k floor.
+**Ranking preflight.** `run_pilot.py` and `run_reward_ablation.py` (default config) refuse to load Qwen unless the **on-disk** eval file is 300 (150 Hotpot + 150 single-hop: NQ, TriviaQA, or SQuAD) **and** `corpus.jsonl` has at least **50,000** passages **and** there are no leftover NQ answer-anchors. `--limit` does not skip this — a 50-question run on a 2k corpus is still the wrong experiment. `--run-env-check` only rolls a few Gym episodes; it is not the data check. Bypass with `--skip-data-check` for synthetic/extractive debug. `configs/extractive.yaml` does not set the 50k floor. The committed ranking snapshot (`e8a4423`) used the SQuAD fallback.
 
 **Full guide** (why each command, datasets, evaluation matrix, outputs): [`docs/HOW_TO_RUN.md`](docs/HOW_TO_RUN.md).  
 **Results explained** (pilot tables, how to read metrics/trajectories, ablations): [`docs/RESULTS.md`](docs/RESULTS.md).
 
 ## Pilot results (snapshot)
 
-**Run this section describes:** 80k-passage Qwen ranking pilot, commit `2417c43` (2026-08-23). Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**, corpus **80,000 passages** (2,086 Hotpot slice + 190 NQ anchors + 77,724 unused-Hotpot distractors). BM25 gold recall@5: Hotpot **0.927** (11 misses), NQ **1.0**. Lexical NLI. `force_yes_no: true`, `allow_abstain: true`. The tiny-corpus NQ write-up (148/150) is a different run: [`docs/NQ_MAX_TOOLS_ANALYSIS.md`](docs/NQ_MAX_TOOLS_ANALYSIS.md).
+**Run this section describes:** 80k-passage Qwen ranking pilot, commit `e8a4423` (2026-08-24). Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 SQuAD)**. Tevatron/wikipedia-nq was too heavy; `--hf` fell back to `rajpurkar/squad` (`nq_corpus: squad`, `n_nq_anchor: 0`). Corpus **80,000** passages (2,086 Hotpot slice + 16 SQuAD article contexts + 77,898 unused-Hotpot distractors). BM25 gold recall@5: Hotpot **0.927** (11 misses), SQuAD **0.633** (55 misses). Lexical NLI. `force_yes_no: true`, `allow_abstain: true`. The leaked-NQ write-up (148/150) is a different run: [`docs/NQ_MAX_TOOLS_ANALYSIS.md`](docs/NQ_MAX_TOOLS_ANALYSIS.md).
 
-**Comparison in one line:** On the 80k index, Hotpot is 59 / 58 / 61. `max_tools` is +2 vs naive (3 recoveries / 1 regression) but costs 4.6×, so reward still ranks **naive > rule > max_tools**. NQ is 146/150 for every policy (answer-anchor ceiling).
+**Comparison in one line:** Hotpot is 59 / 58 / 61. SQuAD is 60 / 63 / 60. Extra tools move a few answers, but spend is 4.5× on `max_tools`, so reward still ranks **naive > rule > max_tools**. Single-hop is a ranking split now (~40% EM), not an answer-anchor ceiling.
 
-Read **Hotpot**, not Overall. NQ still cannot rank policies.
+Read **Hotpot and SQuAD**, not Overall.
 
 ### HotpotQA (n=150; ranking split)
 
@@ -64,51 +64,53 @@ Read **Hotpot**, not Overall. NQ still cannot rank policies.
 |---|---:|---:|---:|---:|---:|---:|---:|
 | naive_rag | 0.393 | 0.443 | 59/150 | 29 | 0.193 | 1.59e-4 | **0.653** |
 | rule_based | 0.387 | 0.446 | 58/150 | 28 | 0.187 | 4.81e-4 | 0.604 |
-| max_tools | **0.407** | **0.476** | **61/150** | 23 | 0.153 | 7.37e-4 | 0.582 |
+| max_tools | **0.407** | **0.476** | **61/150** | 24 | 0.160 | 7.37e-4 | 0.581 |
 
-Versus the old 2,276-passage run: naive 60→59, rule 58→58, max 59→61. Abstain rose (20/17/19 → 29/28/23) as first-shot BM25 got harder. `max_tools` vs naive is **3 recoveries / 1 regression** (net +2). That is still a handful of items — not a policy win.
+Versus the leaked-NQ 80k run: Hotpot stays 59 / 58 / 61. `max_tools` vs naive is **3 recoveries / 1 regression** (net +2). That is still a handful of items — not a policy win.
+
+### SQuAD (n=150; ranking split — not saturated)
+
+| Policy | EM | F1 | n_correct | n_abstained | abstain | mean $ | mean reward |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| naive_rag | 0.400 | 0.466 | 60/150 | 16 | 0.107 | 1.69e-4 | **0.729** |
+| rule_based | **0.420** | **0.468** | **63/150** | 15 | 0.100 | 5.03e-4 | 0.710 |
+| max_tools | 0.400 | 0.451 | 60/150 | 17 | 0.113 | 7.50e-4 | 0.618 |
+
+Rule vs naive is **7 recoveries / 4 regressions** (net +3). Max vs naive is **8 / 8** (tied). Blind extra retrieves do not buy SQuAD EM.
 
 ### Overall (mix-weighted; do not rank from this)
 
 | Policy | EM | F1 | n_correct | n_abstained | mean $ | mean steps | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.683 | 0.715 | 205/300 | 29 | 1.56e-4 | 2.0 | **1.076** |
-| rule_based | 0.680 | 0.717 | 204/300 | 28 | 4.75e-4 | 4.0 | 1.031 |
-| max_tools | 0.690 | 0.732 | 207/300 | 23 | 7.21e-4 | 7.0 | 0.989 |
+| naive_rag | 0.397 | 0.454 | 119/300 | 45 | 1.64e-4 | 2.0 | **0.691** |
+| rule_based | 0.403 | 0.457 | 121/300 | 43 | 4.92e-4 | 4.0 | 0.657 |
+| max_tools | 0.403 | 0.463 | 121/300 | 41 | 7.43e-4 | 7.0 | 0.600 |
 
-### Natural Questions (n=150; saturated)
-
-| Policy | EM | F1 | n_correct | n_abstained | mean $ | mean reward |
-|---|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.973 | 0.988 | 146/150 | 0 | 1.53e-4 | 1.499 |
-| rule_based | 0.973 | 0.988 | 146/150 | 0 | 4.69e-4 | 1.458 |
-| max_tools | 0.973 | 0.988 | 146/150 | 0 | 7.06e-4 | 1.396 |
-
-NQ **148 → 146** on the larger index; BM25 recall@5 is still 1.0 (anchors). Shared misses are span mismatches (`Gospel of Luke` vs `in the Gospel of Luke`, `Santa Monica` vs `in Santa Monica`) plus one list-format item. Max EM worse than naive on NQ: **0**.
+Overall EM dropped **0.68 → 0.40** vs leaked NQ because copy-the-anchor is gone.
 
 ### Cost and action mix
 
 | Policy | retrieve | rewrite | rerank | verify | mean $ | latency | tokens |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.56e-4 | 1026 ms | 693 |
-| rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 4.75e-4 | 1600 ms | 1406 |
-| max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 7.21e-4 | 3159 ms | 1774 |
+| naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.64e-4 | 1037 ms | 747 |
+| rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 4.92e-4 | 1615 ms | 1518 |
+| max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 7.43e-4 | 3265 ms | 1935 |
 
-Latency rose vs the 2k index because BM25 scores 80k passages per query.
+Latency is high because BM25 scores 80k passages per query.
 
 ### What the three policies show
 
-- **Retrieval can fail now.** Hotpot recall@5 is 0.927 (11/150 golds missing from top-5). That was the point of the distractor pool.
-- **Hotpot quality is still a few-hit race** (59 / 58 / 61). Extra retrieves recover 3 and lose 1; not enough to pay 4.6× $.
-- **Abstain** on Hotpot is 29 / 28 / 23 (~15–19%), up from ~12–13% on the tiny corpus. NQ abstain is 0.
-- **Cost still decides reward:** naive 1.076 > rule 1.031 > max_tools 0.989 (Hotpot 0.653 > 0.604 > 0.582).
-- **NQ cannot rank policies.** All three are 146/150.
+- **Retrieval can fail now.** Hotpot recall@5 is 0.927 (11/150). SQuAD recall@5 is 0.633 (55/150). That was the point of the distractor pool plus real (non-anchor) golds.
+- **Hotpot quality is still a few-hit race** (59 / 58 / 61). Extra retrieves recover 3 and lose 1; not enough to pay 4.5× $.
+- **SQuAD can rank policies on quality, barely.** Rule 63 vs naive/max 60. Max is tied with naive at 8 recoveries / 8 regressions.
+- **Abstain** on Hotpot is 29 / 28 / 24 (~16–19%). SQuAD abstain is 16 / 15 / 17 (~10–11%).
+- **Cost still decides reward:** naive 0.691 > rule 0.657 > max_tools 0.600 (Hotpot 0.653 > 0.604 > 0.581; SQuAD 0.729 > 0.710 > 0.618).
 
-Milestone 3 takeaway: the index is hard enough that extra tools can change a few Hotpot answers. A learned controller must **select** when that is worth the cost; blindly using max tools still loses on reward.
+Milestone 3 takeaway: both splits are hard enough that extra tools can change a few answers. A learned controller must **select** when that is worth the cost; blindly using max tools still loses on reward.
 
 ### Reward-weight ablation (not a ranking table)
 
-Fixed `rule_based` policy, **stratified 100** from the same 300-file (50 Hotpot + 50 NQ). EM/F1/$ stay flat (EM 0.67); only the scalar reward changes. Source: `results/metrics/reward_ablation_table.json`.
+Fixed `rule_based` policy, **stratified 100** from the **old leaked-NQ** 300-file (50 Hotpot + 50 NQ, commit `2417c43`). EM/F1/$ stay flat (EM 0.67); only the scalar reward changes. **Not** the current SQuAD slice — re-run `run_reward_ablation.py` before pairing these with the tables above. Source: `results/metrics/reward_ablation_table.json`.
 
 | Preset | overall reward | Hotpot reward | NQ reward |
 |---|---:|---:|---:|
