@@ -74,7 +74,7 @@ def load_hf_slices(cfg: dict) -> tuple[list, list, list, dict[str, Any]]:
     pool_target = int(data_cfg.get("distractor_pool_target", 0) or 0)
 
     print("Loading HotpotQA (distractor) from HuggingFace...")
-    hotpot = load_dataset("hotpotqa/hotpot_qa", hotpot_cfg)
+    hotpot = load_dataset("hotpotqa/hotpot_qa", hotpot_cfg, trust_remote_code=True)
 
     n_train_h = int(data_cfg["train_hotpot"])
     n_train_n = int(data_cfg["train_nq"])
@@ -94,6 +94,7 @@ def load_hf_slices(cfg: dict) -> tuple[list, list, list, dict[str, Any]]:
         n_eval_n,
         negatives_per_query=nq_negs,
         preferred_hf_id=str(preferred_nq),
+        seed=int(cfg.get("experiment", {}).get("seed", 42)),
     )
 
     passages = merge_passages(h_passages, h_passages_e, n_passages)

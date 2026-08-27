@@ -6,7 +6,11 @@ from typing import Any
 
 from ..metrics import counts_by_dataset
 from .loaders import NQ_ANCHOR_SOURCE
-from .wiki_passages import SINGLE_HOP_DATASETS
+from .wiki_passages import (
+    SINGLE_HOP_DATASETS,
+    distinct_single_hop_gold_articles,
+    min_distinct_gold_articles,
+)
 
 
 def ranking_data_errors(
@@ -53,6 +57,16 @@ def ranking_data_errors(
             errors.append(
                 f"{split} has mixed single-hop datasets {hop_present}; expected one of {SINGLE_HOP_DATASETS}."
             )
+        if want_n and got_n == want_n:
+            n_titles = distinct_single_hop_gold_articles(examples)
+            need_titles = min_distinct_gold_articles(want_n)
+            if n_titles < need_titles:
+                errors.append(
+                    f"{split} single-hop has {n_titles} distinct gold articles; "
+                    f"need >= {need_titles} for {want_n} questions "
+                    f"(~30 per 150). A SQuAD prefix is a single-topic slice. "
+                    "Re-run: python scripts/prepare_data.py --hf"
+                )
 
     n_passages = len(corpus)
     if min_passages > 0 and n_passages < min_passages:

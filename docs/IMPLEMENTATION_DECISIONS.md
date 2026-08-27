@@ -124,6 +124,16 @@ After the swap, single-hop recall@k should drop below 1 on the 80k index, and th
 
 Implication: both splits now rank. Milestone 3 can condition on verify. Preferred future single-hop source is still Tevatron NQ if the download fits.
 
+## 2026-08-27 — Adaptive-RAG baseline settled; experiments-section sentence
+
+**Pick (locked):** Adaptive-RAG as the required non-RL adaptive baseline. Self-RAG is out of V1. CRAG is an optional later critique-slot stand-in, not the required baseline. Reproduce the *query-complexity classifier idea* on our Qwen + BM25 + Hotpot/single-hop stack; do not port `starsuzi/Adaptive-RAG` wholesale.
+
+**Experiments-section sentence (keep verbatim):**
+
+> Adaptive-RAG routes each query before seeing retrieval quality, which makes it the open-loop contrast our closed-loop controller is supposed to beat on the quality–cost Pareto.
+
+**GRASP public code:** **No.** Gandhi et al. (arXiv:2607.10463) does not link a repo, checkpoint, or Hugging Face collection for GRASP itself (the only HF link in the paper is Search-R1). GitHub / HF papers / Papers with Code have no official artifact. Unrelated repos named GRASP exist (e.g. PKU-ML graph reasoning). A GRASP baseline would be a reimplementation, not a checkpoint load.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |

@@ -13,6 +13,8 @@ Fallbacks (still real passages, never answer-anchors):
 from __future__ import annotations
 
 import hashlib
+import random
+from collections import defaultdict
 from typing import Any, Iterable, Iterator
 
 
@@ -27,6 +29,57 @@ SINGLE_HOP_DATASETS = ("natural_questions", "trivia_qa", "squad")
 
 # Colab-safe: per-query DPR negatives only. The 80k Hotpot pool still fills the index.
 DEFAULT_NEGATIVES_PER_QUERY = 8
+
+# SQuAD is stored article-grouped. A 150-question prefix collapsed to 16 golds.
+# Refuse a single-hop eval thinner than ~30 distinct gold articles per 150 questions.
+MIN_DISTINCT_GOLD_ARTICLES_PER_150 = 30
+
+
+def min_distinct_gold_articles(n_questions: int) -> int:
+    if int(n_questions) <= 0:
+        return 0
+    return max(1, int(round(MIN_DISTINCT_GOLD_ARTICLES_PER_150 * int(n_questions) / 150)))
+
+
+def distinct_single_hop_gold_articles(examples: Iterable[dict[str, Any]]) -> int:
+    titles: set[str] = set()
+    for example in examples:
+        if str(example.get("dataset") or "") not in SINGLE_HOP_DATASETS:
+            continue
+        for title in example.get("supporting_titles") or []:
+            t = " ".join(str(title).split())
+            if t:
+                titles.add(t.casefold())
+    return len(titles)
+
+
+def round_robin_by_title(rows: list[dict[str, Any]], seed: int) -> list[dict[str, Any]]:
+    """Seeded shuffle within and across titles, then round-robin.
+
+    SQuAD JSONL is article-grouped, so taking the first N questions is a
+    single-topic slice. This order is what ``examples_from_rows`` consumes.
+    """
+    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        title = str(row.get("title") or "").strip() or "_untitled"
+        buckets[title].append(row)
+    rng = random.Random(int(seed))
+    titles = list(buckets)
+    rng.shuffle(titles)
+    for title in titles:
+        rng.shuffle(buckets[title])
+    out: list[dict[str, Any]] = []
+    remaining = True
+    depth = 0
+    while remaining:
+        remaining = False
+        for title in titles:
+            bucket = buckets[title]
+            if depth < len(bucket):
+                out.append(bucket[depth])
+                remaining = True
+        depth += 1
+    return out
 
 
 def looks_like_answer_anchor(question: str, answers: Iterable[str] | None, text: str) -> bool:
@@ -219,10 +272,23 @@ def examples_from_rows(
     dataset: str,
     negatives_per_query: int = DEFAULT_NEGATIVES_PER_QUERY,
     max_scan: int | None = None,
+    seed: int = 42,
+    diversify_by_title: bool | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
-    """Take ``n`` examples that have real gold passages. Skip leaky / empty rows."""
+    """Take ``n`` examples that have real gold passages. Skip leaky / empty rows.
+
+    SQuAD is article-grouped. Unless ``diversify_by_title`` is False, squad
+    rows are materialized and round-robined by title before taking N.
+    """
     want = int(n)
-    scan_cap = int(max_scan) if max_scan is not None else max(want * 25, want + 50)
+    if diversify_by_title is None:
+        diversify_by_title = kind == "squad"
+    if diversify_by_title:
+        materialized = [dict(raw) for raw in rows]
+        rows = round_robin_by_title(materialized, seed)
+        scan_cap = len(rows)
+    else:
+        scan_cap = int(max_scan) if max_scan is not None else max(want * 25, want + 50)
     examples: list[dict[str, Any]] = []
     by_id: dict[str, dict[str, Any]] = {}
     scanned = 0
@@ -255,20 +321,23 @@ def examples_from_rows(
         if len(examples) >= want or scanned >= scan_cap:
             break
 
+    kept = examples[:want]
     stats = {
         "n_requested": want,
-        "n_kept": len(examples),
+        "n_kept": len(kept),
         "n_scanned": scanned,
         "n_skipped": skipped,
         "n_passages": len(by_id),
-        "hit_quota": len(examples) >= want,
+        "n_gold_articles": distinct_single_hop_gold_articles(kept),
+        "hit_quota": len(kept) >= want,
+        "diversify_by_title": bool(diversify_by_title),
     }
-    if len(examples) < want:
+    if len(kept) < want:
         raise RuntimeError(
             f"Need {want} {dataset} {split} examples with real Wikipedia passages; "
-            f"kept {len(examples)} after scanning {scanned} rows ({skipped} skipped)."
+            f"kept {len(kept)} after scanning {scanned} rows ({skipped} skipped)."
         )
-    return examples[:want], list(by_id.values()), stats
+    return kept, list(by_id.values()), stats
 
 
 def merge_passages(*groups: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -332,12 +401,17 @@ _TEVATRON_CHAIN: tuple[dict[str, Any], ...] = (
 def _iter_hf_split(hf_id: str, split: str, streaming: bool) -> Iterator[dict[str, Any]]:
     from datasets import load_dataset
 
+    # Tevatron sources are dataset *scripts*. datasets 2.x needs this flag;
+    # datasets 3.x removed script support entirely (pin datasets<3.0).
+    # HF_TOKEN is for Hub rate limits, not this loader failure mode.
+    kwargs = {"split": split, "streaming": streaming, "trust_remote_code": True}
     try:
-        ds = load_dataset(hf_id, split=split, streaming=streaming)
+        ds = load_dataset(hf_id, **kwargs)
     except Exception:
         if not streaming:
             raise
-        ds = load_dataset(hf_id, split=split, streaming=False)
+        kwargs["streaming"] = False
+        ds = load_dataset(hf_id, **kwargs)
     for row in ds:
         yield dict(row)
 
@@ -348,19 +422,23 @@ def _take_hf_source(
     n: int,
     negatives_per_query: int,
     streaming: bool,
+    seed: int,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     split_names = (spec["train_split"],) if split_role == "train" else tuple(spec["eval_splits"])
+    # SQuAD is small and article-grouped; materialize so we can round-robin titles.
+    use_stream = bool(streaming) and spec["kind"] != "squad"
     errors: list[str] = []
     for split in split_names:
         try:
             print(f"  loading {spec['hf_id']} split={split} ({split_role}, n={n})...")
             examples, passages, stats = examples_from_rows(
-                _iter_hf_split(spec["hf_id"], split, streaming),
+                _iter_hf_split(spec["hf_id"], split, use_stream),
                 split="train" if split_role == "train" else "eval",
                 n=n,
                 kind=spec["kind"],
                 dataset=spec["dataset"],
                 negatives_per_query=negatives_per_query,
+                seed=seed,
             )
             stats.update(
                 {
@@ -385,6 +463,7 @@ def load_single_hop_with_real_passages(
     negatives_per_query: int = DEFAULT_NEGATIVES_PER_QUERY,
     streaming: bool = True,
     preferred_hf_id: str | None = None,
+    seed: int = 42,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     """Load train+eval single-hop items with Wikipedia evidence.
 
@@ -397,18 +476,27 @@ def load_single_hop_with_real_passages(
         chain = preferred + rest
 
     errors: list[str] = []
+    need_eval_articles = min_distinct_gold_articles(n_eval)
     for spec in chain:
         try:
             print(f"Trying single-hop source: {spec['label']}")
             train_ex, train_psg, train_stats = _take_hf_source(
-                spec, "train", n_train, negatives_per_query, streaming
+                spec, "train", n_train, negatives_per_query, streaming, seed
             )
             eval_ex, eval_psg, eval_stats = _take_hf_source(
-                spec, "eval", n_eval, negatives_per_query, streaming
+                spec, "eval", n_eval, negatives_per_query, streaming, seed
             )
             passages = merge_passages(train_psg, eval_psg)
             if count_leaky_anchors(passages):
                 raise RuntimeError("refusing answer-anchor passages in the single-hop corpus")
+            n_eval_articles = distinct_single_hop_gold_articles(eval_ex)
+            if n_eval and n_eval_articles < need_eval_articles:
+                raise RuntimeError(
+                    f"{spec['hf_id']} eval has {n_eval_articles} distinct gold articles; "
+                    f"need >= {need_eval_articles} for {n_eval} questions "
+                    f"(~{MIN_DISTINCT_GOLD_ARTICLES_PER_150} per 150). "
+                    "Refusing a single-topic single-hop slice."
+                )
             meta = {
                 "dataset": spec["dataset"],
                 "hf_id": spec["hf_id"],
@@ -419,10 +507,12 @@ def load_single_hop_with_real_passages(
                 "eval": eval_stats,
                 "n_passages": len(passages),
                 "n_gold": sum(1 for p in passages if p.get("is_gold_support")),
+                "n_eval_gold_articles": n_eval_articles,
             }
             print(
                 f"Single-hop source OK: {spec['label']} "
-                f"(train={len(train_ex)} eval={len(eval_ex)} wiki_passages={len(passages)})"
+                f"(train={len(train_ex)} eval={len(eval_ex)} wiki_passages={len(passages)} "
+                f"eval_gold_articles={n_eval_articles})"
             )
             return train_ex, eval_ex, passages, meta
         except Exception as exc:
