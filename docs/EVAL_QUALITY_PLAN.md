@@ -1,6 +1,6 @@
 # Eval Quality Plan
 
-**Status (2026-08-24):** the locked 300-eval ranking run exists. Current numbers live in [`RESULTS.md`](RESULTS.md) (80k Qwen, commit `e8a4423`: 150 Hotpot + 150 **SQuAD**). Per-dataset reporting, stratified `--limit`, ABSTAIN parsing, 50k corpus preflight, and no-anchor NQ/SQuAD golds are in the tree. Remaining gap: `reward_ablation_table.json` is still the leaked-NQ stratified 100 (`2417c43`) — re-run `python scripts/run_reward_ablation.py` on the SQuAD files. Preferred single-hop source remains Tevatron NQ if the download fits.
+**Status (2026-08-27):** the locked 300-eval ranking run exists. Current numbers live in [`RESULTS.md`](RESULTS.md) (80k Qwen, commit `d456d26`: 150 Hotpot + 150 **NQ** on Tevatron/wikipedia-nq). Per-dataset reporting, stratified `--limit`, ABSTAIN parsing, 50k corpus preflight, no-anchor NQ golds, and the matching reward ablation (stratified 100, EM 0.34) are in the tree. Preferred single-hop source is Tevatron NQ; that download succeeded.
 
 **This file is a hygiene plan, not a ranking table.** The diagnosis below describes the 40-example Qwen mix (~2026-08-20), before the locked 300-eval. Keep it as history; do not cite those 40-ex numbers as current.
 
@@ -203,8 +203,8 @@ Also add `.DS_Store` / `.idea/` while touching gitignore (both currently untrack
 | Parser | No prediction contains the substring `ABSTAIN` unless the whole answer is `ABSTAIN`; unit tests for the leak examples |
 | Summary JSON | Every policy has `by_dataset.hotpot_qa` and the loaded single-hop key (`natural_questions` / `trivia_qa` / `squad`) with EM/F1/reward/abstain |
 | `--limit` | `limit=40` on 150+150 (or 25+25) returns ~20+20, never 40 Hotpot + 0 NQ or 25+15 |
-| Eval size | `slice_meta.json` eval total 300; mix 150 Hotpot + 150 single-hop. Current ranking snapshot: 150 SQuAD (`e8a4423`) |
-| `results/` | Ablation EM in the same ballpark as the Qwen pilot (not 0.033 next to 0.45). **Open:** ablation JSON is still leaked-NQ EM 0.67 vs SQuAD ranking EM ~0.40 |
+| Eval size | `slice_meta.json` eval total 300; mix 150 Hotpot + 150 single-hop. Current ranking snapshot: 150 NQ (`d456d26`) |
+| `results/` | Ablation EM in the same ballpark as the Qwen pilot (not 0.033 next to 0.45). Ablation JSON is the Tevatron-NQ stratified 100 (EM 0.34 vs ranking EM ~0.33) |
 | README | Headline table is Qwen + per-dataset, or explicitly “not a ranking” |
 | Git | 0 tracked `*.pyc`; `docs/IMPLEMENTATION_DECISIONS.md` is in the tree; `.gitignore` covers pycache |
 
@@ -212,7 +212,7 @@ Also add `.DS_Store` / `.idea/` while touching gitignore (both currently untrack
 
 ## Out of scope for this pass
 
-- Replacing NQ answer-anchors with DPR Wikipedia passages — **done** (`src/data/wiki_passages.py`). The committed ranking snapshot used the **SQuAD** fallback (`e8a4423`); do not cite leaked-anchor NQ EM as a policy result.
+- Replacing NQ answer-anchors with DPR Wikipedia passages — **done** (`src/data/wiki_passages.py`). The committed ranking snapshot used **Tevatron NQ** (`d456d26`); do not cite leaked-anchor NQ EM as a policy result.
 - Statistical tests / Pareto claims.
 - Changing reward weights because naive “won” on the 40-mix.
 

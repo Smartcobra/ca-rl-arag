@@ -66,7 +66,7 @@ Living document for methodology / discussion sections. Update as experiments pro
 
 ## 2026-08-24 (morning) — Lexical NLI is informative; `rule_based` does not act on it
 
-**Run this note describes:** leaked-NQ 80k Qwen ranking pilot, commit `2417c43` (2026-08-23). Superseded later the same day by `e8a4423` (SQuAD). Historical trajectories: `results/trajectories/rule_based_default.jsonl` at that commit.
+**Run this note describes:** leaked-NQ 80k Qwen ranking pilot, commit `2417c43` (2026-08-23). Superseded later the same day by `e8a4423` (SQuAD), then by `d456d26` (Tevatron NQ). Historical trajectories: `results/trajectories/rule_based_default.jsonl` at that commit.
 
 Trajectory counts (150 Hotpot + 150 NQ, leaked anchors):
 
@@ -77,11 +77,11 @@ Trajectory counts (150 Hotpot + 150 NQ, leaked anchors):
 
 Junior reading: `verify` is a “does the evidence agree with this answer?” check. On leaked NQ it always said yes (answer-anchor ceiling). On Hotpot it mixed — 14 contradictions, 34 neutrals — so the signal discriminates on the hard split.
 
-`rule_based` still ignores it for search. After every `verify` the next action was `stop` (300/300). Full write-up of the **current** (SQuAD) counts: `docs/RESULTS.md` §8.
+`rule_based` still ignores it for search. After every `verify` the next action was `stop` (300/300). Full write-up of the **current** (Tevatron NQ) counts: `docs/RESULTS.md` §8.
 
 ## 2026-08-24 — NQ answer-anchors are label leakage; replaced with DPR Wikipedia (SQuAD fallback)
 
-**Status:** implemented in `scripts/prepare_data.py` / `src/data/wiki_passages.py`. Ranking metrics in `docs/RESULTS.md` (`e8a4423`) describe the **SQuAD fallback** run. Do not mix those numbers with leaked-anchor NQ (`2417c43`).
+**Status:** implemented in `scripts/prepare_data.py` / `src/data/wiki_passages.py`. Ranking metrics in `docs/RESULTS.md` (`d456d26`) describe the **Tevatron NQ** run. Do not mix those numbers with leaked-anchor NQ (`2417c43`) or the SQuAD fallback (`e8a4423`).
 
 `--hf` no longer plants `{question} The answer is {gold}`. Primary source is **Tevatron/wikipedia-nq** (DPR 100-word Wikipedia passages, Karpukhin et al. 2020 — the reviewer-expected NQ evidence). The 21M `wiki_dpr` dump is **not** downloaded (Colab). Each NQ item gets its gold Wikipedia passage(s) plus a few DPR negatives; unused Hotpot contexts still grow the shared index to ~80k.
 
@@ -122,7 +122,21 @@ After the swap, single-hop recall@k should drop below 1 on the 80k index, and th
 
 **Ablation JSON was not regenerated.** `reward_ablation_table.json` is still the leaked-NQ stratified 100.
 
-Implication: both splits now rank. Milestone 3 can condition on verify. Preferred future single-hop source is still Tevatron NQ if the download fits.
+Implication: both splits now rank. Milestone 3 can condition on verify. Preferred single-hop source remains Tevatron NQ; that download succeeded on 2026-08-27 (`d456d26`).
+
+## 2026-08-27 (afternoon) — Tevatron NQ ranking pilot (`d456d26`)
+
+**What ran:** `datasets<3.0` + `trust_remote_code` unblocked Tevatron/wikipedia-nq. `--hf` did **not** fall through to SQuAD. 150 Hotpot + 150 NQ, 80k passages, `n_nq_anchor: 0`, **1,450** NQ wiki golds / **847** distinct eval gold articles (not 7). NQ BM25 R@5 **0.587** (below 1.0) on the 80k index.
+
+**Headline numbers** (`pilot_summary_default.json`): Hotpot 59 / 56 / 61. NQ 41 / 41 / 44. Overall EM 0.333 / 0.323 / 0.350. Reward naive 0.598 > rule 0.547 > max 0.526. Spend 1× / 2.9× / 4.3×.
+
+**Recall:** Hotpot R@5 0.927 (11 miss). NQ R@5 0.587 (62 miss). Overall R@5 0.757.
+
+**Verify** (`rule_based_default.jsonl`): Hotpot 14 contradiction / 31 neutral / 105 support. NQ **0 / 18 / 132** — not a yes-man. After every verify, `stop` 300/300.
+
+**Ablation JSON was regenerated** on this slice (stratified 100, EM 0.34). Grounding still lifts reward (0.362 → 0.547) but less than leaked NQ.
+
+Implication: both splits rank on real Wikipedia evidence. Milestone 3 can condition on verify. This is the intended ranking snapshot.
 
 ## 2026-08-27 — Adaptive-RAG baseline settled; experiments-section sentence
 
@@ -141,3 +155,4 @@ Implication: both splits now rank. Milestone 3 can condition on verify. Preferre
 | 2026-08-24 | Leaked-NQ 80k, `rule_based` (`2417c43`) | Hotpot verify 14 / 34 / 102; NQ support 150/150. After every verify, `stop`. | Verify was dead on leaked NQ. Frozen policy never used Hotpot contradictions. |
 | 2026-08-24 | NQ corpus inspection (`prepare_data.py` anchors) | Each NQ gold was `{question} The answer is {gold}` twice. Recall@1 / Q_ground / P_hall on NQ were leakage artifacts. | **Implemented:** `--hf` uses Tevatron/wikipedia-nq (fallback TriviaQA/SQuAD). Preflight rejects leftover anchors. |
 | 2026-08-24 | SQuAD fallback 80k Qwen 300-eval (`e8a4423`) | Overall EM 0.68 → 0.40. SQuAD 60/63/60, R@5 0.633. Verify SQuAD 0/24/126. Reward still naive > rule > max. | Single-hop is a ranking split. Extra tools still lose on λ. Re-run ablation on this slice. |
+| 2026-08-27 | Tevatron NQ 80k Qwen 300-eval (`d456d26`) | Overall EM 0.33. NQ 41/41/44, R@5 0.587. Verify NQ 0/18/132. Ablation regenerated (EM 0.34). Reward naive > rule > max. | Intended NQ ranking snapshot. Distinct golds 847, not 7. Extra tools still lose on λ. |

@@ -53,7 +53,7 @@ Primary datasets follow **Scope Memo V2 §7**:
 |---|---|---|
 | **HotpotQA** (distractor) | `hotpotqa/hotpot_qa` | Multi-hop QA; supporting titles enable grounding metrics |
 | **Natural Questions** (preferred) | `Tevatron/wikipedia-nq` (DPR Wikipedia 100-word passages) | Single-hop QA with real evidence; teaches when *not* to over-retrieve. |
-| **SQuAD / TriviaQA** (fallback) | `rajpurkar/squad` or Tevatron TriviaQA/SQuAD | Same single-hop slot if Tevatron NQ is too heavy. **Committed ranking run `e8a4423` used SQuAD.** |
+| **SQuAD / TriviaQA** (fallback) | `rajpurkar/squad` or Tevatron TriviaQA/SQuAD | Same single-hop slot if Tevatron NQ is too heavy. Historical ranking run `e8a4423` used SQuAD. Current ranking run `d456d26` used NQ. |
 
 ### Modes
 
@@ -65,7 +65,7 @@ Primary datasets follow **Scope Memo V2 §7**:
 
 ### Default slice sizes (`configs/default.yaml`)
 
-Locked **plan A** (balanced mix). After rebuilding with `--hf`, single-hop uses real passages (NQ / TriviaQA / SQuAD) and can rank stop vs over-retrieve. Historical RESULTS tables from the answer-anchor NQ corpus (`2417c43`) are a different run. Current committed metrics (`e8a4423`) are **150 Hotpot + 150 SQuAD**.
+Locked **plan A** (balanced mix). After rebuilding with `--hf`, single-hop uses real passages (NQ / TriviaQA / SQuAD) and can rank stop vs over-retrieve. Historical RESULTS tables from the answer-anchor NQ corpus (`2417c43`) and the SQuAD fallback (`e8a4423`) are different runs. Current committed metrics (`d456d26`) are **150 Hotpot + 150 NQ**.
 
 | Split | Hotpot | Single-hop (NQ or fallback) | Typical total |
 |---|---|---|---|
@@ -74,7 +74,7 @@ Locked **plan A** (balanced mix). After rebuilding with `--hf`, single-hop uses 
 
 `--limit` is optional and **stratified** (not a JSONL prefix). Prefix `--limit 40` on this file would be 40 Hotpot + 0 NQ. Ablation defaults to a stratified 100 from the same 300 (labeled as a subset, not the ranking table).
 
-Actual counts after prepare are written to `data/processed/slice_meta.json`. After `--hf` you should see `n_eval: 300`, `n_passages` ≥ 50,000 (usually 80,000), and **`n_nq_anchor`: 0**. The committed ranking snapshot has `nq_corpus: squad`. A ~2,276-passage file is the old tiny index — do not start a Qwen ranking run on it.
+Actual counts after prepare are written to `data/processed/slice_meta.json`. After `--hf` you should see `n_eval: 300`, `n_passages` ≥ 50,000 (usually 80,000), and **`n_nq_anchor`: 0**. The committed ranking snapshot has `nq_corpus: dpr_wikipedia_w100` and `nq_hf_dataset: Tevatron/wikipedia-nq`. Open that file with your own eyes before a Qwen run. A ~2,276-passage file is the old tiny index — do not start a Qwen ranking run on it. A single-hop eval with ~7 distinct gold articles is the old prefix-slice bug — do not start a Qwen ranking run on that either.
 
 ### Files written by data prep
 
@@ -145,7 +145,7 @@ Defaults and ablation presets: `configs/reward_weights.yaml`, `docs/REWARD_DESIG
 | **rule_based** | Threshold policy over retrieve/rewrite/rerank/verify/stop. It *runs* verify, but on the current trajectories it does **not** re-retrieve or rewrite after a contradiction — it just stops. |
 | **max_tools** | Uses tools up to caps (high-cost reference) |
 
-**Verifier vs frozen policy (read this before RL).** Lexical NLI is not a dummy label. On the current SQuAD ranking run (`e8a4423`), Hotpot was 14 contradiction / 34 neutral / 102 support and SQuAD was 0 / 24 / 126. After every `verify` — including all 14 Hotpot contradictions and 24 SQuAD neutrals — `rule_based` just stops. Details: [`RESULTS.md` §8](RESULTS.md) and [`IMPLEMENTATION_DECISIONS.md`](IMPLEMENTATION_DECISIONS.md). The leaked-NQ 150/150-support table (`2417c43`) is historical.
+**Verifier vs frozen policy (read this before RL).** Lexical NLI is not a dummy label. On the current Tevatron-NQ ranking run (`d456d26`), Hotpot was 14 contradiction / 31 neutral / 105 support and NQ was 0 / 18 / 132. After every `verify` — including all 14 Hotpot contradictions and 18 NQ neutrals — `rule_based` just stops. Details: [`RESULTS.md` §8](RESULTS.md) and [`IMPLEMENTATION_DECISIONS.md`](IMPLEMENTATION_DECISIONS.md). The leaked-NQ 150/150-support table (`2417c43`) is historical.
 
 ---
 
@@ -195,7 +195,7 @@ python scripts/prepare_data.py --synthetic
 python scripts/prepare_data.py --config configs/default.yaml
 ```
 
-**Console output (example for `--hf`; committed ranking run used the SQuAD fallback):**
+**Console output (example for `--hf`; committed ranking run used Tevatron NQ):**
 ```json
 {
   "source": "huggingface_nq_hotpot",
@@ -203,17 +203,17 @@ python scripts/prepare_data.py --config configs/default.yaml
   "n_train": 100,
   "n_eval": 300,
   "n_passages": 80000,
-  "n_hotpot_distractor": 77898,
-  "n_nq_wiki": 16,
+  "n_hotpot_distractor": 74955,
+  "n_nq_wiki": 1450,
   "n_nq_anchor": 0,
-  "train_by_dataset": {"hotpot_qa": 60, "squad": 40},
-  "eval_by_dataset": {"hotpot_qa": 150, "squad": 150},
-  "nq_corpus": "squad",
-  "nq_hf_dataset": "rajpurkar/squad",
+  "train_by_dataset": {"hotpot_qa": 60, "natural_questions": 40},
+  "eval_by_dataset": {"hotpot_qa": 150, "natural_questions": 150},
+  "nq_corpus": "dpr_wikipedia_w100",
+  "nq_hf_dataset": "Tevatron/wikipedia-nq",
   "retrieval_diag": {
     "by_dataset": {
       "hotpot_qa": {"recall@5": 0.927},
-      "squad": {"recall@5": 0.633}
+      "natural_questions": {"recall@5": 0.587}
     }
   },
   "paths": { ... }
@@ -221,7 +221,7 @@ python scripts/prepare_data.py --config configs/default.yaml
 Wrote processed slices to .../data/processed
 ```
 
-If Tevatron NQ loads, `nq_corpus` is `dpr_wikipedia_w100` and `dataset` is `natural_questions`. Always read `slice_meta.json` rather than assuming NQ.
+Always read `slice_meta.json` rather than assuming NQ. If Tevatron fails, `nq_corpus` is `trivia_qa` or `squad`. Do not start a GPU job on a 7-article or 16-article single-hop prefix.
 
 Optional: `python scripts/prepare_data.py --hf --distractor-pool 80000` (0 disables the pool). `python scripts/retrieval_diagnostics.py` reprints BM25 gold recall@k.
 
@@ -251,10 +251,10 @@ python scripts/run_pilot.py --run-env-check
 | Eval file | 300 examples, 150 Hotpot + 150 single-hop (NQ / TriviaQA / SQuAD) | Stale / synthetic / prefix-skewed slice |
 | Corpus | `len(corpus.jsonl)` ≥ `min_corpus_passages` (50,000) and **no** NQ answer-anchors | Old ~2k index, smoke-test overwrite, or leaked anchors |
 
-On success you see (SQuAD fallback on the committed run; NQ if Tevatron loads):
+On success you see (Tevatron NQ on the committed run):
 
 ```text
-Ranking data check OK: eval=300 {'hotpot_qa': 150, 'squad': 150} corpus=80000 (>= 50000)
+Ranking data check OK: eval=300 {'hotpot_qa': 150, 'natural_questions': 150} corpus=80000 (>= 50000)
 ```
 
 On failure the process exits immediately (no GPU download). Re-run `prepare_data.py --hf`. `--limit` still checks the full file and the full corpus — a 50-example debug run on a 2k library is rejected.
@@ -355,11 +355,11 @@ GPU-tight default is a **stratified 100** from the 300-example eval (50 Hotpot +
 - `lambda_zero`
 - `high_cost_pressure`
 
-**Console output:** overall, then Hotpot, then SQuAD (or NQ) for each preset:
+**Console output:** overall, then Hotpot, then NQ (or SQuAD) for each preset:
 ```text
 default overall: EM=... F1=... reward=... ...
   HotpotQA: ...
-  SQuAD: ...
+  Natural Questions: ...
 ...
 Wrote .../results/metrics/reward_ablation_table.json
 Wrote .../results/metrics/reward_ablation_by_dataset.json
@@ -378,9 +378,9 @@ Wrote .../results/metrics/reward_ablation_by_dataset.json
 ## 5. Minimal “first successful run” checklist
 
 1. `smoke_test.py` prints `SMOKE OK` (then re-run `--hf` if you need the ranking corpus; smoke overwrites `data/processed/`)  
-2. `prepare_data.py --hf` writes `slice_meta.json` with `source: huggingface_nq_hotpot`, `n_eval: 300`, `eval_by_dataset` 150/150, **`n_passages` ≥ 50000**, **`n_nq_anchor`: 0**. Current ranking snapshot has `nq_corpus: squad` / `nq_hf_dataset: rajpurkar/squad`; a successful Tevatron NQ download would show `dpr_wikipedia_w100` instead.  
+2. `prepare_data.py --hf` writes `slice_meta.json` with `source: huggingface_nq_hotpot`, `n_eval: 300`, `eval_by_dataset` 150/150, **`n_passages` ≥ 50000**, **`n_nq_anchor`: 0**. Current ranking snapshot has `nq_corpus: dpr_wikipedia_w100` / `nq_hf_dataset: Tevatron/wikipedia-nq` and NQ recall@5 **0.587** (below 1.0).  
 3. `run_pilot.py` prints `Ranking data check OK` **before** the model loads (and fails if leftover NQ answer-anchors are present), then writes `pilot_summary_default.json` with three policy blocks, each with `by_dataset`  
-4. `run_reward_ablation.py` writes `reward_ablation_table.json` with six presets (**re-run after a corpus swap** — the committed ablation JSON is still the leaked-NQ mix)  
+4. `run_reward_ablation.py` writes `reward_ablation_table.json` with six presets (**re-run after a corpus swap** — the committed ablation JSON is the Tevatron-NQ stratified 100)  
 5. `plot_results.py` writes PNGs under `results/figs/`
 
 If anything fails, start from smoke test, then re-prepare data, then re-run pilot.
@@ -392,8 +392,8 @@ If anything fails, start from smoke test, then re-prepare data, then re-run pilo
 | Doc | Topic |
 |---|---|
 | `README.md` | Project overview |
-| `docs/RESULTS.md` | **Detailed results:** 80k ranking run `e8a4423` (150 Hotpot + 150 SQuAD). Leaked-NQ `2417c43` is historical. |
-| `docs/NQ_MAX_TOOLS_ANALYSIS.md` | Leaked-NQ max-tools mechanism; tiny-corpus run `34e6585` (NQ 148/150), not the current SQuAD snapshot |
+| `docs/RESULTS.md` | **Detailed results:** 80k ranking run `d456d26` (150 Hotpot + 150 NQ). SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
+| `docs/NQ_MAX_TOOLS_ANALYSIS.md` | Leaked-NQ max-tools mechanism; tiny-corpus run `34e6585` (NQ 148/150), not the current Tevatron-NQ snapshot |
 | `docs/REWARD_DESIGN.md` | Why reward weights were chosen |
 | `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, etc. |
 | `docs/EXPERIMENT_LOG.md` | Recorded pilot numbers (each dated block names its run) |

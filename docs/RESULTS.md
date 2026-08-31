@@ -1,6 +1,6 @@
 # Results Guide — What Was Produced and How to Read It
 
-**Run this doc describes:** 80k-passage Qwen ranking pilot (300 eval: 150 Hotpot + 150 **SQuAD**). Metrics committed in `e8a4423` (2026-08-24). Headline artifact: `results/metrics/pilot_summary_default.json`. Tevatron/wikipedia-nq was too heavy; `--hf` fell back to `rajpurkar/squad` article contexts (`slice_meta.json`: `nq_corpus: squad`, `n_nq_anchor: 0`). Section 5 (reward ablation) is a **different run** (leaked-NQ 80k, stratified 100, `2417c43`). Section 6 (synthetic) is extractive, 2026-08-07. Section 8 (verifier labels) uses the current `rule_based_default.jsonl` from `e8a4423`.
+**Run this doc describes:** 80k-passage Qwen ranking pilot (300 eval: 150 Hotpot + 150 **Natural Questions** on DPR Wikipedia). Metrics committed in `d456d26` (2026-08-27). Headline artifact: `results/metrics/pilot_summary_default.json`. `slice_meta.json`: `nq_corpus: dpr_wikipedia_w100`, `nq_hf_dataset: Tevatron/wikipedia-nq`, `n_nq_anchor: 0`, **1,450** NQ wiki golds / **847** distinct eval gold articles (not a 7- or 16-article prefix). Section 5 (reward ablation) is the **same corpus**, stratified 100, also from `d456d26`. Section 6 (synthetic) is extractive, 2026-08-07. Section 8 (verifier labels) uses `rule_based_default.jsonl` from this NQ run. The SQuAD fallback table (`e8a4423`) and leaked-NQ table (`2417c43`) are historical.
 
 This document describes the **Milestone 2 pilot results**: where files live, what each metric means, how to interpret the current numbers, and known limitations.
 
@@ -28,7 +28,7 @@ results/
 │   ├── policy_action_mix.png
 │   ├── policy_reward_components.png
 │   ├── policy_pareto_em_usd.png
-│   ├── policy_by_dataset.png         # Hotpot vs SQuAD vs overall
+│   ├── policy_by_dataset.png         # Hotpot vs NQ vs overall
 │   ├── reward_ablation.png
 │   └── reward_ablation_by_dataset.png
 └── trajectories/                     # Per-example logs (JSONL; often gitignored)
@@ -40,11 +40,11 @@ results/
 
 | File type | Granularity | Typical use |
 |---|---|---|
-| `pilot_summary_*.json` | Overall + `by_dataset` (Hotpot / SQuAD) per policy | Comparison table; never cite overall alone |
+| `pilot_summary_*.json` | Overall + `by_dataset` (Hotpot / NQ) per policy | Comparison table; never cite overall alone |
 | `*_default.json` | One policy summary | Drill into one system |
 | `*.jsonl` trajectories | One row per question | Failure analysis (wrong EM, action loops, costs) |
 | `env_rollouts.jsonl` | Tiny env sanity rows (`id`, `reward`, `em`, `f1`) | Confirms Gymnasium env scores episodes |
-| `reward_ablation_table.json` | Same policy, different reward presets | Justify α/β/γ/λ choices — **stale mix**, see §5 |
+| `reward_ablation_table.json` | Same policy, different reward presets | Justify α/β/γ/λ choices — **same NQ slice**, stratified 100 |
 
 ---
 
@@ -52,10 +52,10 @@ results/
 
 | Item | Value |
 |---|---|
-| Data | HotpotQA distractor + **SQuAD** (`prepare_data.py --hf`; Tevatron NQ fallback) |
-| Slice | 100 train / **300 eval** locked (150 Hotpot + 150 SQuAD) |
-| Corpus | **80,000** passages (2,086 Hotpot slice + **16** SQuAD article contexts + 77,898 unused-Hotpot distractors) |
-| BM25 gold recall | Hotpot R@1 0.76 / R@5 **0.927** (11 miss@5); SQuAD R@1 0.447 / R@5 **0.633** (55 miss@5) |
+| Data | HotpotQA distractor + **Tevatron/wikipedia-nq** (`prepare_data.py --hf`) |
+| Slice | 100 train / **300 eval** locked (150 Hotpot + 150 NQ) |
+| Corpus | **80,000** passages (2,086 Hotpot slice + **1,450** DPR Wikipedia golds + 1,509 DPR negatives + 74,955 unused-Hotpot distractors) |
+| BM25 gold recall | Hotpot R@1 0.76 / R@5 **0.927** (11 miss@5); NQ R@1 0.28 / R@5 **0.587** (62 miss@5) |
 | Eval limit in pilot | Full eval (`limit: null`) |
 | Reward preset | `default` (see `configs/reward_weights.yaml`) |
 | Retriever | BM25 |
@@ -63,7 +63,7 @@ results/
 | Verifier | Lexical NLI |
 | Policies | `naive_rag`, `rule_based`, `max_tools` |
 
-These runs validate the **pipeline, costs, and frozen-policy reward ranking**, not SOTA Hotpot/SQuAD accuracy. SQuAD golds are real article contexts (not `{question} The answer is {gold}`). Only 16 unique SQuAD passages sit in an 80k Hotpot-heavy index, so first-shot BM25 can fail. Hotpot retrieval is also no longer near-perfect.
+These runs validate the **pipeline, costs, and frozen-policy reward ranking**, not SOTA Hotpot/NQ accuracy. NQ golds are real DPR Wikipedia 100-word passages (not `{question} The answer is {gold}`). 847 distinct eval gold articles sit in an 80k Hotpot-heavy index, so first-shot BM25 can fail. Hotpot retrieval is also no longer near-perfect.
 
 Counts and recall: `data/processed/slice_meta.json`.
 
@@ -71,68 +71,68 @@ Counts and recall: `data/processed/slice_meta.json`.
 
 ## 3. Main policy comparison (Qwen, 300 eval examples, 80k corpus)
 
-**Comparison in one line:** Hotpot is 59 / 58 / 61. SQuAD is 60 / 63 / 60. Extra tools move a few answers on both splits, but spend is 1× / 3.0× / 4.5×, so reward ranks **naive > rule > max_tools**. Single-hop is no longer a saturated ceiling.
+**Comparison in one line:** Hotpot is 59 / 56 / 61. NQ is 41 / 41 / 44. Extra tools move a few answers on both splits, but spend is 1× / 2.9× / 4.3×, so reward ranks **naive > rule > max_tools**. Single-hop is a hard ranking split (~27–29% EM), not a saturated ceiling.
 
-Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, `limit: null`, `force_yes_no: true`, 80k-passage index, SQuAD fallback).
+Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, `limit: null`, `force_yes_no: true`, 80k-passage index, Tevatron NQ).
 
 ### HotpotQA (n=150; ranking split)
 
 | Policy | mean EM | mean F1 | n_correct | n_abstained | abstain | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.393 | 0.443 | 59/150 | 29 | 0.193 | 1.59e-4 | **0.653** |
-| rule_based | 0.387 | 0.446 | 58/150 | 28 | 0.187 | 4.81e-4 | 0.604 |
-| max_tools | **0.407** | **0.476** | **61/150** | 24 | 0.160 | 7.37e-4 | 0.581 |
+| naive_rag | 0.393 | 0.445 | 59/150 | 29 | 0.193 | 1.59e-4 | **0.654** |
+| rule_based | 0.373 | 0.438 | 56/150 | 25 | 0.167 | 4.81e-4 | 0.590 |
+| max_tools | **0.407** | **0.485** | **61/150** | 23 | 0.153 | 7.38e-4 | 0.587 |
 
-### SQuAD (n=150; ranking split — not saturated)
+### Natural Questions (n=150; ranking split — not saturated)
 
 | Policy | mean EM | mean F1 | n_correct | n_abstained | abstain | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.400 | 0.466 | 60/150 | 16 | 0.107 | 1.69e-4 | **0.729** |
-| rule_based | **0.420** | **0.468** | **63/150** | 15 | 0.100 | 5.03e-4 | 0.710 |
-| max_tools | 0.400 | 0.451 | 60/150 | 17 | 0.113 | 7.50e-4 | 0.618 |
+| naive_rag | 0.273 | 0.348 | 41/150 | 16 | 0.107 | 1.84e-4 | **0.542** |
+| rule_based | 0.273 | 0.352 | 41/150 | 15 | 0.100 | 5.27e-4 | 0.504 |
+| max_tools | **0.293** | **0.358** | **44/150** | 18 | 0.120 | 7.55e-4 | 0.464 |
 
 ### Overall (mix-weighted; do not rank from this)
 
 | Policy | mean EM | mean F1 | n_correct | n_abstained | mean $ | mean steps | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| **naive_rag** | 0.397 | 0.454 | 119/300 | 45 | 1.64e-4 | 2.0 | **0.691** |
-| **rule_based** | 0.403 | 0.457 | 121/300 | 43 | 4.92e-4 | 4.0 | 0.657 |
-| **max_tools** | 0.403 | 0.463 | 121/300 | 41 | 7.43e-4 | 7.0 | 0.600 |
+| **naive_rag** | 0.333 | 0.397 | 100/300 | 45 | 1.72e-4 | 2.0 | **0.598** |
+| **rule_based** | 0.323 | 0.395 | 97/300 | 40 | 5.04e-4 | 4.0 | 0.547 |
+| **max_tools** | **0.350** | **0.422** | **105/300** | 41 | 7.47e-4 | 7.0 | 0.526 |
 
 ### How to read this table
 
 **Retrieval**
 - The 80k unused-Hotpot pool is why first retrieve can fail.
 - Hotpot gold is missing from BM25 top-5 on **11/150** items (R@5 0.927).
-- SQuAD gold is missing from BM25 top-5 on **55/150** items (R@5 0.633). That is the distractor pool plus only 16 unique article contexts in the index — not answer-anchor leakage.
+- NQ gold is missing from BM25 top-5 on **62/150** items (R@5 0.587). That is the distractor pool plus real Wikipedia golds — not answer-anchor leakage. Recall is **below 1.0** on the 80k index, which is the check that the slice is honest.
 
 **Quality**
-- **Read Hotpot and SQuAD, not Overall.** Both splits sit near 40% EM. The old leaked-NQ table (146/150 for every policy) is gone.
-- Hotpot is still a few-hit race: 59 / 58 / 61. `max_tools` vs naive is **3 recoveries / 1 regression** (net +2). Too small to call a quality winner.
-- SQuAD: `rule_based` is 63/150 vs 60/150 naive and max. Rule vs naive is **7 recoveries / 4 regressions** (net +3). Max vs naive is **8 / 8** (tied). Blind extra retrieves do not help SQuAD quality.
-- Versus the leaked-NQ 80k run (`2417c43`): overall EM 0.68 → **0.40** because single-hop is no longer a copy-the-anchor ceiling. Hotpot is unchanged (59 / 58 / 61). Max abstain 23 → 24.
+- **Read Hotpot and NQ, not Overall.** Hotpot sits near 39–41% EM. NQ sits near 27–29% EM. The old leaked-NQ table (146/150 for every policy) is gone.
+- Hotpot is still a few-hit race: 59 / 56 / 61. `max_tools` vs naive is **3 recoveries / 1 regression** (net +2). `rule_based` vs naive is **2 / 5** (net −3). Too small to call a quality winner.
+- NQ: `rule_based` is tied with naive at 41/150 (**1 recovery / 1 regression**). `max_tools` is 44/150 vs 41/150 naive: **5 recoveries / 2 regressions** (net +3). Blind extra retrieves buy three NQ hits and still lose on reward.
+- Versus the leaked-NQ 80k run (`2417c43`): overall EM 0.68 → **0.33** because copy-the-anchor is gone. Versus the SQuAD fallback (`e8a4423`): overall EM 0.40 → **0.33** because NQ on DPR Wikipedia is harder than 16 shared SQuAD articles. Hotpot stays in the same 56–61 band.
 
 **Cost / behavior**
-- **naive_rag:** 1 retrieve → answer; 1037 ms; 747 tokens.
-- **rule_based:** rerank + verify (4 steps; 3.0× $; 1615 ms; 1518 tokens).
-- **max_tools:** retrieve×3 + rewrite + rerank + verify (7 steps; 4.5× $; 3265 ms; 1935 tokens). High-cost reference. Latency is up vs the 2k index because each BM25 call scores 80k passages.
+- **naive_rag:** 1 retrieve → answer; 1089 ms; 795 tokens.
+- **rule_based:** rerank + verify (4 steps; 2.9× $; 1724 ms; 1599 tokens).
+- **max_tools:** retrieve×3 + rewrite + rerank + verify (7 steps; 4.3× $; 3387 ms; 2055 tokens). High-cost reference. Latency is up vs the 2k index because each BM25 call scores 80k passages.
 
 **Reward**
-- Overall: naive 0.691 > rule 0.657 > max_tools 0.600. Hotpot: 0.653 > 0.604 > 0.581. SQuAD: 0.729 > 0.710 > 0.618. Extra tools can move a couple of answers; λ/$ still decides the ranking.
+- Overall: naive 0.598 > rule 0.547 > max_tools 0.526. Hotpot: 0.654 > 0.590 > 0.587. NQ: 0.542 > 0.504 > 0.464. Extra tools can move a couple of answers; λ/$ still decides the ranking.
 
 **$/correct**
-- Overall $/correct is 4.14e-4 / 1.22e-3 / 1.84e-3.
+- Overall $/correct is 5.15e-4 / 1.56e-3 / 2.13e-3.
 
 ### Reward components (same run, overall)
 
 | Policy | mean Q_ans | mean Q_ground | mean Q_cal | mean P_hall |
 |---|---:|---:|---:|---:|
-| naive_rag | 0.425 | 0.725 | 0.028 | 0.047 |
-| rule_based | 0.430 | 0.723 | 0.026 | 0.044 |
-| max_tools | 0.433 | 0.732 | 0.019 | 0.046 |
+| naive_rag | 0.365 | 0.647 | −0.017 | 0.035 |
+| rule_based | 0.359 | 0.651 | −0.040 | 0.037 |
+| max_tools | 0.386 | 0.665 | −0.018 | 0.035 |
 
-- **Q_ans / Q_ground are no longer NQ-inflated.** On Hotpot, Q_ans is 0.418 / 0.416 / 0.441; Q_ground is 0.668 / 0.667 / 0.697. On SQuAD, Q_ans is 0.433 / 0.444 / 0.426; Q_ground is 0.781 / 0.779 / 0.768.
-- **Q_cal collapsed vs the leaked-NQ run** (overall ~0.17 → ~0.03) because single-hop is no longer always-correct. SQuAD Q_cal is slightly negative (−0.013 / −0.006 / −0.007): some abstains and confident wrongs on a hard index.
+- **Q_ans / Q_ground are no longer NQ-inflated.** On Hotpot, Q_ans is 0.419 / 0.406 / 0.446; Q_ground is 0.668 / 0.673 / 0.702. On NQ, Q_ans is 0.311 / 0.313 / 0.326; Q_ground is 0.626 / 0.630 / 0.629 (leaked-anchor NQ was 1.000).
+- **Q_cal is negative overall** because both splits are hard. NQ Q_cal is −0.102 / −0.109 / −0.075: abstains and confident wrongs on a real Wikipedia index.
 
 ---
 
@@ -150,16 +150,16 @@ Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, 
 
 Forced yes/no stopped a silent abstain. The model answers, but is biased to `no`. That is a generator error, not a broken metric.
 
-**SQuAD span mismatch** — `squad_eval_56be4db0acb8001400a502ee`:
+**NQ span mismatch** — `natural_questions_eval_13`:
 
 | Field | Value |
 |---|---|
-| Question | Where did Super Bowl 50 take place? |
-| Gold aliases | `Santa Clara, California` / `Levi's Stadium` / longer venue string |
-| Prediction | `Levi's Stadium in Santa Clara, California` |
-| EM / F1 | 0 / 0.71 |
+| Question | where is human sperm stored in the body |
+| Gold | `in the epididymis` |
+| Prediction | `epididymis` |
+| EM / F1 | 0 / 0.67 |
 
-The span is right. Strict EM fails because the prediction is a merge of two gold aliases, not an exact string. Read F1 and trajectories before calling this a retrieval miss.
+The span is right. Strict EM fails because gold wants the preposition `in …`. Same pattern as `natural_questions_eval_8` (`close to the poles` vs `near the poles`, F1 0.40). Read F1 and trajectories before calling this a retrieval miss.
 
 When you see `env_rollouts.jsonl` rows like:
 
@@ -173,23 +173,23 @@ it means: that Gym episode ended with a wrong answer and a low reward. Rows with
 
 ## 5. Reward-weight ablation results
 
-**Run this section describes:** leaked-NQ 80k Qwen corpus, commit `2417c43` (2026-08-23). **Not** the current SQuAD ranking slice. Source: `results/metrics/reward_ablation_table.json` (file timestamps 2026-08-23; still keyed `natural_questions`). Re-run `python scripts/run_reward_ablation.py` on the SQuAD files before citing these as the same experiment.
+**Run this section describes:** same Tevatron-NQ 80k Qwen corpus as §3, commit `d456d26` (2026-08-27). Source: `results/metrics/reward_ablation_table.json`.
 
-Fixed policy: **rule_based**, **stratified 100** from the old 300-file (50 Hotpot + 50 NQ). Same behavior → same EM/F1/$ (EM 0.67; Hotpot 19/50, NQ 48/50); only the **scalar reward** changes.
+Fixed policy: **rule_based**, **stratified 100** from the 300-file (50 Hotpot + 50 NQ). Same behavior → same EM/F1/$ (EM 0.34; Hotpot 17/50, NQ 17/50); only the **scalar reward** changes. This is a subset, not the ranking table.
 
 | Preset | overall reward | Hotpot reward | NQ reward | What it tests |
 |---|---:|---:|---:|---|
-| correctness_only | 0.691 | 0.408 | 0.974 | Search-R1-like outcome only |
-| correctness_grounding | 0.952 | 0.530 | 1.374 | Add grounding (β) |
-| correctness_faithfulness_cost | 0.957 | 0.506 | 1.408 | Add cost + hall + act penalties |
-| **default** | 0.985 | 0.522 | 1.448 | Full objective (α,β,γ,λ,μ,…) |
-| lambda_zero | 0.987 | 0.524 | 1.450 | Remove $ / latency terms |
-| high_cost_pressure | 0.966 | 0.469 | 1.462 | Larger λ/μ (cheaper operating point) |
+| correctness_only | 0.362 | 0.373 | 0.351 | Search-R1-like outcome only |
+| correctness_grounding | 0.547 | 0.495 | 0.598 | Add grounding (β) |
+| correctness_faithfulness_cost | 0.519 | 0.467 | 0.570 | Add cost + hall + act penalties |
+| **default** | 0.518 | 0.476 | 0.561 | Full objective (α,β,γ,λ,μ,…) |
+| lambda_zero | 0.520 | 0.478 | 0.563 | Remove $ / latency terms |
+| high_cost_pressure | 0.456 | 0.417 | 0.495 | Larger λ/μ (cheaper operating point) |
 
 ### Interpretation
 
 - EM/F1/$ stay flat across presets because the **policy is frozen**; ablations only change how we **score** trajectories.
-- Grounding terms raise reward a lot when support overlap is high (`correctness_grounding`). On leaked NQ that overlap was artificial; expect a smaller jump after the SQuAD rebuild.
+- Grounding terms still raise reward (`correctness_only` 0.362 → `correctness_grounding` 0.547), but the jump is smaller than on leaked NQ (0.69 → 0.95) because Q_ground is no longer 1.0 on planted gold.
 - Cost pressure (`high_cost_pressure`) lowers reward for the same spend — useful later when a learned policy can choose fewer tools.
 - On this price card, absolute $ is tiny, so λ effects are modest until you scale prices or tool counts; the relative ordering still moves as designed.
 
@@ -219,7 +219,7 @@ Each line in `results/trajectories/*_default.jsonl` is one question. Important f
 
 | Field | Meaning |
 |---|---|
-| `dataset` | `hotpot_qa` or `squad` on the current slice (`natural_questions` / `trivia_qa` if those sources load) — required for per-dataset aggregation |
+| `dataset` | `hotpot_qa` or `natural_questions` on the current slice (`trivia_qa` / `squad` if those sources load) — required for per-dataset aggregation |
 | `em`, `f1` | Quality vs gold |
 | `reward`, `q_ans`, `q_ground`, `q_cal`, `p_hall`, `c_tok`, `c_ret`, `c_lat`, `p_act`, `p_bud` | Reward breakdown |
 | `total_usd`, `total_tokens`, `total_latency_ms` | Measured cost |
@@ -247,20 +247,20 @@ This is a trajectory observation, not a code change. It matters for how we desig
 
 That label is stored on each trajectory as `verify_out`. The Gym env already puts `support` and `contradiction` into the observation, so a learned policy *can* see them.
 
-**What the current run actually returned** (`rule_based_default.jsonl`, 150 + 150, commit `e8a4423`):
+**What the current run actually returned** (`rule_based_default.jsonl`, 150 + 150, commit `d456d26`):
 
 | Split | contradiction | neutral | support |
 |---|---:|---:|---:|
-| HotpotQA (hard ranking split) | **14** | **34** | **102** |
-| SQuAD (real article contexts) | **0** | **24** | **126** |
+| HotpotQA (hard ranking split) | **14** | **31** | **105** |
+| Natural Questions (DPR Wikipedia) | **0** | **18** | **132** |
 
-Read this the junior way: the verifier is **not** a yes-man on either split now. On leaked NQ it was support 150/150 because the gold string was planted. On SQuAD, 24 items are only `neutral` (mostly misses or abstains: 15/24 abstain, 2/24 EM-correct). On Hotpot it still mixes — about one in ten answers is flagged as a contradiction (8 of those 14 are nonetheless EM-correct), and another ~one in five is only `neutral` (28/34 abstain). That mix is exactly where a verify signal is useful.
+Read this the junior way: the verifier is **not** a yes-man on either split now. On leaked NQ it was support 150/150 because the gold string was planted. On DPR NQ, 18 items are only `neutral` (15/18 abstain, 1/18 EM-correct). On Hotpot it still mixes — about one in ten answers is flagged as a contradiction (8 of those 14 are nonetheless EM-correct), and another ~one in five is only `neutral` (25/31 abstain). That mix is exactly where a verify signal is useful.
 
-**What `rule_based` does with that signal: nothing that changes the search.** On this run, the next action after `verify` was `stop` on **300 / 300** items — including all 14 Hotpot contradictions and all 24 SQuAD neutrals. It never re-retrieved. It never rewrote the query. (There is a small “if support is very low, retrieve once more” branch in the frozen policy, but it did not fire here, and it does not look at the `contradiction` label anyway.)
+**What `rule_based` does with that signal: nothing that changes the search.** On this run, the next action after `verify` was `stop` on **300 / 300** items — including all 14 Hotpot contradictions and all 18 NQ neutrals. It never re-retrieved. It never rewrote the query. (There is a small “if support is very low, retrieve once more” branch in the frozen policy, but it did not fire here, and it does not look at the `contradiction` label anyway.)
 
 So we have a gap:
 
-1. The **signal exists** and is informative on both splits (Hotpot contradictions; SQuAD neutrals).
+1. The **signal exists** and is informative on both splits (Hotpot contradictions; NQ neutrals).
 2. The **frozen policy does not use it** to recover (no extra retrieve / rewrite after contradiction or neutral).
 
 That gap is precisely where a learned policy should win: see `contradiction` / low support / `neutral` in the state, then spend another retrieve or rewrite only when that looks worth the cost. The frozen baselines cannot show that behavior, so they are not a fair ceiling on what verify is worth.
@@ -269,12 +269,12 @@ That gap is precisely where a learned policy should win: see `contradiction` / l
 
 ## 9. Takeaways for the paper / next milestone
 
-1. **Pipeline OK:** data → 80k BM25 index → agent actions → NLI verify → cost → multi-component reward → logs on the locked 300-example eval (150 Hotpot + 150 SQuAD). Preflight requires eval=300 and corpus ≥ 50k before Qwen loads, and rejects leftover NQ answer-anchors.
-2. **Reporting contract:** every table is overall + Hotpot + SQuAD. Overall is mix-weighted. Single-hop is now a ranking split (~40% EM), not a saturated ceiling.
-3. **The distractor pool did what it was for.** Hotpot R@5 is 0.927 (11 misses). SQuAD R@5 is 0.633 (55 misses). Overall EM dropped 0.68 → 0.40 vs leaked NQ because copy-the-anchor is gone.
-4. **Quality vs cost is now the right story on both splits.** Hotpot 59 / 58 / 61 (3 recoveries / 1 regression). SQuAD 60 / 63 / 60 (rule net +3; max tied 8/8). Reward still ranks naive because spend is 1× / 3.0× / 4.5×.
-5. **Verify is informative and unused by `rule_based`.** Lexical NLI returns 14 contradiction / 34 neutral / 102 support on Hotpot, and 0 / 24 / 126 on SQuAD. After every verify the frozen policy just stops. That unused state feature is a Milestone-3 win condition for RL, not a reason to drop verify.
-6. **Next:** Milestone 3 is cost-aware RL. Extra tools can change a few answers; a learned controller must **select** when that is worth the cost, including when verify says the current evidence is contradictory or only neutral. Preferred single-hop source remains Tevatron/wikipedia-nq if the download is available; this table is the honest SQuAD fallback. Re-run the reward ablation on this slice before putting it next to the ranking table.
+1. **Pipeline OK:** data → 80k BM25 index → agent actions → NLI verify → cost → multi-component reward → logs on the locked 300-example eval (150 Hotpot + 150 NQ). Preflight requires eval=300 and corpus ≥ 50k before Qwen loads, and rejects leftover NQ answer-anchors.
+2. **Reporting contract:** every table is overall + Hotpot + NQ. Overall is mix-weighted. Single-hop is now a ranking split (~27–29% EM), not a saturated ceiling.
+3. **The distractor pool did what it was for.** Hotpot R@5 is 0.927 (11 misses). NQ R@5 is 0.587 (62 misses). Overall EM dropped 0.68 → 0.33 vs leaked NQ because copy-the-anchor is gone.
+4. **Quality vs cost is now the right story on both splits.** Hotpot 59 / 56 / 61 (max 3 recoveries / 1 regression). NQ 41 / 41 / 44 (max net +3; rule tied). Reward still ranks naive because spend is 1× / 2.9× / 4.3×.
+5. **Verify is informative and unused by `rule_based`.** Lexical NLI returns 14 contradiction / 31 neutral / 105 support on Hotpot, and 0 / 18 / 132 on NQ. After every verify the frozen policy just stops. That unused state feature is a Milestone-3 win condition for RL, not a reason to drop verify.
+6. **Next:** Milestone 3 is cost-aware RL. Extra tools can change a few answers; a learned controller must **select** when that is worth the cost, including when verify says the current evidence is contradictory or only neutral. This table is the intended Tevatron NQ ranking snapshot. Ablation JSON is already from the same slice.
 
 ---
 
@@ -282,6 +282,9 @@ That gap is precisely where a learned policy should win: see `contradiction` / l
 
 ```bash
 python scripts/prepare_data.py --hf
+# Open data/processed/slice_meta.json before any GPU job.
+# Required: nq_corpus=dpr_wikipedia_w100, Tevatron/wikipedia-nq,
+# n_nq_anchor=0, many distinct single-hop golds (not 7), NQ recall@5 < 1.0 on 80k.
 python scripts/run_pilot.py --run-env-check
 python scripts/run_reward_ablation.py
 python scripts/plot_results.py

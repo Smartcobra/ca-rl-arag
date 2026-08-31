@@ -2,7 +2,7 @@
 
 Append-only notes while running pilots. Prefer short factual entries. **Each dated block names the run it belongs to.** Do not cite a number from this file without that run line.
 
-For a full walkthrough of the current 80k ranking pilot (`e8a4423`, Hotpot + SQuAD fallback), see [`RESULTS.md`](RESULTS.md). The earlier 80k leaked-NQ snapshot is `2417c43`.
+For a full walkthrough of the current 80k ranking pilot (`d456d26`, Hotpot + Tevatron NQ), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
 
 ## 2026-08-07
 
@@ -107,4 +107,38 @@ Observation: extractive generator is a weak absolute QA backend on open Hotpot/N
 - Action mix unchanged: naive 1 retrieve; rule retrieve+rerank+verify; max retrieve×3+rewrite+rerank+verify. Spend 1× / 3.0× / 4.5×. Latency 1037 / 1615 / 3265 ms.
 - Hotpot `max_tools` vs naive: **3 recoveries / 1 regression**. SQuAD rule vs naive: **7 / 4**. SQuAD max vs naive: **8 / 8** (tied).
 - Verify (`rule_based_default.jsonl`): Hotpot **14 contradiction / 34 neutral / 102 support**; SQuAD **0 / 24 / 126**. After every `verify`, next action is `stop` (300/300).
-- Observation: single-hop is a ranking split (~40% EM), not a 146/150 ceiling. Reward still ranks naive > rule > max_tools. Full write-up: `docs/RESULTS.md`.
+- Observation: single-hop is a ranking split (~40% EM), not a 146/150 ceiling. Reward still ranks naive > rule > max_tools. Full write-up at the time: `docs/RESULTS.md` (superseded 2026-08-27 by the Tevatron NQ table).
+
+## 2026-08-27 (afternoon) — Tevatron NQ ranking pilot
+
+**Run:** 80k-passage Qwen ranking pilot + reward ablation, commit `d456d26`. Tevatron/wikipedia-nq loaded (`datasets<3.0` + `trust_remote_code`). Slice: 150 Hotpot + 150 NQ. `slice_meta.json`: `nq_corpus: dpr_wikipedia_w100`, `nq_hf_dataset: Tevatron/wikipedia-nq`, `n_nq_anchor: 0`, `n_nq_wiki: 1450`, eval gold articles **847**, corpus 80,000 (2,086 Hotpot slice + 1,450 DPR golds + 1,509 DPR negatives + 74,955 unused-Hotpot distractors). BM25 R@5: Hotpot 0.927 (11 miss), NQ **0.587** (62 miss). Source: `results/metrics/pilot_summary_default.json`. Ablation JSON **was** regenerated on this slice (`reward_ablation_table.json`, stratified 100).
+
+### HotpotQA (n=150)
+
+| Policy | EM | F1 | n_correct | n_abstained | mean $ | mean reward |
+|---|---:|---:|---:|---:|---:|---:|
+| naive_rag | 0.393 | 0.445 | 59/150 | 29 | 1.59e-4 | 0.654 |
+| rule_based | 0.373 | 0.438 | 56/150 | 25 | 4.81e-4 | 0.590 |
+| max_tools | 0.407 | 0.485 | 61/150 | 23 | 7.38e-4 | 0.587 |
+
+### Natural Questions (n=150)
+
+| Policy | EM | F1 | n_correct | n_abstained | mean $ | mean reward |
+|---|---:|---:|---:|---:|---:|---:|
+| naive_rag | 0.273 | 0.348 | 41/150 | 16 | 1.84e-4 | 0.542 |
+| rule_based | 0.273 | 0.352 | 41/150 | 15 | 5.27e-4 | 0.504 |
+| max_tools | 0.293 | 0.358 | 44/150 | 18 | 7.55e-4 | 0.464 |
+
+### Overall (mix-weighted)
+
+| Policy | EM | F1 | n_correct | n_abstained | mean $ | mean steps | mean reward |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| naive_rag | 0.333 | 0.397 | 100/300 | 45 | 1.72e-4 | 2.0 | 0.598 |
+| rule_based | 0.323 | 0.395 | 97/300 | 40 | 5.04e-4 | 4.0 | 0.547 |
+| max_tools | 0.350 | 0.422 | 105/300 | 41 | 7.47e-4 | 7.0 | 0.526 |
+
+- Action mix unchanged: naive 1 retrieve; rule retrieve+rerank+verify; max retrieve×3+rewrite+rerank+verify. Spend 1× / 2.9× / 4.3×. Latency 1089 / 1724 / 3387 ms.
+- Hotpot `max_tools` vs naive: **3 recoveries / 1 regression**. Hotpot rule vs naive: **2 / 5**. NQ rule vs naive: **1 / 1** (tied). NQ max vs naive: **5 / 2** (net +3).
+- Verify (`rule_based_default.jsonl`): Hotpot **14 contradiction / 31 neutral / 105 support**; NQ **0 / 18 / 132**. After every `verify`, next action is `stop` (300/300).
+- Ablation (`rule_based`, stratified 100, EM 0.34): correctness_only 0.362 → grounding 0.547 → default 0.518 → high_cost_pressure 0.456. Grounding jump is real but smaller than leaked NQ.
+- Observation: NQ on DPR Wikipedia is a ranking split (~27–29% EM), not a 146/150 ceiling. Reward still ranks naive > rule > max_tools. Full write-up: `docs/RESULTS.md`.

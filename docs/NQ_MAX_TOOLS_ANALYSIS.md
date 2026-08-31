@@ -2,7 +2,7 @@
 
 **Run this doc describes:** tiny-corpus Qwen 300-eval, **2,276 passages**, leaked-anchor NQ **148/150** (EM 0.987). Metrics/trajectories: commit `34e6585` (2026-08-22); this write-up: `6343b54`. Setup: Qwen2.5-3B-Instruct, `force_yes_no: true`, tighter ABSTAIN prompt, BM25, lexical NLI, 150 NQ items, answer-anchor passages (`The answer is {ans}`). NQ is a ceiling, not a retrieval ranking split.
 
-**Current ranking snapshot is not this file.** `results/metrics/pilot_summary_default.json` is commit `e8a4423` (2026-08-24): 150 Hotpot + 150 **SQuAD**, overall EM ~0.40. Do not re-read those JSON paths for the tables below. The leaked-NQ 80k snapshot `2417c43` (NQ 146/150) is also historical.
+**Current ranking snapshot is not this file.** `results/metrics/pilot_summary_default.json` is commit `d456d26` (2026-08-27): 150 Hotpot + 150 **NQ** (Tevatron/wikipedia-nq), overall EM ~0.33. Do not re-read those JSON paths for the tables below. The SQuAD fallback `e8a4423` and leaked-NQ 80k snapshot `2417c43` (NQ 146/150) are also historical.
 
 **Short answer (this leaked-NQ run only):** Max-Tools is **not worse on NQ quality**. EM/F1 match naive and rule (148/150 after the yes/no detector fix). It is worse on **cost, latency, tokens, and reward** because it always fires unused tools. The remaining two misses are the same `in …` span mismatch on all policies.
 
@@ -126,11 +126,11 @@ Rule-based on NQ is the same quality at 3.1× cost (one rerank + one verify, no 
 
 ## 6. Conclusions
 
-1. **Do not say Max-Tools is worse on NQ EM/F1 on this run.** It is tied (148/150 here; leaked-NQ 80k snapshot `2417c43` is 146/150, still tied). Same two `in …` misses, same predictions. The current SQuAD ranking run (`e8a4423`) is a different corpus — max vs naive there is 8 recoveries / 8 regressions, still no EM win.
+1. **Do not say Max-Tools is worse on NQ EM/F1 on this run.** It is tied (148/150 here; leaked-NQ 80k snapshot `2417c43` is 146/150, still tied). Same two `in …` misses, same predictions. The current Tevatron-NQ ranking run (`d456d26`) is a different corpus — max vs naive there is 5 recoveries / 2 regressions (41 → 44), still not an EM win that pays 4.3× $. The SQuAD fallback (`e8a4423`) was 8 / 8.
 2. **Max-Tools is worse on NQ as a cost policy:** 4.7× $, 3.3× latency, lower reward on **150/150**. That is the intended cost-ceiling signal (Scope Memo: NQ teaches when *not* to over-retrieve).
 3. **Mechanism is unused tools, not a bad verify call.** Duplicate retrieve, unconditional rewrite (148/150), rerank, and a verify that always supports. Evidence membership changes on 72 items but EM does not, because the answer-anchor stays.
 4. **The two remaining misses are not tool failures.** Both are `in X` vs `X` EM strictness. The old at-symbol miss is fixed by the yes/no detector.
-5. **Leaked-anchor NQ cannot rank policies.** Treat this write-up as a **cost-overuse diagnostic** on a planted gold. The current ranking table is Hotpot + SQuAD (`e8a4423`, [`RESULTS.md`](RESULTS.md)). Preferred future single-hop source is Tevatron/wikipedia-nq if the download fits.
+5. **Leaked-anchor NQ cannot rank policies.** Treat this write-up as a **cost-overuse diagnostic** on a planted gold. The current ranking table is Hotpot + Tevatron NQ (`d456d26`, [`RESULTS.md`](RESULTS.md)).
 
 ### What would actually make Max-Tools less bad on NQ
 
