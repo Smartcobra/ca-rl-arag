@@ -53,7 +53,7 @@ Primary datasets follow **Scope Memo V2 §7**:
 |---|---|---|
 | **HotpotQA** (distractor) | `hotpotqa/hotpot_qa` | Multi-hop QA; supporting titles enable grounding metrics |
 | **Natural Questions** (preferred) | `Tevatron/wikipedia-nq` (DPR Wikipedia 100-word passages) | Single-hop QA with real evidence; teaches when *not* to over-retrieve. |
-| **SQuAD / TriviaQA** (fallback) | `rajpurkar/squad` or Tevatron TriviaQA/SQuAD | Same single-hop slot if Tevatron NQ is too heavy. Historical ranking run `e8a4423` used SQuAD. Current ranking run `d456d26` used NQ. |
+| **SQuAD / TriviaQA** (fallback) | `rajpurkar/squad` or Tevatron TriviaQA/SQuAD | Same single-hop slot if Tevatron NQ is too heavy. Historical ranking run `e8a4423` used SQuAD. Current ranking slice `d456d26` used NQ (reward rescored 2026-09-04). |
 
 ### Modes
 
@@ -65,7 +65,7 @@ Primary datasets follow **Scope Memo V2 §7**:
 
 ### Default slice sizes (`configs/default.yaml`)
 
-Locked **plan A** (balanced mix). After rebuilding with `--hf`, single-hop uses real passages (NQ / TriviaQA / SQuAD) and can rank stop vs over-retrieve. Historical RESULTS tables from the answer-anchor NQ corpus (`2417c43`) and the SQuAD fallback (`e8a4423`) are different runs. Current committed metrics (`d456d26`) are **150 Hotpot + 150 NQ**.
+Locked **plan A** (balanced mix). After rebuilding with `--hf`, single-hop uses real passages (NQ / TriviaQA / SQuAD) and can rank stop vs over-retrieve. Historical RESULTS tables from the answer-anchor NQ corpus (`2417c43`) and the SQuAD fallback (`e8a4423`) are different runs. Current on-disk metrics are **150 Hotpot + 150 NQ** (slice `d456d26`, reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04).
 
 | Split | Hotpot | Single-hop (NQ or fallback) | Typical total |
 |---|---|---|---|
@@ -113,7 +113,7 @@ The project reports **quality**, **grounding/safety**, **efficiency/cost**, and 
 |---|---|
 | **Q_ans** | `0.5 * EM + 0.5 * F1` |
 | **Q_ground** | Claim–evidence support (NLI/lexical) + Hotpot gold-title recall when available |
-| **Q_cal** | Calibration: justified abstain vs confident wrong |
+| **Q_cal** | Calibration: justified abstain vs lazy refuse / confident wrong. Numeric table: [`REWARD_DESIGN.md`](REWARD_DESIGN.md) |
 | **P_hall** | Hallucination / unsupported-claim penalty |
 
 ### Efficiency / cost
@@ -380,7 +380,7 @@ Wrote .../results/metrics/reward_ablation_by_dataset.json
 1. `smoke_test.py` prints `SMOKE OK` (then re-run `--hf` if you need the ranking corpus; smoke overwrites `data/processed/`)  
 2. `prepare_data.py --hf` writes `slice_meta.json` with `source: huggingface_nq_hotpot`, `n_eval: 300`, `eval_by_dataset` 150/150, **`n_passages` ≥ 50000**, **`n_nq_anchor`: 0**. Current ranking snapshot has `nq_corpus: dpr_wikipedia_w100` / `nq_hf_dataset: Tevatron/wikipedia-nq` and NQ recall@5 **0.587** (below 1.0).  
 3. `run_pilot.py` prints `Ranking data check OK` **before** the model loads (and fails if leftover NQ answer-anchors are present), then writes `pilot_summary_default.json` with three policy blocks, each with `by_dataset`  
-4. `run_reward_ablation.py` writes `reward_ablation_table.json` with six presets (**re-run after a corpus swap** — the committed ablation JSON is the Tevatron-NQ stratified 100)  
+4. `run_reward_ablation.py` writes `reward_ablation_table.json` with six presets (**re-run after a corpus swap or a reward-formula change** — the on-disk ablation JSON is the Tevatron-NQ stratified 100, rescored 2026-09-04)  
 5. `plot_results.py` writes PNGs under `results/figs/`
 
 If anything fails, start from smoke test, then re-prepare data, then re-run pilot.
@@ -392,7 +392,7 @@ If anything fails, start from smoke test, then re-prepare data, then re-run pilo
 | Doc | Topic |
 |---|---|
 | `README.md` | Project overview |
-| `docs/RESULTS.md` | **Detailed results:** 80k ranking run `d456d26` (150 Hotpot + 150 NQ). SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
+| `docs/RESULTS.md` | **Detailed results:** 80k ranking slice `d456d26` (150 Hotpot + 150 NQ), reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04. SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
 | `docs/NQ_MAX_TOOLS_ANALYSIS.md` | Leaked-NQ max-tools mechanism; tiny-corpus run `34e6585` (NQ 148/150), not the current Tevatron-NQ snapshot |
 | `docs/REWARD_DESIGN.md` | Why reward weights were chosen |
 | `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, etc. |

@@ -4,7 +4,7 @@
 - **Dataset:** Natural Questions via HuggingFace `Tevatron/wikipedia-nq` when `--hf` is used (DPR Wikipedia 100-word passages, Karpukhin et al. 2020)
 - **Fallbacks:** `Tevatron/wikipedia-trivia`, `Tevatron/wikipedia-squad`, or `rajpurkar/squad` — all ship real passages. Never `nq_open` answer-anchors.
 - **Role (Scope Memo V2):** single-hop train mix; teaches when *not* to over-retrieve
-- **On-disk slice right now:** Tevatron NQ **did** load. `slice_meta.json` has `nq_corpus: dpr_wikipedia_w100` / `nq_hf_dataset: Tevatron/wikipedia-nq` / `n_nq_anchor: 0`. Ranking numbers: commit `d456d26`.
+- **On-disk slice right now:** Tevatron NQ **did** load. `slice_meta.json` has `nq_corpus: dpr_wikipedia_w100` / `nq_hf_dataset: Tevatron/wikipedia-nq` / `n_nq_anchor: 0`. Ranking quality numbers: commit `d456d26`. Reward/\(Q_{\mathrm{cal}}\) on disk: 2026-09-04 rescore.
 
 ## Motivation
 Easy single-hop items stress-test cost-aware stopping. Quality-only agents often over-retrieve; NQ exposes that failure mode. That only works if the gold passage is real Wikipedia, not the question plus `The answer is {gold}`.
@@ -33,13 +33,13 @@ Easy single-hop items stress-test cost-aware stopping. Quality-only agents often
 - Tiny-corpus max-tools write-up (`34e6585`, NQ 148/150): [`NQ_MAX_TOOLS_ANALYSIS.md`](../NQ_MAX_TOOLS_ANALYSIS.md)
 - SQuAD fallback ranking (`e8a4423`) is a different corpus
 
-## Ranking snapshot (`d456d26`, Qwen2.5-3B-Instruct)
+## Ranking snapshot (`d456d26` slice, Qwen2.5-3B-Instruct; reward rescored 2026-09-04)
 
 | Policy | EM | n_correct | abstain | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|
-| naive_rag | 0.273 | 41/150 | 16 | 1.84e-4 | 0.542 |
-| rule_based | 0.273 | 41/150 | 15 | 5.27e-4 | 0.504 |
-| max_tools | 0.293 | 44/150 | 18 | 7.55e-4 | 0.464 |
+| naive_rag | 0.273 | 41/150 | 16 | 1.84e-4 | 0.529 |
+| rule_based | 0.273 | 41/150 | 15 | 5.27e-4 | 0.492 |
+| max_tools | 0.293 | 44/150 | 18 | 7.55e-4 | 0.450 |
 
 BM25 R@5 **0.587** (62/150 miss@5). Verify (`rule_based`): 0 contradiction / 18 neutral / 132 support. After every verify the frozen policy stops.
 

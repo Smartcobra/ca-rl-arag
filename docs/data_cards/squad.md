@@ -3,7 +3,7 @@
 ## Identity
 - **Dataset:** SQuAD v1.1 (Rajpurkar et al.) via HuggingFace `rajpurkar/squad`
 - **Role in this repo:** single-hop slot when Tevatron/wikipedia-nq (or TriviaQA) does not load. Occupies the same 40-train / 150-eval budget as NQ in `configs/default.yaml` (`eval_nq` / `train_nq` are “single-hop counts,” not NQ-only).
-- **Committed ranking run:** `e8a4423` (2026-08-24) — 150 eval SQuAD + 150 Hotpot. **Superseded** as the headline snapshot by Tevatron NQ (`d456d26`). Keep this card for the fallback path.
+- **Committed ranking run:** `e8a4423` (2026-08-24) — 150 eval SQuAD + 150 Hotpot. **Superseded** as the headline snapshot by Tevatron NQ (`d456d26`; reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04). Keep this card for the fallback path. The SQuAD table below was **not** rescored.
 
 ## Motivation
 Easy single-hop items stress-test cost-aware stopping. That only works if the gold passage is real article text, not `{question} The answer is {gold}`. SQuAD article contexts satisfy that constraint when DPR NQ is too heavy.

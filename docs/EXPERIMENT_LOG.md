@@ -2,7 +2,7 @@
 
 Append-only notes while running pilots. Prefer short factual entries. **Each dated block names the run it belongs to.** Do not cite a number from this file without that run line.
 
-For a full walkthrough of the current 80k ranking pilot (`d456d26`, Hotpot + Tevatron NQ), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
+For a full walkthrough of the current 80k ranking pilot (Tevatron NQ slice `d456d26`, **rescored 2026-09-04** after the `calibration_score` fix), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
 
 ## 2026-08-07
 
@@ -141,4 +141,26 @@ Observation: extractive generator is a weak absolute QA backend on open Hotpot/N
 - Hotpot `max_tools` vs naive: **3 recoveries / 1 regression**. Hotpot rule vs naive: **2 / 5**. NQ rule vs naive: **1 / 1** (tied). NQ max vs naive: **5 / 2** (net +3).
 - Verify (`rule_based_default.jsonl`): Hotpot **14 contradiction / 31 neutral / 105 support**; NQ **0 / 18 / 132**. After every `verify`, next action is `stop` (300/300).
 - Ablation (`rule_based`, stratified 100, EM 0.34): correctness_only 0.362 → grounding 0.547 → default 0.518 → high_cost_pressure 0.456. Grounding jump is real but smaller than leaked NQ.
-- Observation: NQ on DPR Wikipedia is a ranking split (~27–29% EM), not a 146/150 ceiling. Reward still ranks naive > rule > max_tools. Full write-up: `docs/RESULTS.md`.
+- Observation: NQ on DPR Wikipedia is a ranking split (~27–29% EM), not a 146/150 ceiling. Reward still ranks naive > rule > max_tools. Full write-up at the time: `docs/RESULTS.md` (reward/\(Q_{\mathrm{cal}}\) superseded 2026-09-04 after the calibration fix; EM/F1/$ unchanged).
+
+## 2026-09-04 — Calibration lazy-abstain fix; ranking snapshot rescored
+
+**Run:** same 80k Tevatron-NQ Qwen ranking slice as `d456d26` (150 Hotpot + 150 NQ). Not a new GPU ranking job. `calibration_score` no longer treats gold-wrong as justified abstain (`src/rewards.py`). On-disk source: `results/metrics/pilot_summary_default.json` and `reward_ablation_table.json`.
+
+### What changed vs 2026-08-27
+
+EM/F1/$/n_correct/action mix are identical. Reward and \(Q_{\mathrm{cal}}\) dropped because lazy abstains (usable evidence) are now −0.2 instead of +0.6.
+
+| Policy | overall reward (old → new) | overall Q_cal (old → new) |
+|---|---|---|
+| naive_rag | 0.598 → **0.580** | −0.017 → **−0.137** |
+| rule_based | 0.547 → **0.531** | −0.040 → **−0.147** |
+| max_tools | 0.526 → **0.509** | −0.018 → **−0.128** |
+
+Hotpot reward: 0.631 / 0.570 / 0.569. NQ reward: 0.529 / 0.492 / 0.450. Ranking is still naive > rule > max_tools.
+
+Ablation (`rule_based`, stratified 100, EM 0.34): presets without γ are unchanged (correctness_only 0.362, grounding 0.547, faithfulness_cost 0.519). Presets with calibration dropped: default 0.518 → **0.499**, lambda_zero 0.520 → **0.501**, high_cost_pressure 0.456 → **0.431**.
+
+Latency on the on-disk JSON is 1100 / 1761 / 3443 ms (was 1089 / 1724 / 3387). Tokens and $ match the 08-27 table.
+
+Observation: closing the tautology does not change the frozen-policy ranking. It does change the learning signal: always-abstain is no longer easy reward. Full write-up: `docs/RESULTS.md`. Scoring table: `docs/REWARD_DESIGN.md`.

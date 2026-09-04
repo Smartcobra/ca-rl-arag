@@ -136,7 +136,7 @@ Implication: both splits now rank. Milestone 3 can condition on verify. Preferre
 
 **Ablation JSON was regenerated** on this slice (stratified 100, EM 0.34). Grounding still lifts reward (0.362 → 0.547) but less than leaked NQ.
 
-Implication: both splits rank on real Wikipedia evidence. Milestone 3 can condition on verify. This is the intended ranking snapshot.
+Implication: both splits rank on real Wikipedia evidence. Milestone 3 can condition on verify. This is the intended ranking snapshot. Reward/\(Q_{\mathrm{cal}}\) on disk were later rescored (2026-09-04); EM/F1/$ in this block are still current.
 
 ## 2026-08-27 — Adaptive-RAG baseline settled; experiments-section sentence
 
@@ -148,6 +148,16 @@ Implication: both splits rank on real Wikipedia evidence. Milestone 3 can condit
 
 **GRASP public code:** **No.** Gandhi et al. (arXiv:2607.10463) does not link a repo, checkpoint, or Hugging Face collection for GRASP itself (the only HF link in the paper is Search-R1). GitHub / HF papers / Papers with Code have no official artifact. Unrelated repos named GRASP exist (e.g. PKU-ML graph reasoning). A GRASP baseline would be a reimplementation, not a checkpoint load.
 
+## 2026-09-04 — `calibration_score` lazy-abstain tautology closed; metrics rescored
+
+**Bug:** `return 0.6 if (not has_evidence or not correct) else -0.2` always returned +0.6 on abstain, because `not correct` is always true after the refused-solvable check. Combined with \(P_{\mathrm{hall}}=0\) on abstain, a learning policy could farm reward by always refusing.
+
+**Fix** (`src/rewards.py`, `tests/test_rewards.py`): +0.6 only when evidence is empty, mean retrieval `score` `< 3.0`, or `verify_out.label == "contradiction"`. Otherwise abstain is −0.2. Scoring table: `docs/REWARD_DESIGN.md`.
+
+**Rescore:** same Tevatron-NQ 80k trajectories. EM/F1/$ unchanged. Reward naive 0.598 → **0.580**, rule 0.547 → **0.531**, max 0.526 → **0.509**. Overall \(Q_{\mathrm{cal}}\) −0.017 / −0.040 / −0.018 → **−0.137 / −0.147 / −0.128**. Ablation presets with γ dropped (default 0.518 → 0.499); presets without γ did not. Ranking still naive > rule > max.
+
+Do not train GRPO/PPO against the pre-fix \(Q_{\mathrm{cal}}\).
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
@@ -156,3 +166,4 @@ Implication: both splits rank on real Wikipedia evidence. Milestone 3 can condit
 | 2026-08-24 | NQ corpus inspection (`prepare_data.py` anchors) | Each NQ gold was `{question} The answer is {gold}` twice. Recall@1 / Q_ground / P_hall on NQ were leakage artifacts. | **Implemented:** `--hf` uses Tevatron/wikipedia-nq (fallback TriviaQA/SQuAD). Preflight rejects leftover anchors. |
 | 2026-08-24 | SQuAD fallback 80k Qwen 300-eval (`e8a4423`) | Overall EM 0.68 → 0.40. SQuAD 60/63/60, R@5 0.633. Verify SQuAD 0/24/126. Reward still naive > rule > max. | Single-hop is a ranking split. Extra tools still lose on λ. Re-run ablation on this slice. |
 | 2026-08-27 | Tevatron NQ 80k Qwen 300-eval (`d456d26`) | Overall EM 0.33. NQ 41/41/44, R@5 0.587. Verify NQ 0/18/132. Ablation regenerated (EM 0.34). Reward naive > rule > max. | Intended NQ ranking snapshot. Distinct golds 847, not 7. Extra tools still lose on λ. |
+| 2026-09-04 | Same slice, `calibration_score` fix | Lazy abstain no longer +0.6. Reward 0.580 / 0.531 / 0.509. Q_cal −0.137 / −0.147 / −0.128. Ablation default 0.499. | Train against the fixed calibration rule. Frozen ranking unchanged. |

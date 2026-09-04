@@ -28,7 +28,7 @@ Multi-hop questions force the agent to decide when another `retrieve` / `rewrite
 ## Known limitations
 - Slice is 150 eval / 60 train here; still not for claiming SOTA.
 - Global BM25 index mixes passages across examples (realistic open-corpus setup; harder than per-example context). On the current 80k index, Hotpot BM25 R@5 is **0.927** (11 miss@5).
-- Current ranking mix is Hotpot + **NQ** (`d456d26`). Hotpot EM is 59 / 56 / 61 (naive / rule / max).
+- Current ranking mix is Hotpot + **NQ** (`d456d26`, reward rescored 2026-09-04). Hotpot EM is 59 / 56 / 61 (naive / rule / max); reward is 0.631 / 0.570 / 0.569.
 - Synthetic fallback is not Hotpot distribution
 
 ## Ethical / license notes

@@ -1,6 +1,6 @@
 # Results Guide — What Was Produced and How to Read It
 
-**Run this doc describes:** 80k-passage Qwen ranking pilot (300 eval: 150 Hotpot + 150 **Natural Questions** on DPR Wikipedia). Metrics committed in `d456d26` (2026-08-27). Headline artifact: `results/metrics/pilot_summary_default.json`. `slice_meta.json`: `nq_corpus: dpr_wikipedia_w100`, `nq_hf_dataset: Tevatron/wikipedia-nq`, `n_nq_anchor: 0`, **1,450** NQ wiki golds / **847** distinct eval gold articles (not a 7- or 16-article prefix). Section 5 (reward ablation) is the **same corpus**, stratified 100, also from `d456d26`. Section 6 (synthetic) is extractive, 2026-08-07. Section 8 (verifier labels) uses `rule_based_default.jsonl` from this NQ run. The SQuAD fallback table (`e8a4423`) and leaked-NQ table (`2417c43`) are historical.
+**Run this doc describes:** 80k-passage Qwen ranking pilot (300 eval: 150 Hotpot + 150 **Natural Questions** on DPR Wikipedia). Quality/cost numbers are the same slice as `d456d26` (2026-08-27). Headline artifact: `results/metrics/pilot_summary_default.json`, **rescored 2026-09-04** after closing the `calibration_score` lazy-abstain tautology ([`REWARD_DESIGN.md`](REWARD_DESIGN.md)). EM/F1/$/action mix are unchanged; reward and \(Q_{\mathrm{cal}}\) dropped because unjustified abstains are now −0.2 instead of +0.6. `slice_meta.json`: `nq_corpus: dpr_wikipedia_w100`, `nq_hf_dataset: Tevatron/wikipedia-nq`, `n_nq_anchor: 0`, **1,450** NQ wiki golds / **847** distinct eval gold articles (not a 7- or 16-article prefix). Section 5 (reward ablation) is the **same corpus**, stratified 100, also rescored 2026-09-04. Section 6 (synthetic) is extractive, 2026-08-07. Section 8 (verifier labels) uses `rule_based_default.jsonl` from this NQ run. The SQuAD fallback table (`e8a4423`) and leaked-NQ table (`2417c43`) are historical.
 
 This document describes the **Milestone 2 pilot results**: where files live, what each metric means, how to interpret the current numbers, and known limitations.
 
@@ -71,33 +71,33 @@ Counts and recall: `data/processed/slice_meta.json`.
 
 ## 3. Main policy comparison (Qwen, 300 eval examples, 80k corpus)
 
-**Comparison in one line:** Hotpot is 59 / 56 / 61. NQ is 41 / 41 / 44. Extra tools move a few answers on both splits, but spend is 1× / 2.9× / 4.3×, so reward ranks **naive > rule > max_tools**. Single-hop is a hard ranking split (~27–29% EM), not a saturated ceiling.
+**Comparison in one line:** Hotpot is 59 / 56 / 61. NQ is 41 / 41 / 44. Extra tools move a few answers on both splits, but spend is 1× / 2.9× / 4.3×, so reward still ranks **naive > rule > max_tools** after the 2026-09-04 calibration rescore. Single-hop is a hard ranking split (~27–29% EM), not a saturated ceiling.
 
-Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, `limit: null`, `force_yes_no: true`, 80k-passage index, Tevatron NQ).
+Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, `limit: null`, `force_yes_no: true`, 80k-passage index, Tevatron NQ; reward/\(Q_{\mathrm{cal}}\) as of 2026-09-04).
 
 ### HotpotQA (n=150; ranking split)
 
 | Policy | mean EM | mean F1 | n_correct | n_abstained | abstain | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.393 | 0.445 | 59/150 | 29 | 0.193 | 1.59e-4 | **0.654** |
-| rule_based | 0.373 | 0.438 | 56/150 | 25 | 0.167 | 4.81e-4 | 0.590 |
-| max_tools | **0.407** | **0.485** | **61/150** | 23 | 0.153 | 7.38e-4 | 0.587 |
+| naive_rag | 0.393 | 0.445 | 59/150 | 29 | 0.193 | 1.59e-4 | **0.631** |
+| rule_based | 0.373 | 0.438 | 56/150 | 25 | 0.167 | 4.81e-4 | 0.570 |
+| max_tools | **0.407** | **0.485** | **61/150** | 23 | 0.153 | 7.38e-4 | 0.569 |
 
 ### Natural Questions (n=150; ranking split — not saturated)
 
 | Policy | mean EM | mean F1 | n_correct | n_abstained | abstain | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.273 | 0.348 | 41/150 | 16 | 0.107 | 1.84e-4 | **0.542** |
-| rule_based | 0.273 | 0.352 | 41/150 | 15 | 0.100 | 5.27e-4 | 0.504 |
-| max_tools | **0.293** | **0.358** | **44/150** | 18 | 0.120 | 7.55e-4 | 0.464 |
+| naive_rag | 0.273 | 0.348 | 41/150 | 16 | 0.107 | 1.84e-4 | **0.529** |
+| rule_based | 0.273 | 0.352 | 41/150 | 15 | 0.100 | 5.27e-4 | 0.492 |
+| max_tools | **0.293** | **0.358** | **44/150** | 18 | 0.120 | 7.55e-4 | 0.450 |
 
 ### Overall (mix-weighted; do not rank from this)
 
 | Policy | mean EM | mean F1 | n_correct | n_abstained | mean $ | mean steps | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| **naive_rag** | 0.333 | 0.397 | 100/300 | 45 | 1.72e-4 | 2.0 | **0.598** |
-| **rule_based** | 0.323 | 0.395 | 97/300 | 40 | 5.04e-4 | 4.0 | 0.547 |
-| **max_tools** | **0.350** | **0.422** | **105/300** | 41 | 7.47e-4 | 7.0 | 0.526 |
+| **naive_rag** | 0.333 | 0.397 | 100/300 | 45 | 1.72e-4 | 2.0 | **0.580** |
+| **rule_based** | 0.323 | 0.395 | 97/300 | 40 | 5.04e-4 | 4.0 | 0.531 |
+| **max_tools** | **0.350** | **0.422** | **105/300** | 41 | 7.47e-4 | 7.0 | 0.509 |
 
 ### How to read this table
 
@@ -113,12 +113,12 @@ Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, 
 - Versus the leaked-NQ 80k run (`2417c43`): overall EM 0.68 → **0.33** because copy-the-anchor is gone. Versus the SQuAD fallback (`e8a4423`): overall EM 0.40 → **0.33** because NQ on DPR Wikipedia is harder than 16 shared SQuAD articles. Hotpot stays in the same 56–61 band.
 
 **Cost / behavior**
-- **naive_rag:** 1 retrieve → answer; 1089 ms; 795 tokens.
-- **rule_based:** rerank + verify (4 steps; 2.9× $; 1724 ms; 1599 tokens).
-- **max_tools:** retrieve×3 + rewrite + rerank + verify (7 steps; 4.3× $; 3387 ms; 2055 tokens). High-cost reference. Latency is up vs the 2k index because each BM25 call scores 80k passages.
+- **naive_rag:** 1 retrieve → answer; 1100 ms; 795 tokens.
+- **rule_based:** rerank + verify (4 steps; 2.9× $; 1761 ms; 1599 tokens).
+- **max_tools:** retrieve×3 + rewrite + rerank + verify (7 steps; 4.3× $; 3443 ms; 2055 tokens). High-cost reference. Latency is up vs the 2k index because each BM25 call scores 80k passages.
 
 **Reward**
-- Overall: naive 0.598 > rule 0.547 > max_tools 0.526. Hotpot: 0.654 > 0.590 > 0.587. NQ: 0.542 > 0.504 > 0.464. Extra tools can move a couple of answers; λ/$ still decides the ranking.
+- Overall: naive 0.580 > rule 0.531 > max_tools 0.509. Hotpot: 0.631 > 0.570 > 0.569. NQ: 0.529 > 0.492 > 0.450. Extra tools can move a couple of answers; λ/$ still decides the ranking. Versus the pre-fix `d456d26` table, rewards dropped ~0.02 because lazy abstains are no longer scored as justified.
 
 **$/correct**
 - Overall $/correct is 5.15e-4 / 1.56e-3 / 2.13e-3.
@@ -127,12 +127,12 @@ Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, 
 
 | Policy | mean Q_ans | mean Q_ground | mean Q_cal | mean P_hall |
 |---|---:|---:|---:|---:|
-| naive_rag | 0.365 | 0.647 | −0.017 | 0.035 |
-| rule_based | 0.359 | 0.651 | −0.040 | 0.037 |
-| max_tools | 0.386 | 0.665 | −0.018 | 0.035 |
+| naive_rag | 0.365 | 0.647 | **−0.137** | 0.035 |
+| rule_based | 0.359 | 0.651 | **−0.147** | 0.037 |
+| max_tools | 0.386 | 0.665 | **−0.128** | 0.035 |
 
 - **Q_ans / Q_ground are no longer NQ-inflated.** On Hotpot, Q_ans is 0.419 / 0.406 / 0.446; Q_ground is 0.668 / 0.673 / 0.702. On NQ, Q_ans is 0.311 / 0.313 / 0.326; Q_ground is 0.626 / 0.630 / 0.629 (leaked-anchor NQ was 1.000).
-- **Q_cal is negative overall** because both splits are hard. NQ Q_cal is −0.102 / −0.109 / −0.075: abstains and confident wrongs on a real Wikipedia index.
+- **Q_cal is more negative after the 2026-09-04 fix.** Unjustified abstain is now −0.2 (usable evidence) instead of the old tautology +0.6. Overall Q_cal is −0.137 / −0.147 / −0.128. Hotpot: −0.086 / −0.105 / −0.085. NQ: −0.187 / −0.189 / −0.171. Scoring table: [`REWARD_DESIGN.md`](REWARD_DESIGN.md).
 
 ---
 
@@ -173,23 +173,24 @@ it means: that Gym episode ended with a wrong answer and a low reward. Rows with
 
 ## 5. Reward-weight ablation results
 
-**Run this section describes:** same Tevatron-NQ 80k Qwen corpus as §3, commit `d456d26` (2026-08-27). Source: `results/metrics/reward_ablation_table.json`.
+**Run this section describes:** same Tevatron-NQ 80k Qwen corpus as §3, rescored 2026-09-04 after the `calibration_score` fix. Source: `results/metrics/reward_ablation_table.json`.
 
-Fixed policy: **rule_based**, **stratified 100** from the 300-file (50 Hotpot + 50 NQ). Same behavior → same EM/F1/$ (EM 0.34; Hotpot 17/50, NQ 17/50); only the **scalar reward** changes. This is a subset, not the ranking table.
+Fixed policy: **rule_based**, **stratified 100** from the 300-file (50 Hotpot + 50 NQ). Same behavior → same EM/F1/$ (EM 0.34; Hotpot 17/50, NQ 17/50); only the **scalar reward** changes. This is a subset, not the ranking table. Presets that include γ \(Q_{\mathrm{cal}}\) (`default`, `lambda_zero`, `high_cost_pressure`) dropped vs the pre-fix table; `correctness_only` / `correctness_grounding` / `correctness_faithfulness_cost` did not (no calibration term).
 
 | Preset | overall reward | Hotpot reward | NQ reward | What it tests |
 |---|---:|---:|---:|---|
 | correctness_only | 0.362 | 0.373 | 0.351 | Search-R1-like outcome only |
 | correctness_grounding | 0.547 | 0.495 | 0.598 | Add grounding (β) |
 | correctness_faithfulness_cost | 0.519 | 0.467 | 0.570 | Add cost + hall + act penalties |
-| **default** | 0.518 | 0.476 | 0.561 | Full objective (α,β,γ,λ,μ,…) |
-| lambda_zero | 0.520 | 0.478 | 0.563 | Remove $ / latency terms |
-| high_cost_pressure | 0.456 | 0.417 | 0.495 | Larger λ/μ (cheaper operating point) |
+| **default** | 0.499 | 0.449 | 0.549 | Full objective (α,β,γ,λ,μ,…) |
+| lambda_zero | 0.501 | 0.451 | 0.551 | Remove $ / latency terms |
+| high_cost_pressure | 0.431 | 0.382 | 0.479 | Larger λ/μ (cheaper operating point) |
 
 ### Interpretation
 
 - EM/F1/$ stay flat across presets because the **policy is frozen**; ablations only change how we **score** trajectories.
 - Grounding terms still raise reward (`correctness_only` 0.362 → `correctness_grounding` 0.547), but the jump is smaller than on leaked NQ (0.69 → 0.95) because Q_ground is no longer 1.0 on planted gold.
+- Adding calibration (`correctness_faithfulness_cost` 0.519 → `default` 0.499) now *lowers* reward: mean \(Q_{\mathrm{cal}}\) on this subset is negative (−0.13), and lazy abstains are no longer +0.6.
 - Cost pressure (`high_cost_pressure`) lowers reward for the same spend — useful later when a learned policy can choose fewer tools.
 - On this price card, absolute $ is tiny, so λ effects are modest until you scale prices or tool counts; the relative ordering still moves as designed.
 
@@ -272,9 +273,10 @@ That gap is precisely where a learned policy should win: see `contradiction` / l
 1. **Pipeline OK:** data → 80k BM25 index → agent actions → NLI verify → cost → multi-component reward → logs on the locked 300-example eval (150 Hotpot + 150 NQ). Preflight requires eval=300 and corpus ≥ 50k before Qwen loads, and rejects leftover NQ answer-anchors.
 2. **Reporting contract:** every table is overall + Hotpot + NQ. Overall is mix-weighted. Single-hop is now a ranking split (~27–29% EM), not a saturated ceiling.
 3. **The distractor pool did what it was for.** Hotpot R@5 is 0.927 (11 misses). NQ R@5 is 0.587 (62 misses). Overall EM dropped 0.68 → 0.33 vs leaked NQ because copy-the-anchor is gone.
-4. **Quality vs cost is now the right story on both splits.** Hotpot 59 / 56 / 61 (max 3 recoveries / 1 regression). NQ 41 / 41 / 44 (max net +3; rule tied). Reward still ranks naive because spend is 1× / 2.9× / 4.3×.
-5. **Verify is informative and unused by `rule_based`.** Lexical NLI returns 14 contradiction / 31 neutral / 105 support on Hotpot, and 0 / 18 / 132 on NQ. After every verify the frozen policy just stops. That unused state feature is a Milestone-3 win condition for RL, not a reason to drop verify.
-6. **Next:** Milestone 3 is cost-aware RL. Extra tools can change a few answers; a learned controller must **select** when that is worth the cost, including when verify says the current evidence is contradictory or only neutral. This table is the intended Tevatron NQ ranking snapshot. Ablation JSON is already from the same slice.
+4. **Quality vs cost is now the right story on both splits.** Hotpot 59 / 56 / 61 (max 3 recoveries / 1 regression). NQ 41 / 41 / 44 (max net +3; rule tied). Reward still ranks naive (0.580 > 0.531 > 0.509) because spend is 1× / 2.9× / 4.3×.
+5. **Lazy abstain is no longer easy reward.** After the 2026-09-04 `calibration_score` fix, overall \(Q_{\mathrm{cal}}\) is −0.137 / −0.147 / −0.128. A learned policy cannot farm +0.6 by refusing whenever gold would have been wrong.
+6. **Verify is informative and unused by `rule_based`.** Lexical NLI returns 14 contradiction / 31 neutral / 105 support on Hotpot, and 0 / 18 / 132 on NQ. After every verify the frozen policy just stops. That unused state feature is a Milestone-3 win condition for RL, not a reason to drop verify.
+7. **Next:** Milestone 3 is cost-aware RL. Extra tools can change a few answers; a learned controller must **select** when that is worth the cost, including when verify says the current evidence is contradictory or only neutral. This table is the intended Tevatron NQ ranking snapshot, with reward scored under the fixed calibration rule. Ablation JSON is from the same slice.
 
 ---
 
@@ -295,5 +297,7 @@ Then update numbers in this file and in `EXPERIMENT_LOG.md` from:
 - `results/metrics/pilot_summary_default.json` (overall + `by_dataset`)
 - `results/metrics/reward_ablation_table.json` and `reward_ablation_by_dataset.json`
 - `data/processed/slice_meta.json` (`nq_corpus`, `n_nq_anchor`, `retrieval_diag`)
+
+If only the reward formula changed (as on 2026-09-04), re-score the existing trajectories — EM/F1/$ stay; rewrite reward / \(Q_{\mathrm{cal}}\) columns and the ablation table.
 
 Figures land in `results/figs/` (overall bars plus `policy_by_dataset.png`).

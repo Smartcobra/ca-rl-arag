@@ -68,3 +68,7 @@ Evidence is **weak** (justified abstain) only if any of these hold: no passages,
 | Answered wrong, no evidence | `-0.2` |
 | Answered wrong, with evidence (confident hallucination) | `-0.4` |
 | Abstained when the prediction already matched gold | `-0.5` |
+
+## Impact on the ranking snapshot (2026-09-04)
+
+The Tevatron-NQ 80k pilot was rescored with this rule. EM/F1/$ did not move (frozen policies). Mean \(Q_{\mathrm{cal}}\) dropped (overall −0.017 → −0.137 on naive) because lazy abstains are no longer +0.6. Mean reward dropped in lockstep (naive 0.598 → 0.580); ranking is still naive > rule > max_tools. Details: [`RESULTS.md`](RESULTS.md).

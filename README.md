@@ -52,7 +52,7 @@ python scripts/run_reward_ablation.py
 
 ## Pilot results (snapshot)
 
-**Run this section describes:** 80k-passage Qwen ranking pilot, commit `d456d26` (2026-08-27). Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**. Tevatron/wikipedia-nq loaded (`nq_corpus: dpr_wikipedia_w100`, `n_nq_anchor: 0`, 1,450 wiki golds / 847 eval gold articles). Corpus **80,000** passages (2,086 Hotpot slice + 1,450 DPR golds + 1,509 DPR negatives + 74,955 unused-Hotpot distractors). BM25 gold recall@5: Hotpot **0.927** (11 misses), NQ **0.587** (62 misses). Lexical NLI. `force_yes_no: true`, `allow_abstain: true`. The leaked-NQ write-up (148/150) is a different run: [`docs/NQ_MAX_TOOLS_ANALYSIS.md`](docs/NQ_MAX_TOOLS_ANALYSIS.md).
+**Run this section describes:** 80k-passage Qwen ranking pilot, same slice as commit `d456d26` (2026-08-27), **rescored 2026-09-04** after the `calibration_score` lazy-abstain fix. Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**. Tevatron/wikipedia-nq loaded (`nq_corpus: dpr_wikipedia_w100`, `n_nq_anchor: 0`, 1,450 wiki golds / 847 eval gold articles). Corpus **80,000** passages (2,086 Hotpot slice + 1,450 DPR golds + 1,509 DPR negatives + 74,955 unused-Hotpot distractors). BM25 gold recall@5: Hotpot **0.927** (11 misses), NQ **0.587** (62 misses). Lexical NLI. `force_yes_no: true`, `allow_abstain: true`. EM/F1/$ are unchanged vs `d456d26`; reward and \(Q_{\mathrm{cal}}\) dropped. The leaked-NQ write-up (148/150) is a different run: [`docs/NQ_MAX_TOOLS_ANALYSIS.md`](docs/NQ_MAX_TOOLS_ANALYSIS.md).
 
 **Comparison in one line:** Hotpot is 59 / 56 / 61. NQ is 41 / 41 / 44. Extra tools move a few answers, but spend is 4.3× on `max_tools`, so reward still ranks **naive > rule > max_tools**. Single-hop is a ranking split now (~27–29% EM), not an answer-anchor ceiling.
 
@@ -62,9 +62,9 @@ Read **Hotpot and NQ**, not Overall.
 
 | Policy | EM | F1 | n_correct | n_abstained | abstain | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.393 | 0.445 | 59/150 | 29 | 0.193 | 1.59e-4 | **0.654** |
-| rule_based | 0.373 | 0.438 | 56/150 | 25 | 0.167 | 4.81e-4 | 0.590 |
-| max_tools | **0.407** | **0.485** | **61/150** | 23 | 0.153 | 7.38e-4 | 0.587 |
+| naive_rag | 0.393 | 0.445 | 59/150 | 29 | 0.193 | 1.59e-4 | **0.631** |
+| rule_based | 0.373 | 0.438 | 56/150 | 25 | 0.167 | 4.81e-4 | 0.570 |
+| max_tools | **0.407** | **0.485** | **61/150** | 23 | 0.153 | 7.38e-4 | 0.569 |
 
 Versus the leaked-NQ 80k run: Hotpot stays in the 56–61 band. `max_tools` vs naive is **3 recoveries / 1 regression** (net +2). That is still a handful of items — not a policy win.
 
@@ -72,9 +72,9 @@ Versus the leaked-NQ 80k run: Hotpot stays in the 56–61 band. `max_tools` vs n
 
 | Policy | EM | F1 | n_correct | n_abstained | abstain | mean $ | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.273 | 0.348 | 41/150 | 16 | 0.107 | 1.84e-4 | **0.542** |
-| rule_based | 0.273 | 0.352 | 41/150 | 15 | 0.100 | 5.27e-4 | 0.504 |
-| max_tools | **0.293** | **0.358** | **44/150** | 18 | 0.120 | 7.55e-4 | 0.464 |
+| naive_rag | 0.273 | 0.348 | 41/150 | 16 | 0.107 | 1.84e-4 | **0.529** |
+| rule_based | 0.273 | 0.352 | 41/150 | 15 | 0.100 | 5.27e-4 | 0.492 |
+| max_tools | **0.293** | **0.358** | **44/150** | 18 | 0.120 | 7.55e-4 | 0.450 |
 
 Rule vs naive is **1 recovery / 1 regression** (tied). Max vs naive is **5 / 2** (net +3). Blind extra retrieves buy three NQ hits and still lose on reward.
 
@@ -82,9 +82,9 @@ Rule vs naive is **1 recovery / 1 regression** (tied). Max vs naive is **5 / 2**
 
 | Policy | EM | F1 | n_correct | n_abstained | mean $ | mean steps | mean reward |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 0.333 | 0.397 | 100/300 | 45 | 1.72e-4 | 2.0 | **0.598** |
-| rule_based | 0.323 | 0.395 | 97/300 | 40 | 5.04e-4 | 4.0 | 0.547 |
-| max_tools | **0.350** | **0.422** | **105/300** | 41 | 7.47e-4 | 7.0 | 0.526 |
+| naive_rag | 0.333 | 0.397 | 100/300 | 45 | 1.72e-4 | 2.0 | **0.580** |
+| rule_based | 0.323 | 0.395 | 97/300 | 40 | 5.04e-4 | 4.0 | 0.531 |
+| max_tools | **0.350** | **0.422** | **105/300** | 41 | 7.47e-4 | 7.0 | 0.509 |
 
 Overall EM dropped **0.68 → 0.33** vs leaked NQ because copy-the-anchor is gone.
 
@@ -92,9 +92,9 @@ Overall EM dropped **0.68 → 0.33** vs leaked NQ because copy-the-anchor is gon
 
 | Policy | retrieve | rewrite | rerank | verify | mean $ | latency | tokens |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.72e-4 | 1089 ms | 795 |
-| rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 5.04e-4 | 1724 ms | 1599 |
-| max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 7.47e-4 | 3387 ms | 2055 |
+| naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.72e-4 | 1100 ms | 795 |
+| rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 5.04e-4 | 1761 ms | 1599 |
+| max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 7.47e-4 | 3443 ms | 2055 |
 
 Latency is high because BM25 scores 80k passages per query.
 
@@ -104,22 +104,22 @@ Latency is high because BM25 scores 80k passages per query.
 - **Hotpot quality is still a few-hit race** (59 / 56 / 61). Extra retrieves recover 3 and lose 1; not enough to pay 4.3× $.
 - **NQ can rank policies on quality, barely.** Max 44 vs naive/rule 41. Rule is tied with naive at 1 recovery / 1 regression.
 - **Abstain** on Hotpot is 29 / 25 / 23 (~15–19%). NQ abstain is 16 / 15 / 18 (~10–12%).
-- **Cost still decides reward:** naive 0.598 > rule 0.547 > max_tools 0.526 (Hotpot 0.654 > 0.590 > 0.587; NQ 0.542 > 0.504 > 0.464).
+- **Cost still decides reward:** naive 0.580 > rule 0.531 > max_tools 0.509 (Hotpot 0.631 > 0.570 > 0.569; NQ 0.529 > 0.492 > 0.450). Versus the pre-fix table, rewards dropped ~0.02 because lazy abstains are now −0.2, not +0.6.
 
 Milestone 3 takeaway: both splits are hard enough that extra tools can change a few answers. A learned controller must **select** when that is worth the cost; blindly using max tools still loses on reward.
 
 ### Reward-weight ablation (not a ranking table)
 
-Fixed `rule_based` policy, **stratified 100** from the **same Tevatron-NQ** 300-file (50 Hotpot + 50 NQ, commit `d456d26`). EM/F1/$ stay flat (EM 0.34); only the scalar reward changes. Source: `results/metrics/reward_ablation_table.json`.
+Fixed `rule_based` policy, **stratified 100** from the **same Tevatron-NQ** 300-file (50 Hotpot + 50 NQ). EM/F1/$ stay flat (EM 0.34); only the scalar reward changes. Source: `results/metrics/reward_ablation_table.json` (rescored 2026-09-04). Presets with γ \(Q_{\mathrm{cal}}\) dropped vs the pre-fix table.
 
 | Preset | overall reward | Hotpot reward | NQ reward |
 |---|---:|---:|---:|
 | correctness_only | 0.362 | 0.373 | 0.351 |
 | correctness_grounding | 0.547 | 0.495 | 0.598 |
 | correctness_faithfulness_cost | 0.519 | 0.467 | 0.570 |
-| default | 0.518 | 0.476 | 0.561 |
-| lambda_zero | 0.520 | 0.478 | 0.563 |
-| high_cost_pressure | 0.456 | 0.417 | 0.495 |
+| default | 0.499 | 0.449 | 0.549 |
+| lambda_zero | 0.501 | 0.451 | 0.551 |
+| high_cost_pressure | 0.431 | 0.382 | 0.479 |
 
 Full interpretation: [`docs/RESULTS.md`](docs/RESULTS.md). Eval contract: [`docs/IMPLEMENTATION_DECISIONS.md`](docs/IMPLEMENTATION_DECISIONS.md).
 
