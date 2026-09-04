@@ -2,7 +2,7 @@
   "default": {
     "mean_em": 0.34,
     "mean_f1": 0.38366666666666666,
-    "mean_reward": 0.5182421863164539,
+    "mean_reward": 0.4990404658667789,
     "mean_total_usd": 0.000504956,
     "mean_n_retrieve": 1.0,
     "usd_per_correct": 0.001485164705882353,
@@ -14,7 +14,7 @@
       "hotpot_qa": {
         "mean_em": 0.34,
         "mean_f1": 0.406,
-        "mean_reward": 0.475886660387,
+        "mean_reward": 0.44949717678754,
         "mean_total_usd": 0.000482384,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0014187764705882353,
@@ -26,7 +26,7 @@
       "natural_questions": {
         "mean_em": 0.34,
         "mean_f1": 0.36133333333333334,
-        "mean_reward": 0.5605977122459079,
+        "mean_reward": 0.548583754946018,
         "mean_total_usd": 0.000527528,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0015515529411764706,
@@ -116,7 +116,7 @@
   "correctness_faithfulness_cost": {
     "mean_em": 0.34,
     "mean_f1": 0.38366666666666666,
-    "mean_reward": 0.518537784673684,
+    "mean_reward": 0.5185231562621689,
     "mean_total_usd": 0.000504956,
     "mean_n_retrieve": 1.0,
     "usd_per_correct": 0.001485164705882353,
@@ -128,7 +128,7 @@
       "hotpot_qa": {
         "mean_em": 0.34,
         "mean_f1": 0.406,
-        "mean_reward": 0.46716904141293,
+        "mean_reward": 0.46715832199063995,
         "mean_total_usd": 0.000482384,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0014187764705882353,
@@ -140,7 +140,7 @@
       "natural_questions": {
         "mean_em": 0.34,
         "mean_f1": 0.36133333333333334,
-        "mean_reward": 0.569906527934438,
+        "mean_reward": 0.5698879905336979,
         "mean_total_usd": 0.000527528,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0015515529411764706,
@@ -154,7 +154,7 @@
   "lambda_zero": {
     "mean_em": 0.34,
     "mean_f1": 0.38366666666666666,
-    "mean_reward": 0.5200931542432738,
+    "mean_reward": 0.500893154243274,
     "mean_total_usd": 0.000504956,
     "mean_n_retrieve": 1.0,
     "usd_per_correct": 0.001485164705882353,
@@ -166,7 +166,7 @@
       "hotpot_qa": {
         "mean_em": 0.34,
         "mean_f1": 0.406,
-        "mean_reward": 0.477675996,
+        "mean_reward": 0.45127599599999996,
         "mean_total_usd": 0.000482384,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0014187764705882353,
@@ -178,7 +178,7 @@
       "natural_questions": {
         "mean_em": 0.34,
         "mean_f1": 0.36133333333333334,
-        "mean_reward": 0.5625103124865479,
+        "mean_reward": 0.5505103124865479,
         "mean_total_usd": 0.000527528,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0015515529411764706,
@@ -192,7 +192,7 @@
   "high_cost_pressure": {
     "mean_em": 0.34,
     "mean_f1": 0.38366666666666666,
-    "mean_reward": 0.4562182639790941,
+    "mean_reward": 0.4305452328311141,
     "mean_total_usd": 0.000504956,
     "mean_n_retrieve": 1.0,
     "usd_per_correct": 0.001485164705882353,
@@ -204,7 +204,7 @@
       "hotpot_qa": {
         "mean_em": 0.34,
         "mean_f1": 0.406,
-        "mean_reward": 0.41701944171859995,
+        "mean_reward": 0.38176922668240004,
         "mean_total_usd": 0.000482384,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0014187764705882353,
@@ -216,7 +216,7 @@
       "natural_questions": {
         "mean_em": 0.34,
         "mean_f1": 0.36133333333333334,
-        "mean_reward": 0.49541708623958836,
+        "mean_reward": 0.4793212389798283,
         "mean_total_usd": 0.000527528,
         "mean_n_retrieve": 1.0,
         "usd_per_correct": 0.0015515529411764706,
