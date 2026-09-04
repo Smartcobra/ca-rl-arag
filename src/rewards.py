@@ -72,7 +72,33 @@ def claim_support_score(answer: str, evidence: list[dict[str, Any]], verify_out:
     return len(a_toks & e_toks) / len(a_toks)
 
 
-def calibration_score(pred: str, gold: str | list[str], abstained: bool, evidence: list[dict[str, Any]]) -> float:
+WEAK_MEAN_SCORE = 3.0  # same cutoff the rule policy treats as "not enough to stop"
+
+
+def _mean_retrieval_score(evidence: list[dict[str, Any]]) -> float:
+    if not evidence:
+        return 0.0
+    return sum(float(e.get("score", 0.0)) for e in evidence) / len(evidence)
+
+
+def _evidence_is_weak(evidence: list[dict[str, Any]], verify_out: dict[str, Any] | None) -> bool:
+    """Justified abstain only when retrieval is empty/weak or verify contradicts."""
+    if not evidence:
+        return True
+    if _mean_retrieval_score(evidence) < WEAK_MEAN_SCORE:
+        return True
+    if verify_out is not None and verify_out.get("label") == "contradiction":
+        return True
+    return False
+
+
+def calibration_score(
+    pred: str,
+    gold: str | list[str],
+    abstained: bool,
+    evidence: list[dict[str, Any]],
+    verify_out: dict[str, Any] | None = None,
+) -> float:
     """Reward justified abstain; penalize confident wrong / unjustified refuse."""
     from .utils import exact_match
 
@@ -81,8 +107,7 @@ def calibration_score(pred: str, gold: str | list[str], abstained: bool, evidenc
     if abstained:
         if correct:
             return -0.5  # refused a solvable answer
-        # Justified if little evidence or answer would be wrong
-        return 0.6 if (not has_evidence or not correct) else -0.2
+        return 0.6 if _evidence_is_weak(evidence, verify_out) else -0.2
     if correct:
         return 0.3
     # Confident wrong
@@ -116,7 +141,7 @@ class RewardComputer:
         claim_ground = claim_support_score(pred, evidence, verify_out)
         q_ground = 0.5 * claim_ground + 0.5 * gold_ground if supporting_titles else claim_ground
 
-        q_cal = calibration_score(pred, gold, abstained, evidence)
+        q_cal = calibration_score(pred, gold, abstained, evidence, verify_out)
 
         # Costs
         usd_by = cost_summary.get("usd_by_action", {})

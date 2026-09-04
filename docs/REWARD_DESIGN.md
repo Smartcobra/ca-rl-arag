@@ -45,7 +45,7 @@ Additionally, Milestone 3 will sweep `pareto_sweep.lambda_cost` × `mu_latency` 
 |---|---|
 | \(Q_{\mathrm{ans}}\) | `0.5 * EM + 0.5 * token-F1` |
 | \(Q_{\mathrm{ground}}\) | Claim–evidence support (NLI/lexical) + Hotpot gold-title recall when available |
-| \(Q_{\mathrm{cal}}\) | Justified abstain reward / confident-wrong penalty |
+| \(Q_{\mathrm{cal}}\) | See **What \(Q_{\mathrm{cal}}\) scores** below. Implemented in `calibration_score` (`src/rewards.py`) |
 | \(C_{\mathrm{tok}}, C_{\mathrm{ret}}\) | From FinOps price card via `CostTracker` |
 | \(C_{\mathrm{lat}}\) | `μ * seconds * latency_unit_usd` |
 | \(P_{\mathrm{hall}}\) | Unsupported + contradiction mass × hall weights |
@@ -53,3 +53,18 @@ Additionally, Milestone 3 will sweep `pareto_sweep.lambda_cost` × `mu_latency` 
 | \(P_{\mathrm{bud}}\) | `bud_penalty` if budget violated |
 
 All components are logged per episode for methodology/discussion writing.
+
+## What \(Q_{\mathrm{cal}}\) scores
+
+Calibration is **not** answer correctness (`Q_{\mathrm{ans}}` is EM/F1). It scores whether the policy’s confidence matches the evidence: refuse when retrieval is weak, answer when it is not.
+
+Evidence is **weak** (justified abstain) only if any of these hold: no passages, mean retrieval `score` `< 3.0` (same cutoff the rule policy uses as “not enough to stop”), or `verify_out.label == "contradiction"`. Otherwise an abstain is treated as a lazy refuse. Using gold-wrong as “justified” is forbidden: that branch was a tautology (`not correct` is always true after the refused-solvable check) and taught always-abstain as easy reward, especially since \(P_{\mathrm{hall}}\) is also zeroed on abstain.
+
+| What happened | \(Q_{\mathrm{cal}}\) |
+|---|---|
+| Answered correctly | `+0.3` |
+| Abstained, evidence weak (empty **or** mean score `< 3.0` **or** verify=`contradiction`) | `+0.6` |
+| Abstained, evidence usable (lazy refuse) | `-0.2` |
+| Answered wrong, no evidence | `-0.2` |
+| Answered wrong, with evidence (confident hallucination) | `-0.4` |
+| Abstained when the prediction already matched gold | `-0.5` |
