@@ -15,7 +15,8 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from ..agentic_rag import ACTIONS
+from ..agentic_rag import ACTIONS, AgentState
+from ..rag_env import IDX_TO_ACTION, vectorize_structured_obs
 
 OBS_DIM = 10
 N_ACTIONS = len(ACTIONS)
@@ -194,3 +195,42 @@ class LearnedPolicy:
         pol = cls(hidden=int(payload["hidden"]), seed=int(payload.get("seed") or 0), device=device)
         pol.mlp.load_state_dict(payload["state_dict"])
         return pol
+
+    def as_callable(self, cfg: dict[str, Any], *, deterministic: bool = True):
+        """``(structured_obs, state) -> action_name`` for ``evaluate_agent`` / ``run_pilot``."""
+        self.mlp.eval()
+
+        def policy_fn(obs: dict[str, Any], state: AgentState | None = None) -> str:
+            del state
+            vec = vectorize_structured_obs(obs, cfg)
+            with torch.no_grad():
+                action_idx, _, _ = self.act(vec, cfg=cfg, deterministic=deterministic)
+            return IDX_TO_ACTION[action_idx]
+
+        return policy_fn
+
+
+def learned_checkpoint_path(cfg: dict[str, Any], checkpoint: str | Path | None = None) -> Path:
+    from ..config import resolve_path
+
+    learned = (cfg.get("policy") or {}).get("learned") or {}
+    rel = checkpoint if checkpoint is not None else learned.get("checkpoint", "results/checkpoints/learned_policy.pt")
+    if cfg.get("root"):
+        return resolve_path(cfg, rel)
+    return Path(rel)
+
+
+def load_learned_policy_fn(
+    cfg: dict[str, Any] | None,
+    checkpoint: str | Path | None = None,
+    *,
+    deterministic: bool = True,
+):
+    if cfg is None:
+        raise ValueError("learned policy requires cfg to resolve the checkpoint")
+    path = learned_checkpoint_path(cfg, checkpoint)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"learned checkpoint missing: {path}. Train first: python scripts/train_policy.py"
+        )
+    return LearnedPolicy.load(path).as_callable(cfg, deterministic=deterministic)

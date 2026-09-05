@@ -162,7 +162,7 @@ Do not train GRPO/PPO against the pre-fix \(Q_{\mathrm{cal}}\).
 
 **Choice:** Milestone 3 starts as vanilla REINFORCE on a **261-parameter** MLP (`10 → 16 → 5`) in `src/policies/learned.py`, trained by `scripts/train_policy.py`.
 
-**Not chosen (yet):** GRPO/PPO, a learned critic, query/passage text in the policy, or registering `learned` in `run_pilot.py` / `get_policy()`.
+**Not chosen (yet):** GRPO/PPO, a learned critic, or query/passage text in the policy.
 
 **Data lock:** train on `train_slice.jsonl` only (60 Hotpot + 40 NQ = 100). The script has no `--split` flag and refuses any path whose filename contains `eval`. The locked 300-example eval is not opened during training. `--limit` is a stratified cap on **train**.
 
@@ -170,7 +170,7 @@ Do not train GRPO/PPO against the pre-fix \(Q_{\mathrm{cal}}\).
 
 **Update:** per-episode REINFORCE with an EMA reward baseline and entropy 0.01. Sparse terminal reward from `AgenticRAGEnv`. Learning curve: `results/metrics/train_policy_curve.json` (mean reward per epoch). Checkpoints: `results/checkpoints/learned_policy.pt` and `_best.pt`.
 
-**Eval:** ranking the checkpoint on the 300 is a later, separate job. Train mean reward is not a ranking number.
+**Eval (not training):** `run_pilot.py` default `--policies` is `naive_rag,rule_based,max_tools,learned`. The checkpoint is loaded frozen (`deterministic` argmax) and run through the same `evaluate_agent` path, so `pilot_summary_*.json` gets a fourth `by_dataset` block. Missing checkpoint → skip `learned` (or exit if it is the only policy). The trainer still never opens the 300. Train mean reward is not a ranking number.
 
 ## Observations template
 

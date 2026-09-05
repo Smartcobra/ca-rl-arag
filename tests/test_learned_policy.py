@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.agentic_rag import ACTIONS
+from src.policies import get_policy
 from src.policies.learned import (
     MAX_HIDDEN,
     MAX_PARAM_COUNT,
@@ -22,6 +23,7 @@ from src.policies.learned import (
     PolicyMLP,
     assert_train_only_path,
     legal_mask,
+    learned_checkpoint_path,
     parameter_count,
 )
 from src.rag_env import ACTION_TO_IDX
@@ -108,6 +110,37 @@ def test_assert_train_only_path() -> None:
     raise AssertionError("expected ValueError for eval_slice.jsonl")
 
 
+def test_as_callable_empty_evidence() -> None:
+    pol = LearnedPolicy(hidden=8, seed=0)
+    fn = pol.as_callable(_CFG, deterministic=True)
+    structured = {
+        "mean_score": 0.0,
+        "n_evidence": 0,
+        "remaining_steps": 8,
+        "remaining_usd": 0.05,
+        "verification": None,
+        "counts": {"retrieve": 0, "rewrite": 0, "rerank": 0, "verify": 0},
+    }
+    action = fn(structured, None)
+    assert action in {"retrieve", "rewrite"}
+
+
+def test_get_policy_learned_requires_cfg() -> None:
+    try:
+        get_policy("learned")
+    except ValueError as exc:
+        assert "cfg" in str(exc).lower()
+        return
+    raise AssertionError("expected ValueError when cfg is missing")
+
+
+def test_learned_checkpoint_path_default() -> None:
+    cfg = {"root": str(ROOT), "policy": {"learned": {"checkpoint": "results/checkpoints/learned_policy.pt"}}}
+    path = learned_checkpoint_path(cfg)
+    assert path.name == "learned_policy.pt"
+    assert "eval" not in path.name
+
+
 def test_save_load_roundtrip(tmp_path=None) -> None:
     if tmp_path is None:
         dest = ROOT / "results" / "checkpoints" / "_test_learned.pt"
@@ -134,6 +167,9 @@ def main() -> None:
     test_act_respects_mask()
     test_reinforce_step_finite()
     test_assert_train_only_path()
+    test_as_callable_empty_evidence()
+    test_get_policy_learned_requires_cfg()
+    test_learned_checkpoint_path_default()
     test_save_load_roundtrip()
     print("LEARNED POLICY OK")
 

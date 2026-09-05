@@ -23,6 +23,31 @@ ACTION_TO_IDX = {a: i for i, a in enumerate(ACTIONS)}
 IDX_TO_ACTION = {i: a for a, i in ACTION_TO_IDX.items()}
 
 
+def vectorize_structured_obs(obs: dict[str, Any], cfg: dict[str, Any]) -> np.ndarray:
+    """Compact 10-d vector used by the env and the learned policy head."""
+    max_steps = float(cfg.get("agent", {}).get("max_steps", 6))
+    max_usd = float(cfg.get("budget", {}).get("max_usd", 0.05)) or 0.05
+    verify = obs.get("verification") or {}
+    mean_score = float(obs.get("mean_score") or 0.0)
+    mean_norm = float(np.tanh(mean_score / 5.0))
+    counts = obs.get("counts") or {}
+    return np.array(
+        [
+            mean_norm,
+            min(float(obs.get("n_evidence") or 0) / 10.0, 1.0),
+            max(float(obs.get("remaining_steps") or 0) / max_steps, 0.0),
+            min(max(float(obs.get("remaining_usd") or 0) / max_usd, 0.0), 1.0),
+            float(verify.get("support") or 0.0),
+            float(verify.get("contradiction") or 0.0),
+            min(float(counts.get("retrieve", 0)) / 3.0, 1.0),
+            min(float(counts.get("rewrite", 0)) / 2.0, 1.0),
+            min(float(counts.get("rerank", 0)) / 2.0, 1.0),
+            min(float(counts.get("verify", 0)) / 2.0, 1.0),
+        ],
+        dtype=np.float32,
+    )
+
+
 class AgenticRAGEnv(gym.Env):
     metadata = {"render_modes": []}
 
@@ -56,29 +81,7 @@ class AgenticRAGEnv(gym.Env):
 
     def _vector_obs(self) -> np.ndarray:
         assert self._state is not None and self._tracker is not None
-        obs = self._state.observation(self._tracker, self.cfg)
-        max_steps = float(self.cfg.get("agent", {}).get("max_steps", 6))
-        max_usd = float(self.cfg.get("budget", {}).get("max_usd", 0.05)) or 0.05
-        verify = obs.get("verification") or {}
-        # Normalize mean_score roughly (BM25 scores vary); squash with tanh-like
-        mean_score = float(obs.get("mean_score") or 0.0)
-        mean_norm = float(np.tanh(mean_score / 5.0))
-        vec = np.array(
-            [
-                mean_norm,
-                min(float(obs.get("n_evidence") or 0) / 10.0, 1.0),
-                max(float(obs.get("remaining_steps") or 0) / max_steps, 0.0),
-                min(max(float(obs.get("remaining_usd") or 0) / max_usd, 0.0), 1.0),
-                float(verify.get("support") or 0.0),
-                float(verify.get("contradiction") or 0.0),
-                min(float(obs.get("counts", {}).get("retrieve", 0)) / 3.0, 1.0),
-                min(float(obs.get("counts", {}).get("rewrite", 0)) / 2.0, 1.0),
-                min(float(obs.get("counts", {}).get("rerank", 0)) / 2.0, 1.0),
-                min(float(obs.get("counts", {}).get("verify", 0)) / 2.0, 1.0),
-            ],
-            dtype=np.float32,
-        )
-        return vec
+        return vectorize_structured_obs(self._state.observation(self._tracker, self.cfg), self.cfg)
 
     def reset(
         self,
