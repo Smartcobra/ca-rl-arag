@@ -20,6 +20,8 @@ python scripts/prepare_data.py --hf           # 150+150 questions + unused-Hotpo
 python scripts/run_pilot.py --run-env-check   # preflight: eval=300 AND corpus>=50k, then Qwen
 python scripts/run_reward_ablation.py         # same preflight; stratified 100 from the same file
 python scripts/plot_results.py                # metrics → results/figs/*.png
+# optional Milestone 3: REINFORCE on the 100 train examples only — never the 300 eval
+python scripts/train_policy.py
 ```
 
 Fast extractive-only debug (not a ranking run; `extractive.yaml` has no 50k corpus floor):
@@ -32,7 +34,7 @@ If you point **default.yaml** at a synthetic or 2k-passage corpus, the ranking s
 
 ---
 
-## 1. Why these four commands?
+## 1. Why these commands?
 
 | Step | Command | Why run it |
 |---|---|---|
@@ -40,8 +42,9 @@ If you point **default.yaml** at a synthetic or 2k-passage corpus, the ranking s
 | 2 | `prepare_data.py` | Builds the train/eval question slices and BM25 corpus. Without this, pilot/ablation have nothing to evaluate. |
 | 3 | `run_pilot.py` | Main Milestone-2 experiment: compare **naive RAG**, **rule-based agent**, and **max-tools agent**; optionally verify the RL env. Produces metrics + trajectory logs. |
 | 4 | `run_reward_ablation.py` | Sweeps reward-weight presets on a fixed policy/slice so you can justify α/β/γ/λ choices (reviewer comment) and later write the paper ablation section. |
+| 5 | `train_policy.py` | Milestone 3 REINFORCE: tiny MLP on the **100 train examples only**. Logs mean reward per epoch. Does **not** open the 300-example eval file. |
 
-They are sequenced so you never debug data/reward issues on a broken pipeline.
+They are sequenced so you never debug data/reward issues on a broken pipeline. Train after the frozen ranking exists; do not mix the trainer into the ranking table.
 
 ---
 
@@ -375,6 +378,65 @@ Wrote .../results/metrics/reward_ablation_by_dataset.json
 
 ---
 
+### 4.5 Train policy (REINFORCE, train split only)
+
+**Why:** Learn a closed-loop controller over `{retrieve, rewrite, rerank, verify, stop}` from the existing 10-d env observation. This is vanilla REINFORCE with a **tiny** MLP (10 → 16 → 5, 261 parameters), not GRPO/PPO. The win condition is using verify `support` / `contradiction` when it is worth the cost — something `rule_based` never does.
+
+**Hard rule:** this script reads `data/processed/train_slice.jsonl` (60 Hotpot + 40 NQ = 100) and **never** opens `eval_slice.jsonl`. There is no `--split` flag. A path whose filename contains `eval` is rejected. Ranking the learned policy on the locked 300 is a later, separate command — do not add it here.
+
+```bash
+python scripts/train_policy.py
+```
+
+Extractive laptop / smoke path (does not write a ranking number):
+
+```bash
+python scripts/train_policy.py --config configs/extractive.yaml --limit 8 --epochs 2 --skip-data-check
+```
+
+**Useful flags:**
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--epochs` | 5 (from `policy.learned.epochs`) | Passes over the 100 train examples |
+| `--lr` | 0.003 | Adam step size |
+| `--hidden` | 16 | MLP width. **Refused above 32** |
+| `--entropy-coef` | 0.01 | Keeps the policy from collapsing to retrieve→stop on epoch 1 |
+| `--limit` | off (full train file) | Stratified cap on **train** only |
+| `--skip-data-check` | off | Skip train-size + corpus-size preflight (synthetic / extractive debug only) |
+| `--checkpoint` | `results/checkpoints/learned_policy.pt` | Last-epoch weights; best mean-reward copy is `learned_policy_best.pt` |
+| `--reward-preset` | from config (`default`) | Must be the **fixed** 2026-09-04 calibration rule |
+
+**What it does:**
+1. Loads corpus + **train** examples (refuses eval paths)
+2. Preflight: train file is 100 (60+40) and corpus ≥ 50k / no NQ anchors (default.yaml)
+3. Shares one generator with `AgenticRAGEnv`, same as the pilot
+4. Each example: `reset(options={"example": ...})` → sample actions → sparse terminal reward → REINFORCE update (EMA baseline)
+5. Prints mean reward / EM / steps / retrieve / verify **per epoch**
+6. Writes the learning-curve JSON and checkpoints
+
+**Console output (example):**
+```text
+Ranking data check OK: train=100 {'hotpot_qa': 60, 'natural_questions': 40} corpus=80000 (>= 50000)
+TRAIN ONLY path=.../train_slice.jsonl n=100 by_dataset={...} preset=default hidden=16 epochs=5 lr=0.003
+epoch 1/5  n=100  mean_reward=0.5123  mean_em=0.310  mean_steps=2.40  mean_retrieve=1.10  mean_verify=0.20
+...
+Wrote .../results/metrics/train_policy_curve.json
+Wrote .../results/checkpoints/learned_policy.pt
+```
+
+**Artifacts:**
+
+| Path | Contents |
+|---|---|
+| `results/metrics/train_policy_curve.json` | One object per epoch: `mean_reward`, `mean_em`, action counts, `"split": "train"` |
+| `results/checkpoints/learned_policy.pt` | Last-epoch MLP weights |
+| `results/checkpoints/learned_policy_best.pt` | Best **train** mean reward so far |
+
+This curve is a **train** learning signal, not a ranking table. Naive still wins the frozen 300-eval on reward; do not claim a policy win from these numbers.
+
+---
+
 ## 5. Minimal “first successful run” checklist
 
 1. `smoke_test.py` prints `SMOKE OK` (then re-run `--hf` if you need the ranking corpus; smoke overwrites `data/processed/`)  
@@ -382,8 +444,9 @@ Wrote .../results/metrics/reward_ablation_by_dataset.json
 3. `run_pilot.py` prints `Ranking data check OK` **before** the model loads (and fails if leftover NQ answer-anchors are present), then writes `pilot_summary_default.json` with three policy blocks, each with `by_dataset`  
 4. `run_reward_ablation.py` writes `reward_ablation_table.json` with six presets (**re-run after a corpus swap or a reward-formula change** — the on-disk ablation JSON is the Tevatron-NQ stratified 100, rescored 2026-09-04)  
 5. `plot_results.py` writes PNGs under `results/figs/`
+6. Optional: `train_policy.py` prints `TRAIN ONLY` on the 100-example train file, writes `train_policy_curve.json`, and never reads `eval_slice.jsonl`
 
-If anything fails, start from smoke test, then re-prepare data, then re-run pilot.
+If anything fails, start from smoke test, then re-prepare data, then re-run pilot. Do not debug the trainer against the 300-eval.
 
 ---
 
@@ -395,6 +458,6 @@ If anything fails, start from smoke test, then re-prepare data, then re-run pilo
 | `docs/RESULTS.md` | **Detailed results:** 80k ranking slice `d456d26` (150 Hotpot + 150 NQ), reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04. SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
 | `docs/NQ_MAX_TOOLS_ANALYSIS.md` | Leaked-NQ max-tools mechanism; tiny-corpus run `34e6585` (NQ 148/150), not the current Tevatron-NQ snapshot |
 | `docs/REWARD_DESIGN.md` | Why reward weights were chosen |
-| `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, etc. |
+| `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, tiny REINFORCE trainer (2026-09-05) |
 | `docs/EXPERIMENT_LOG.md` | Recorded pilot numbers (each dated block names its run) |
 | `docs/data_cards/*.md` | Dataset cards |

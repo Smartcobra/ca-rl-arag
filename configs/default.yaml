@@ -92,6 +92,14 @@ reward:
 policy:
   # Milestone 2: stable baselines before RL algorithm optimization
   name: rule_based  # naive_rag | rule_based | max_tools | random
+  # Milestone 3: tiny REINFORCE head. Train on the 100-example train split only.
+  # Hidden > 32 is rejected — 100 examples is not much data.
+  learned:
+    hidden: 16
+    lr: 0.003
+    epochs: 5
+    entropy_coef: 0.01
+    checkpoint: results/checkpoints/learned_policy.pt
 
 logging:
   save_trajectories: true

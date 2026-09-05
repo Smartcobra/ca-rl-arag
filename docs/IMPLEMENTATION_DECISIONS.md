@@ -158,6 +158,20 @@ Implication: both splits rank on real Wikipedia evidence. Milestone 3 can condit
 
 Do not train GRPO/PPO against the pre-fix \(Q_{\mathrm{cal}}\).
 
+## 2026-09-05 — Tiny REINFORCE trainer (train-only)
+
+**Choice:** Milestone 3 starts as vanilla REINFORCE on a **261-parameter** MLP (`10 → 16 → 5`) in `src/policies/learned.py`, trained by `scripts/train_policy.py`.
+
+**Not chosen (yet):** GRPO/PPO, a learned critic, query/passage text in the policy, or registering `learned` in `run_pilot.py` / `get_policy()`.
+
+**Data lock:** train on `train_slice.jsonl` only (60 Hotpot + 40 NQ = 100). The script has no `--split` flag and refuses any path whose filename contains `eval`. The locked 300-example eval is not opened during training. `--limit` is a stratified cap on **train**.
+
+**Why tiny:** 100 trajectories cannot support a wide net. Hidden width is capped at 32 (`ValueError` above that). Observation is the existing env vector (including verify `support` / `contradiction`). Reward is the **fixed** 2026-09-04 calibration rule.
+
+**Update:** per-episode REINFORCE with an EMA reward baseline and entropy 0.01. Sparse terminal reward from `AgenticRAGEnv`. Learning curve: `results/metrics/train_policy_curve.json` (mean reward per epoch). Checkpoints: `results/checkpoints/learned_policy.pt` and `_best.pt`.
+
+**Eval:** ranking the checkpoint on the 300 is a later, separate job. Train mean reward is not a ranking number.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
