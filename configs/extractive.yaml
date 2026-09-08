@@ -63,6 +63,12 @@ reward:
 
 policy:
   name: rule_based
+  learned:
+    hidden: 16
+    lr: 0.003
+    epochs: 5
+    entropy_coef: 0.01
+    checkpoint: results/checkpoints/learned_policy.pt
 
 logging:
   save_trajectories: true

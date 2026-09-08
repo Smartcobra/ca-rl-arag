@@ -16,12 +16,13 @@ sys.path.insert(0, str(ROOT))
 
 from src.metrics import DATASET_LABELS, ordered_dataset_names
 
-POLICY_ORDER = ("naive_rag", "rule_based", "max_tools")
+POLICY_ORDER = ("naive_rag", "rule_based", "max_tools", "learned")
 POLICY_LABELS = {
     "naive_rag": "naive RAG",
     "rule_based": "rule-based",
     "max_tools": "max-tools",
     "always_max": "max-tools",  # legacy key in older metric dumps
+    "learned": "learned",
 }
 ABLATION_ORDER = (
     "correctness_only",
@@ -36,6 +37,7 @@ COLORS = {
     "rule_based": "#E07A3D",
     "max_tools": "#3A5A40",
     "always_max": "#3A5A40",
+    "learned": "#7B2D8E",
 }
 
 

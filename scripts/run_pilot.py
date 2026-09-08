@@ -52,7 +52,16 @@ def main() -> None:
         default=None,
         help="Optional stratified cap (preserves Hotpot/NQ mix). Default: full eval file.",
     )
-    parser.add_argument("--policies", default="naive_rag,rule_based,max_tools")
+    parser.add_argument(
+        "--policies",
+        default="naive_rag,rule_based,max_tools,learned",
+        help="Comma-separated policies. learned is skipped if the checkpoint is missing.",
+    )
+    parser.add_argument(
+        "--learned-checkpoint",
+        default=None,
+        help="Override policy.learned.checkpoint (eval scoring only; does not train).",
+    )
     parser.add_argument("--run-env-check", action="store_true", help="Roll a few Gymnasium episodes")
     parser.add_argument(
         "--skip-data-check",
@@ -118,10 +127,25 @@ def main() -> None:
 
         # 2) Agentic policies — same generator, different action policies
         agent = AgenticRAG(cfg, retriever, generator=generator)
-        for name in [p.strip() for p in args.policies.split(",") if p.strip()]:
+        policy_names = [p.strip() for p in args.policies.split(",") if p.strip()]
+        if any(p.lower() in {"learned", "reinforce"} for p in policy_names):
+            from src.policies.learned import learned_checkpoint_path
+
+            ckpt = learned_checkpoint_path(cfg, args.learned_checkpoint)
+            learned_only = all(p.lower() in {"learned", "reinforce"} for p in policy_names)
+            if not ckpt.exists():
+                msg = (
+                    f"learned checkpoint missing: {ckpt}. "
+                    "Train first: python scripts/train_policy.py"
+                )
+                if learned_only:
+                    raise SystemExit(msg)
+                print(f"Skipping learned: {msg}")
+                policy_names = [p for p in policy_names if p.lower() not in {"learned", "reinforce"}]
+        for name in policy_names:
             if name == "naive_rag":
                 continue
-            policy_fn, policy_name = get_policy(name)
+            policy_fn, policy_name = get_policy(name, cfg=cfg, checkpoint=args.learned_checkpoint)
             log_gpu_memory(f"before {policy_name}")
             out_path = traj_dir / f"{policy_name}_{cfg['reward_preset_name']}.jsonl"
             if out_path.exists():
