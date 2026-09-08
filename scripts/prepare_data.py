@@ -23,7 +23,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.config import load_config, resolve_path
-from src.data.hf_load import load_hotpot_dataset
 from src.data.loaders import (
     add_hotpot_distractor_pool,
     build_synthetic_pilot,
@@ -68,11 +67,14 @@ def iter_unused_hotpot_rows(
 
 
 def load_hf_slices(cfg: dict) -> tuple[list, list, list, dict[str, Any]]:
+    from datasets import load_dataset
+
     data_cfg = cfg["data"]
     hotpot_cfg = data_cfg.get("hotpot_config", "distractor")
     pool_target = int(data_cfg.get("distractor_pool_target", 0) or 0)
 
-    hotpot = load_hotpot_dataset(hotpot_cfg)
+    print("Loading HotpotQA (distractor) from HuggingFace...")
+    hotpot = load_dataset("hotpotqa/hotpot_qa", hotpot_cfg, trust_remote_code=True)
 
     n_train_h = int(data_cfg["train_hotpot"])
     n_train_n = int(data_cfg["train_nq"])

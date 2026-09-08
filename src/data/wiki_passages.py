@@ -399,22 +399,19 @@ _TEVATRON_CHAIN: tuple[dict[str, Any], ...] = (
 
 
 def _iter_hf_split(hf_id: str, split: str, streaming: bool) -> Iterator[dict[str, Any]]:
-    from .hf_load import load_dataset_compat
+    from datasets import load_dataset
 
     # Tevatron sources are dataset *scripts*. datasets 2.x needs this flag;
-    # datasets>=3 dropped scripts (Tevatron then falls through to SQuAD).
-    # HF_TOKEN is injected by load_dataset_compat for Colab Hub rate limits.
-    kwargs: dict[str, Any] = {"split": split, "streaming": streaming, "trust_remote_code": True}
+    # datasets 3.x removed script support entirely (pin datasets<3.0).
+    # HF_TOKEN is for Hub rate limits, not this loader failure mode.
+    kwargs = {"split": split, "streaming": streaming, "trust_remote_code": True}
     try:
-        ds = load_dataset_compat(hf_id, **kwargs)
-    except TypeError:
-        kwargs.pop("trust_remote_code", None)
-        ds = load_dataset_compat(hf_id, **kwargs)
+        ds = load_dataset(hf_id, **kwargs)
     except Exception:
         if not streaming:
             raise
         kwargs["streaming"] = False
-        ds = load_dataset_compat(hf_id, **kwargs)
+        ds = load_dataset(hf_id, **kwargs)
     for row in ds:
         yield dict(row)
 
