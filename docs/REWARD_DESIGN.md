@@ -37,7 +37,7 @@ Configured in `configs/reward_weights.yaml` and executed by `scripts/run_reward_
 5. **lambda_zero** — isolate benefit of measured $ / latency  
 6. **high_cost_pressure** — cheap operating point on the Pareto frontier  
 
-Additionally, Milestone 3 will sweep `pareto_sweep.lambda_cost` × `mu_latency` for quality–cost curves.
+Additionally, Milestone 3 will sweep `pareto_sweep.lambda_cost` × `mu_latency` for quality–cost curves. The first REINFORCE run used the **default** preset only; it is a train curve, not a new ablation.
 
 ## Component definitions (implementation)
 
@@ -71,4 +71,4 @@ Evidence is **weak** (justified abstain) only if any of these hold: no passages,
 
 ## Impact on the ranking snapshot (2026-09-04)
 
-The Tevatron-NQ 80k pilot was rescored with this rule. EM/F1/$ did not move (frozen policies). Mean \(Q_{\mathrm{cal}}\) dropped (overall −0.017 → −0.137 on naive) because lazy abstains are no longer +0.6. Mean reward dropped in lockstep (naive 0.598 → 0.580); ranking is still naive > rule > max_tools. Details: [`RESULTS.md`](RESULTS.md).
+The Tevatron-NQ 80k pilot was rescored with this rule. EM/F1/$ did not move (frozen policies). Mean \(Q_{\mathrm{cal}}\) dropped (overall −0.017 → −0.137 on naive) because lazy abstains are no longer +0.6. Mean reward dropped in lockstep (naive 0.598 → 0.580); ranking is still naive > rule > max_tools. The first REINFORCE run (`train_policy_curve.json`) used this same fixed rule. Details: [`RESULTS.md`](RESULTS.md).

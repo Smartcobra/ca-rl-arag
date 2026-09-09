@@ -1,8 +1,8 @@
 # Results Guide — What Was Produced and How to Read It
 
-**Run this doc describes:** 80k-passage Qwen ranking pilot (300 eval: 150 Hotpot + 150 **Natural Questions** on DPR Wikipedia). Quality/cost numbers are the same slice as `d456d26` (2026-08-27). Headline artifact: `results/metrics/pilot_summary_default.json`, **rescored 2026-09-04** after closing the `calibration_score` lazy-abstain tautology ([`REWARD_DESIGN.md`](REWARD_DESIGN.md)). EM/F1/$/action mix are unchanged; reward and \(Q_{\mathrm{cal}}\) dropped because unjustified abstains are now −0.2 instead of +0.6. `slice_meta.json`: `nq_corpus: dpr_wikipedia_w100`, `nq_hf_dataset: Tevatron/wikipedia-nq`, `n_nq_anchor: 0`, **1,450** NQ wiki golds / **847** distinct eval gold articles (not a 7- or 16-article prefix). Section 5 (reward ablation) is the **same corpus**, stratified 100, also rescored 2026-09-04. Section 6 (synthetic) is extractive, 2026-08-07. Section 8 (verifier labels) uses `rule_based_default.jsonl` from this NQ run. The SQuAD fallback table (`e8a4423`) and leaked-NQ table (`2417c43`) are historical.
+**Run this doc describes:** 80k-passage Qwen ranking pilot (300 eval: 150 Hotpot + 150 **Natural Questions** on DPR Wikipedia). Quality/cost numbers are the same slice as `d456d26` (2026-08-27). Headline artifact: `results/metrics/pilot_summary_default.json`, **rescored 2026-09-04** after closing the `calibration_score` lazy-abstain tautology ([`REWARD_DESIGN.md`](REWARD_DESIGN.md)). EM/F1/$/action mix are unchanged; reward and \(Q_{\mathrm{cal}}\) dropped because unjustified abstains are now −0.2 instead of +0.6. `slice_meta.json`: `nq_corpus: dpr_wikipedia_w100`, `nq_hf_dataset: Tevatron/wikipedia-nq`, `n_nq_anchor: 0`, **1,450** NQ wiki golds / **847** distinct eval gold articles (not a 7- or 16-article prefix). Section 5 (reward ablation) is the **same corpus**, stratified 100, also rescored 2026-09-04. Section 6 is the first REINFORCE **train** curve (`train_policy_curve.json`, 100 train examples, 5 epochs). That is **not** a ranking table: `pilot_summary_default.json` still has only naive / rule / max_tools. Section 7 (synthetic) is extractive, 2026-08-07. Section 9 (verifier labels) uses `rule_based_default.jsonl` from this NQ run. The SQuAD fallback table (`e8a4423`) and leaked-NQ table (`2417c43`) are historical.
 
-This document describes the **Milestone 2 pilot results**: where files live, what each metric means, how to interpret the current numbers, and known limitations.
+This document describes the **Milestone 2 ranking results** plus the first Milestone 3 **train** curve: where files live, what each metric means, how to interpret the current numbers, and known limitations.
 
 For how to regenerate results, see [`HOW_TO_RUN.md`](HOW_TO_RUN.md).  
 For append-only run notes, see [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).  
@@ -15,13 +15,17 @@ Historical leaked-NQ max-tools mechanism (tiny-corpus 2,276-passage run `34e6585
 ```text
 results/
 ├── metrics/                          # Aggregated summaries (committed)
-│   ├── pilot_summary_default.json    # All policies, one reward preset
+│   ├── pilot_summary_default.json    # Frozen policies only (no learned row yet)
 │   ├── baseline_default.json         # Naive RAG only
 │   ├── rule_based_default.json
 │   ├── max_tools_default.json
+│   ├── train_policy_curve.json       # REINFORCE train-only, 5 epochs, n=100
 │   ├── reward_ablation_table.json    # Compact reward-weight sweep (nests by_dataset)
 │   ├── reward_ablation_by_dataset.json
 │   └── ablation_rule_based_*.json    # Per-preset full summaries
+├── checkpoints/                      # Not in this checkout (curve is)
+│   ├── learned_policy.pt             # last-epoch weights (eval loads this)
+│   └── learned_policy_best.pt        # best train mean reward (epoch 1)
 ├── figs/                             # Plots from metrics (via plot_results.py)
 │   ├── policy_quality_reward.png     # overall, mix-weighted
 │   ├── policy_cost.png
@@ -40,8 +44,9 @@ results/
 
 | File type | Granularity | Typical use |
 |---|---|---|
-| `pilot_summary_*.json` | Overall + `by_dataset` (Hotpot / NQ) per policy | Comparison table; never cite overall alone |
+| `pilot_summary_*.json` | Overall + `by_dataset` (Hotpot / NQ) per policy | Comparison table; never cite overall alone. Current file has naive / rule / max_tools only |
 | `*_default.json` | One policy summary | Drill into one system |
+| `train_policy_curve.json` | One object per **train** epoch | Learning signal on the 100. **Not** a ranking number |
 | `*.jsonl` trajectories | One row per question | Failure analysis (wrong EM, action loops, costs) |
 | `env_rollouts.jsonl` | Tiny env sanity rows (`id`, `reward`, `em`, `f1`) | Confirms Gymnasium env scores episodes |
 | `reward_ablation_table.json` | Same policy, different reward presets | Justify α/β/γ/λ choices — **same NQ slice**, stratified 100 |
@@ -61,7 +66,8 @@ results/
 | Retriever | BM25 |
 | Generator | **Qwen2.5-3B-Instruct** |
 | Verifier | Lexical NLI |
-| Policies | `naive_rag`, `rule_based`, `max_tools` |
+| Policies (ranking table) | `naive_rag`, `rule_based`, `max_tools` |
+| Learned policy | Train curve on disk (`train_policy_curve.json`). **Not** in the 300-eval table — checkpoint `.pt` is not in this checkout, so `run_pilot.py` skipped `learned` |
 
 These runs validate the **pipeline, costs, and frozen-policy reward ranking**, not SOTA Hotpot/NQ accuracy. NQ golds are real DPR Wikipedia 100-word passages (not `{question} The answer is {gold}`). 847 distinct eval gold articles sit in an 80k Hotpot-heavy index, so first-shot BM25 can fail. Hotpot retrieval is also no longer near-perfect.
 
@@ -113,9 +119,9 @@ Source: `results/metrics/pilot_summary_default.json` (Qwen/Qwen2.5-3B-Instruct, 
 - Versus the leaked-NQ 80k run (`2417c43`): overall EM 0.68 → **0.33** because copy-the-anchor is gone. Versus the SQuAD fallback (`e8a4423`): overall EM 0.40 → **0.33** because NQ on DPR Wikipedia is harder than 16 shared SQuAD articles. Hotpot stays in the same 56–61 band.
 
 **Cost / behavior**
-- **naive_rag:** 1 retrieve → answer; 1100 ms; 795 tokens.
-- **rule_based:** rerank + verify (4 steps; 2.9× $; 1761 ms; 1599 tokens).
-- **max_tools:** retrieve×3 + rewrite + rerank + verify (7 steps; 4.3× $; 3443 ms; 2055 tokens). High-cost reference. Latency is up vs the 2k index because each BM25 call scores 80k passages.
+- **naive_rag:** 1 retrieve → answer; 1046 ms; 795 tokens.
+- **rule_based:** rerank + verify (4 steps; 2.9× $; 1765 ms; 1599 tokens).
+- **max_tools:** retrieve×3 + rewrite + rerank + verify (7 steps; 4.3× $; 3420 ms; 2055 tokens). High-cost reference. Latency is up vs the 2k index because each BM25 call scores 80k passages.
 
 **Reward**
 - Overall: naive 0.580 > rule 0.531 > max_tools 0.509. Hotpot: 0.631 > 0.570 > 0.569. NQ: 0.529 > 0.492 > 0.450. Extra tools can move a couple of answers; λ/$ still decides the ranking. Versus the pre-fix `d456d26` table, rewards dropped ~0.02 because lazy abstains are no longer scored as justified.
@@ -198,7 +204,35 @@ Full weight definitions: [`REWARD_DESIGN.md`](REWARD_DESIGN.md).
 
 ---
 
-## 6. Synthetic pilot (sanity / offline)
+## 6. Train-only REINFORCE curve (100 train examples; not a ranking table)
+
+**Run this section describes:** first `train_policy.py` run on the locked train split. Source: `results/metrics/train_policy_curve.json`. Same Tevatron-NQ 80k corpus and **fixed** 2026-09-04 calibration rule. Setup: `hidden=16` (261 params), `lr=0.003`, `entropy_coef=0.01`, `reward_preset=default`, `"split": "train"`, `n=100` (60 Hotpot + 40 NQ). Five epochs. The trainer never opened `eval_slice.jsonl`.
+
+This is a **homework curve**. Do not put these rewards next to naive 0.580 / rule 0.531 / max_tools 0.509 — those are the locked **300-eval**. `pilot_summary_default.json` still has no `learned` block. Checkpoints (`learned_policy.pt`, `learned_policy_best.pt`) are **not** in this checkout; copy them from the training machine before `python scripts/run_pilot.py --policies learned`.
+
+| Epoch | mean reward | mean EM | mean steps | mean retrieve | mean verify |
+|---|---:|---:|---:|---:|---:|
+| 1 | **0.649** | **0.42** | 4.75 | 1.62 | 0.46 |
+| 2 | 0.620 | 0.39 | 4.20 | 1.39 | 0.46 |
+| 3 | 0.577 | 0.36 | 4.45 | 1.41 | 0.55 |
+| 4 | 0.564 | 0.36 | 4.30 | 1.44 | 0.50 |
+| 5 | 0.643 | 0.41 | 4.01 | 1.30 | 0.39 |
+
+Best **train** mean reward is epoch 1 (0.649). Last-epoch reward is 0.643. If both `.pt` files exist, `_best.pt` is epoch 1 and `learned_policy.pt` is epoch 5. Eval loads the last-epoch file by default.
+
+### How to read this curve
+
+- **Not monotonic.** Reward dipped through epochs 2–4 (0.649 → 0.564) then recovered (0.643). Five epochs of vanilla REINFORCE on 100 questions is noisy. That is expected, not a broken trainer.
+- **Did not collapse to naive.** Naive is retrieve→stop (2 steps, 1 retrieve, 0 verify). This policy stayed near **4 steps**, **1.3–1.6 retrieves**, **0.39–0.55 verify**. Verify is not stuck at 0.
+- **Did not explode to max-tools.** Max-tools is 7 steps and 3 retrieves. Epoch 5 is 4.01 steps and 1.30 retrieves.
+- **Verify is used, but we cannot yet say it is used well.** Mean verify ~0.4–0.55 means the intern fact-checks on about half the train tickets. `rule_based` always verifies then stops. Whether this policy re-retrieves after `contradiction` is an **eval-trajectory** question, and those trajectories are not on disk.
+- **Train EM 0.36–0.42 is not comparable to eval EM 0.33.** Different 100 questions (60/40 mix, not 150/150).
+
+**What is still missing for a paper row:** freeze a checkpoint and score the **300 eval**. Until `learned_default.json` exists, the ranking table is still naive > rule > max_tools.
+
+---
+
+## 7. Synthetic pilot (sanity / offline)
 
 **Run this section describes:** extractive generator, closed synthetic corpus, 16 eval examples, 2026-08-07 (`docs/EXPERIMENT_LOG.md`). Not the 80k Qwen ranking run.
 
@@ -214,7 +248,7 @@ This is the cleanest proof that the **cost-aware reward is wired correctly** bef
 
 ---
 
-## 7. What each trajectory JSONL field means
+## 8. What each trajectory JSONL field means
 
 Each line in `results/trajectories/*_default.jsonl` is one question. Important fields:
 
@@ -234,7 +268,7 @@ Use these rows for qualitative analysis (unnecessary retrieves, bad rewrites, ye
 
 ---
 
-## 8. Verifier signal vs frozen policy (RL implication)
+## 9. Verifier signal vs frozen policy (RL implication)
 
 This is a trajectory observation, not a code change. It matters for how we design the learned policy.
 
@@ -268,7 +302,7 @@ That gap is precisely where a learned policy should win: see `contradiction` / l
 
 ---
 
-## 9. Takeaways for the paper / next milestone
+## 10. Takeaways for the paper / next milestone
 
 1. **Pipeline OK:** data → 80k BM25 index → agent actions → NLI verify → cost → multi-component reward → logs on the locked 300-example eval (150 Hotpot + 150 NQ). Preflight requires eval=300 and corpus ≥ 50k before Qwen loads, and rejects leftover NQ answer-anchors.
 2. **Reporting contract:** every table is overall + Hotpot + NQ. Overall is mix-weighted. Single-hop is now a ranking split (~27–29% EM), not a saturated ceiling.
@@ -276,11 +310,12 @@ That gap is precisely where a learned policy should win: see `contradiction` / l
 4. **Quality vs cost is now the right story on both splits.** Hotpot 59 / 56 / 61 (max 3 recoveries / 1 regression). NQ 41 / 41 / 44 (max net +3; rule tied). Reward still ranks naive (0.580 > 0.531 > 0.509) because spend is 1× / 2.9× / 4.3×.
 5. **Lazy abstain is no longer easy reward.** After the 2026-09-04 `calibration_score` fix, overall \(Q_{\mathrm{cal}}\) is −0.137 / −0.147 / −0.128. A learned policy cannot farm +0.6 by refusing whenever gold would have been wrong.
 6. **Verify is informative and unused by `rule_based`.** Lexical NLI returns 14 contradiction / 31 neutral / 105 support on Hotpot, and 0 / 18 / 132 on NQ. After every verify the frozen policy just stops. That unused state feature is a Milestone-3 win condition for RL, not a reason to drop verify.
-7. **Next:** Milestone 3 is cost-aware RL. Extra tools can change a few answers; a learned controller must **select** when that is worth the cost, including when verify says the current evidence is contradictory or only neutral. This table is the intended Tevatron NQ ranking snapshot, with reward scored under the fixed calibration rule. Ablation JSON is from the same slice.
+7. **First REINFORCE train curve exists and did not collapse.** Five epochs on the 100 train examples: reward 0.649 → 0.564 → 0.643. Mean verify stayed 0.39–0.55 (not 0). Mean steps stayed ~4 (not naive-2, not max-7). This is **train-only**. There is still no `learned` row on the 300-eval.
+8. **Next:** copy `learned_policy.pt` into this checkout and run `python scripts/run_pilot.py --policies learned`. Extra tools can change a few answers; a learned controller must **select** when that is worth the cost, including when verify says the current evidence is contradictory or only neutral. This table is the intended Tevatron NQ ranking snapshot, with reward scored under the fixed calibration rule. Ablation JSON is from the same slice. The train curve is a learning signal, not a ranking snapshot.
 
 ---
 
-## 10. How to regenerate and refresh this doc
+## 11. How to regenerate and refresh this doc
 
 ```bash
 python scripts/prepare_data.py --hf
@@ -289,13 +324,16 @@ python scripts/prepare_data.py --hf
 # n_nq_anchor=0, many distinct single-hop golds (not 7), NQ recall@5 < 1.0 on 80k.
 python scripts/run_pilot.py --run-env-check
 python scripts/run_reward_ablation.py
+python scripts/train_policy.py
+python scripts/run_pilot.py --policies learned   # only after learned_policy.pt exists
 python scripts/plot_results.py
 ```
 
 Then update numbers in this file and in `EXPERIMENT_LOG.md` from:
 
-- `results/metrics/pilot_summary_default.json` (overall + `by_dataset`)
+- `results/metrics/pilot_summary_default.json` (overall + `by_dataset`; add `learned` only after that eval)
 - `results/metrics/reward_ablation_table.json` and `reward_ablation_by_dataset.json`
+- `results/metrics/train_policy_curve.json` (`"split": "train"`, n=100)
 - `data/processed/slice_meta.json` (`nq_corpus`, `n_nq_anchor`, `retrieval_diag`)
 
 If only the reward formula changed (as on 2026-09-04), re-score the existing trajectories — EM/F1/$ stay; rewrite reward / \(Q_{\mathrm{cal}}\) columns and the ablation table.

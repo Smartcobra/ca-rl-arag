@@ -10,6 +10,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 - Explicit multi-component reward + ablation presets (`src/rewards.py`, `configs/reward_weights.yaml`)
 - Dataset slices for **HotpotQA + single-hop** (NQ preferred; TriviaQA / SQuAD fallbacks — Scope Memo V2 §7)
 - Pilot logs, metrics, data cards, and implementation decision notes
+- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — first train curve on disk; 300-eval `learned` row not yet
 
 ## Design locks (review comments)
 
@@ -17,7 +18,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 |---|---|---|
 | Verifier | **NLI** (`lexical_nli` default; optional `neural_nli`) | Consistent across experiments; not LLM-as-judge |
 | Reward weights | Justified defaults + ablation presets | See `docs/REWARD_DESIGN.md` |
-| Complexity order | Stable baselines **before** GRPO/PPO | Rule-based / naive / max-tools first |
+| Complexity order | Frozen baselines first, then tiny REINFORCE | Rule / naive / max-tools ranked; first train curve 2026-09-09. GRPO/PPO still deferred |
 | Action space | Five actions only | V1 discipline; semantic/keyword/expand deferred |
 
 ## Quick start
@@ -43,12 +44,17 @@ python scripts/run_pilot.py --run-env-check
 
 # 4) reward-weight ablation (same preflight; stratified 100; not the ranking table)
 python scripts/run_reward_ablation.py
+
+# 5) optional Milestone 3: REINFORCE on the 100 train examples only — never the 300 eval
+python scripts/train_policy.py
+# then, after learned_policy.pt exists:
+# python scripts/run_pilot.py --policies learned
 ```
 
 **Ranking preflight.** `run_pilot.py` and `run_reward_ablation.py` (default config) refuse to load Qwen unless the **on-disk** eval file is 300 (150 Hotpot + 150 single-hop: NQ, TriviaQA, or SQuAD) **and** `corpus.jsonl` has at least **50,000** passages **and** there are no leftover NQ answer-anchors. `--limit` does not skip this — a 50-question run on a 2k corpus is still the wrong experiment. `--run-env-check` only rolls a few Gym episodes; it is not the data check. Bypass with `--skip-data-check` for synthetic/extractive debug. `configs/extractive.yaml` does not set the 50k floor. The committed ranking snapshot (`d456d26`) used Tevatron/wikipedia-nq.
 
 **Full guide** (why each command, datasets, evaluation matrix, outputs): [`docs/HOW_TO_RUN.md`](docs/HOW_TO_RUN.md).  
-**Results explained** (pilot tables, how to read metrics/trajectories, ablations): [`docs/RESULTS.md`](docs/RESULTS.md).
+**Results explained** (pilot tables, train curve, how to read metrics/trajectories, ablations): [`docs/RESULTS.md`](docs/RESULTS.md).
 
 ## Pilot results (snapshot)
 
@@ -92,9 +98,9 @@ Overall EM dropped **0.68 → 0.33** vs leaked NQ because copy-the-anchor is gon
 
 | Policy | retrieve | rewrite | rerank | verify | mean $ | latency | tokens |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.72e-4 | 1100 ms | 795 |
-| rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 5.04e-4 | 1761 ms | 1599 |
-| max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 7.47e-4 | 3443 ms | 2055 |
+| naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.72e-4 | 1046 ms | 795 |
+| rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 5.04e-4 | 1765 ms | 1599 |
+| max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 7.47e-4 | 3420 ms | 2055 |
 
 Latency is high because BM25 scores 80k passages per query.
 
@@ -107,6 +113,20 @@ Latency is high because BM25 scores 80k passages per query.
 - **Cost still decides reward:** naive 0.580 > rule 0.531 > max_tools 0.509 (Hotpot 0.631 > 0.570 > 0.569; NQ 0.529 > 0.492 > 0.450). Versus the pre-fix table, rewards dropped ~0.02 because lazy abstains are now −0.2, not +0.6.
 
 Milestone 3 takeaway: both splits are hard enough that extra tools can change a few answers. A learned controller must **select** when that is worth the cost; blindly using max tools still loses on reward.
+
+### First REINFORCE train curve (not a ranking table)
+
+`python scripts/train_policy.py` on the **100 train examples only** (60 Hotpot + 40 NQ). Source: `results/metrics/train_policy_curve.json`. Same 80k corpus and 2026-09-04 calibration rule. MLP `10 → 16 → 5`, 5 epochs, `lr=0.003`.
+
+| Epoch | mean reward | mean EM | mean steps | mean retrieve | mean verify |
+|---|---:|---:|---:|---:|---:|
+| 1 | **0.649** | 0.42 | 4.75 | 1.62 | 0.46 |
+| 2 | 0.620 | 0.39 | 4.20 | 1.39 | 0.46 |
+| 3 | 0.577 | 0.36 | 4.45 | 1.41 | 0.55 |
+| 4 | 0.564 | 0.36 | 4.30 | 1.44 | 0.50 |
+| 5 | 0.643 | 0.41 | 4.01 | 1.30 | 0.39 |
+
+Did not collapse to retrieve→stop (verify stayed ~0.4–0.55; steps ~4). Did not explode to max-tools. **Do not compare 0.649 to naive 0.580** — different questions. The 300-eval table above still has no `learned` row (`learned_policy.pt` is not in this checkout). Next ranking step: freeze the checkpoint and `python scripts/run_pilot.py --policies learned`.
 
 ### Reward-weight ablation (not a ranking table)
 
@@ -143,7 +163,7 @@ agentic_rag_rl/
 ├── data/processed/    # train/eval slices + corpus
 ├── docs/              # reward design, decisions, experiment log, data cards
 ├── notebooks/         # Colab 80k ranking run
-├── scripts/           # prepare_data, run_pilot, ablation, smoke_test
+├── scripts/           # prepare_data, run_pilot, ablation, train_policy, smoke_test
 ├── src/               # baseline, agent, env, rewards, retrieval, NLI verify
 └── results/           # trajectories + metrics
 ```
@@ -169,6 +189,7 @@ Sparse episode reward is returned on `stop` with a full component breakdown in `
 
 ## Next (Milestone 3)
 
-- Compare naive RAG / rule-based / prompted agent / bandit or GRPO policy
+- Freeze `learned_policy.pt` and score the 300 eval (`run_pilot.py --policies learned`) so the ranking table gets a fourth `by_dataset` block
+- Compare that frozen policy to naive / rule-based / max-tools (and later Adaptive-RAG)
 - λ–μ Pareto sweeps using `configs/reward_weights.yaml` → `pareto_sweep`
 - Optional neural NLI + denser retriever once the extractive/BM25 pipeline is solid

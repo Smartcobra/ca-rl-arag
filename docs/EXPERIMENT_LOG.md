@@ -2,7 +2,7 @@
 
 Append-only notes while running pilots. Prefer short factual entries. **Each dated block names the run it belongs to.** Do not cite a number from this file without that run line.
 
-For a full walkthrough of the current 80k ranking pilot (Tevatron NQ slice `d456d26`, **rescored 2026-09-04** after the `calibration_score` fix), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
+For a full walkthrough of the current 80k ranking pilot (Tevatron NQ slice `d456d26`, **rescored 2026-09-04** after the `calibration_score` fix) plus the first REINFORCE train curve, see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
 
 ## 2026-08-07
 
@@ -74,7 +74,7 @@ Observation: extractive generator is a weak absolute QA backend on open Hotpot/N
 - Trajectory check on `rule_based_default.jsonl` (lexical NLI, 150 Hotpot + 150 NQ).
 - Verify labels: Hotpot **14 contradiction / 34 neutral / 102 support**; NQ **support 150/150**.
 - After `verify`, next action was `stop` on 300/300 items, including all 14 Hotpot contradictions. Zero re-retrieve, zero rewrite after contradiction.
-- Implication: the verifier discriminates on the hard split and is already in the env observation, but `rule_based` does not use it. That is a Milestone-3 policy gap, not a dead feature. Wrote up in `docs/RESULTS.md` §8 and `docs/IMPLEMENTATION_DECISIONS.md`.
+- Implication: the verifier discriminates on the hard split and is already in the env observation, but `rule_based` does not use it. That is a Milestone-3 policy gap, not a dead feature. Wrote up in `docs/RESULTS.md` §9 and `docs/IMPLEMENTATION_DECISIONS.md`.
 
 ## 2026-08-24 (afternoon) — SQuAD fallback ranking pilot
 
@@ -164,3 +164,22 @@ Ablation (`rule_based`, stratified 100, EM 0.34): presets without γ are unchang
 Latency on the on-disk JSON is 1100 / 1761 / 3443 ms (was 1089 / 1724 / 3387). Tokens and $ match the 08-27 table.
 
 Observation: closing the tautology does not change the frozen-policy ranking. It does change the learning signal: always-abstain is no longer easy reward. Full write-up: `docs/RESULTS.md`. Scoring table: `docs/REWARD_DESIGN.md`.
+
+## 2026-09-09 — First REINFORCE train curve (train split only)
+
+**Run:** `python scripts/train_policy.py` on the locked 100-example train file (60 Hotpot + 40 NQ). Same 80k Tevatron-NQ corpus and 2026-09-04 calibration rule as the ranking snapshot. MLP `10 → 16 → 5` (261 params), `lr=0.003`, 5 epochs, `reward_preset=default`. Source: `results/metrics/train_policy_curve.json` (`"split": "train"`, `n=100`). **Not a GPU re-ranking of the 300.** `pilot_summary_default.json` still has no `learned` block. Checkpoints are not in this checkout.
+
+| Epoch | mean reward | mean EM | mean steps | mean retrieve | mean verify |
+|---|---:|---:|---:|---:|---:|
+| 1 | 0.649 | 0.42 | 4.75 | 1.62 | 0.46 |
+| 2 | 0.620 | 0.39 | 4.20 | 1.39 | 0.46 |
+| 3 | 0.577 | 0.36 | 4.45 | 1.41 | 0.55 |
+| 4 | 0.564 | 0.36 | 4.30 | 1.44 | 0.50 |
+| 5 | 0.643 | 0.41 | 4.01 | 1.30 | 0.39 |
+
+- Best train reward: epoch 1 (0.649). Last epoch: 0.643. Curve is noisy, not monotonic.
+- Did **not** collapse to retrieve→stop (naive is 2 steps / 0 verify). Did **not** explode to max-tools (7 steps / 3 retrieves).
+- Verify stayed in 0.39–0.55 — the intern fact-checks on about half the train tickets. Whether it acts on `contradiction` is still unknown (no train/eval learned trajectories here).
+- Do not compare 0.649 to naive 0.580. Different questions (100 train vs 300 eval).
+
+**Next ranking step:** copy `learned_policy.pt` here, then `python scripts/run_pilot.py --policies learned`. Full write-up: `docs/RESULTS.md` §6.

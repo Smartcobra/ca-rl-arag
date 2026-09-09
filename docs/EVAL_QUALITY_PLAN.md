@@ -1,6 +1,6 @@
 # Eval Quality Plan
 
-**Status (2026-09-04):** the locked 300-eval ranking run exists. Current numbers live in [`RESULTS.md`](RESULTS.md) (80k Qwen, slice `d456d26`, **rescored after the `calibration_score` lazy-abstain fix**: 150 Hotpot + 150 **NQ** on Tevatron/wikipedia-nq). EM/F1/$ match the 2026-08-27 table; reward and \(Q_{\mathrm{cal}}\) are the new numbers. Per-dataset reporting, stratified `--limit`, ABSTAIN parsing, 50k corpus preflight, no-anchor NQ golds, and the matching reward ablation (stratified 100, EM 0.34) are in the tree. Preferred single-hop source is Tevatron NQ; that download succeeded.
+**Status (2026-09-09):** the locked 300-eval ranking run exists. Current numbers live in [`RESULTS.md`](RESULTS.md) (80k Qwen, slice `d456d26`, **rescored after the `calibration_score` lazy-abstain fix**: 150 Hotpot + 150 **NQ** on Tevatron/wikipedia-nq). EM/F1/$ match the 2026-08-27 table; reward and \(Q_{\mathrm{cal}}\) are the new numbers. Per-dataset reporting, stratified `--limit`, ABSTAIN parsing, 50k corpus preflight, no-anchor NQ golds, and the matching reward ablation (stratified 100, EM 0.34) are in the tree. Preferred single-hop source is Tevatron NQ; that download succeeded. First REINFORCE train curve is on disk (`train_policy_curve.json`, n=100); there is still no `learned` row on the 300-eval.
 
 **This file is a hygiene plan, not a ranking table.** The diagnosis below describes the 40-example Qwen mix (~2026-08-20), before the locked 300-eval. Keep it as history; do not cite those 40-ex numbers as current.
 
@@ -205,7 +205,7 @@ Also add `.DS_Store` / `.idea/` while touching gitignore (both currently untrack
 | `--limit` | `limit=40` on 150+150 (or 25+25) returns ~20+20, never 40 Hotpot + 0 NQ or 25+15 |
 | Eval size | `slice_meta.json` eval total 300; mix 150 Hotpot + 150 single-hop. Current ranking snapshot: 150 NQ (`d456d26` slice; reward rescored 2026-09-04) |
 | `results/` | Ablation EM in the same ballpark as the Qwen pilot (not 0.033 next to 0.45). Ablation JSON is the Tevatron-NQ stratified 100 (EM 0.34 vs ranking EM ~0.33), rescored 2026-09-04 so default reward is 0.499 not 0.518 |
-| README | Headline table is Qwen + per-dataset, or explicitly “not a ranking” |
+| README | Headline table is Qwen + per-dataset, or explicitly “not a ranking”. Train curve is a separate, labeled-as-train table. |
 | Git | 0 tracked `*.pyc`; `docs/IMPLEMENTATION_DECISIONS.md` is in the tree; `.gitignore` covers pycache |
 
 ---
