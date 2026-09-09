@@ -24,7 +24,9 @@ python scripts/train_policy.py                # REINFORCE on the 100 train examp
 python scripts/run_pilot.py --policies learned  # freeze the .pt; score the 300 (the ranking row)
 ```
 
-`--policies learned` is **not** a re-train. `train_policy.py` only writes a homework curve. The exam is this second `run_pilot` command. Needs `results/checkpoints/learned_policy.pt`. This checkout currently has the curve JSON, not the `.pt`.
+`--policies learned` is **not** a re-train. `train_policy.py` only writes a homework curve. The exam is this second `run_pilot` command. Needs `results/checkpoints/learned_policy.pt`.
+
+**This checkout already ran the exam.** Source: `results/metrics/learned_default.json` + `results/trajectories/learned_default.jsonl`. Frozen argmax is **naive RAG**: retrieve→stop on 300/300, verify 0, predictions identical to naive. `pilot_summary_default.json` currently holds **naive + learned only** (this command rewrote it). Rule / max_tools numbers still live in `rule_based_default.json` / `max_tools_default.json`.
 
 Fast extractive-only debug (not a ranking run; `extractive.yaml` has no 50k corpus floor):
 
@@ -45,7 +47,7 @@ If you point **default.yaml** at a synthetic or 2k-passage corpus, the ranking s
 | 3 | `run_pilot.py` | Main Milestone-2 experiment: compare **naive RAG**, **rule-based agent**, and **max-tools agent**; optionally verify the RL env. Produces metrics + trajectory logs. |
 | 4 | `run_reward_ablation.py` | Sweeps reward-weight presets on a fixed policy/slice so you can justify α/β/γ/λ choices (reviewer comment) and later write the paper ablation section. |
 | 5 | `train_policy.py` | Milestone 3 REINFORCE: tiny MLP on the **100 train examples only**. Logs mean reward per epoch. Does **not** open the 300-example eval file. That curve is homework, not the paper table. |
-| 6 | `run_pilot.py --policies learned` | **Why this exists:** freeze `learned_policy.pt` and score the **300 eval** questions training never saw. Same Hotpot/NQ table as naive / rule / max_tools. Without this step you cannot claim a learned-policy result. |
+| 6 | `run_pilot.py --policies learned` | **Why this exists:** freeze `learned_policy.pt` and score the **300 eval** questions training never saw. Same Hotpot/NQ table as naive / rule / max_tools. Without this step you cannot claim a learned-policy result. **This run (2026-09-10):** argmax collapsed to retrieve→stop (identical to naive). |
 
 They are sequenced so you never debug data/reward issues on a broken pipeline. Train after the frozen ranking exists. Score the learned policy **after** the `.pt` exists; do not mix the train curve into the ranking table.
 
@@ -150,7 +152,7 @@ Defaults and ablation presets: `configs/reward_weights.yaml`, `docs/REWARD_DESIG
 | **naive_rag** | Retrieve once → generate/stop (Lewis-style baseline) |
 | **rule_based** | Threshold policy over retrieve/rewrite/rerank/verify/stop. It *runs* verify, but on the current trajectories it does **not** re-retrieve or rewrite after a contradiction — it just stops. |
 | **max_tools** | Uses tools up to caps (high-cost reference) |
-| **learned** | Frozen REINFORCE checkpoint (`results/checkpoints/learned_policy.pt`). Same eval loop and `by_dataset` table as the others. **Scoring only** — weights come from `train_policy.py` (100 train examples). Skipped if the checkpoint is missing. |
+| **learned** | Frozen REINFORCE checkpoint. Same eval loop as the others. **Scoring only.** On the 2026-09-10 300-eval, frozen argmax was retrieve→stop 300/300 (identical to naive). Skipped if the checkpoint is missing. |
 
 **Verifier vs frozen policy (read this before RL).** Lexical NLI is not a dummy label. On the current Tevatron-NQ ranking run (`d456d26`), Hotpot was 14 contradiction / 31 neutral / 105 support and NQ was 0 / 18 / 132. After every `verify` — including all 14 Hotpot contradictions and 18 NQ neutrals — `rule_based` just stops. Details: [`RESULTS.md` §9](RESULTS.md) and [`IMPLEMENTATION_DECISIONS.md`](IMPLEMENTATION_DECISIONS.md). The leaked-NQ 150/150-support table (`2417c43`) is historical.
 
@@ -450,25 +452,41 @@ Best train reward was epoch 1 (0.649). Last epoch is 0.643. The curve did not co
 | `results/checkpoints/learned_policy.pt` | Last-epoch MLP weights |
 | `results/checkpoints/learned_policy_best.pt` | Best **train** mean reward so far |
 
-This curve is a **train** learning signal, not a ranking table. Scoring is the next command (§4.6). Do not claim a policy win from `train_policy_curve.json`. This checkout already has the train curve; it does **not** yet have `learned_policy.pt` or a `learned` eval block.
+This curve is a **train** learning signal, not a ranking table. Scoring is the next command (§4.6). Do not claim a policy win from `train_policy_curve.json`. The 300-eval is on disk (`learned_default.json`): frozen argmax is retrieve→stop, identical to naive.
 
 ---
 
 ### 4.6 Score the learned policy (eval only; not training)
 
-**Why:** `train_policy.py` never saw the 300. The train curve can look good because the MLP memorized the 100 homework questions. `--policies learned` is the exam: load the checkpoint **frozen** (argmax, no gradient) and run the same eval loop as naive / rule / max_tools. That is the only number that can sit next to naive 0.580 / rule 0.531 / max_tools 0.509.
+**Why:** `train_policy.py` never saw the 300. The train curve can look good because the MLP sampled extra tools under entropy. `--policies learned` is the exam: load the checkpoint **frozen** (argmax, no gradient) and run the same eval loop as naive / rule / max_tools. That is the only number that can sit next to naive 0.580 / rule 0.531 / max_tools 0.509.
 
-Needs `results/checkpoints/learned_policy.pt`. Copy it from the training machine if this checkout only has `train_policy_curve.json`.
+Needs `results/checkpoints/learned_policy.pt`.
 
 ```bash
 python scripts/run_pilot.py --policies learned
 ```
 
-`--policies learned` means **only the new row**. Frozen naive/rule/max metrics are already on disk, so you do not re-run them. Full four-policy rerun:
+`--policies learned` means **only the new row**. It **rewrites** `pilot_summary_default.json` to the policies you passed. This checkout’s summary currently has naive + learned; rule / max_tools remain in their own `*_default.json` files. To rebuild a four-policy summary:
 
 ```bash
 python scripts/run_pilot.py --run-env-check
 ```
+
+**This run (2026-09-10).** Source: `results/metrics/learned_default.json`, `results/trajectories/learned_default.jsonl` (300 rows).
+
+```text
+learned overall: EM=0.333 F1=0.397 reward=0.580 abstain=0.150 n_correct=100/300 n_abstained=45
+  HotpotQA: EM=0.393 n_correct=59/150 retrieve=1.0 verify=0.0 steps=2.0
+  Natural Questions: EM=0.273 n_correct=41/150 retrieve=1.0 verify=0.0 steps=2.0
+```
+
+| Check | Result |
+|---|---|
+| Action mix | **retrieve → stop on 300/300**. verify=0, rewrite=0, rerank=0 |
+| vs naive | EM/F1/predictions **identical** (300/300 same answers). Reward 0.580 vs 0.580 (latency noise only) |
+| vs train curve | Train sampled verify 0.39–0.55 and ~4 steps. Eval **argmax** does not. Entropy hid a naive mode. |
+
+That is a real ranking result, not a missing file. The intern practiced with extra tools; on the exam it copies naive RAG. The Milestone-3 win condition (act on verify `contradiction` / `neutral`) did **not** happen — `verify_out` is null on every learned row.
 
 If the `.pt` is missing:
 
@@ -476,16 +494,16 @@ If the `.pt` is missing:
 learned checkpoint missing: .../learned_policy.pt. Train first: python scripts/train_policy.py
 ```
 
-With `--policies learned` only, the script **exits**. With the default four-policy list, it **skips** `learned` and still writes naive / rule / max_tools.
+With `--policies learned` only, the script **exits** if the checkpoint is missing. With the default four-policy list, it **skips** `learned` and still writes naive / rule / max_tools.
 
-**What to look at:** overall, then Hotpot, then NQ — same as §4.3. You are not trying to beat Qwen. You are trying to beat the **controllers**: similar or better EM than naive without max-tools spend, and actually using verify `contradiction` / `neutral` instead of always stopping.
+**What to look at:** overall, then Hotpot, then NQ — same as §4.3. You are not trying to beat Qwen. You are trying to beat the **controllers**. On this snapshot, learned **did not**: it matched naive on quality and cost, and never called verify.
 
 **Artifacts:**
 
 | Path | Contents |
 |---|---|
 | `results/metrics/learned_default.json` | Learned-only summary (`by_dataset` same schema) |
-| `results/metrics/pilot_summary_default.json` | Combined table now includes a `learned` block |
+| `results/metrics/pilot_summary_default.json` | Combined table for the policies in **this** `run_pilot` invocation (here: naive + learned) |
 | `results/trajectories/learned_default.jsonl` | Per-question logs on the **eval** split |
 
 ---
@@ -494,11 +512,11 @@ With `--policies learned` only, the script **exits**. With the default four-poli
 
 1. `smoke_test.py` prints `SMOKE OK` (then re-run `--hf` if you need the ranking corpus; smoke overwrites `data/processed/`)  
 2. `prepare_data.py --hf` writes `slice_meta.json` with `source: huggingface_nq_hotpot`, `n_eval: 300`, `eval_by_dataset` 150/150, **`n_passages` ≥ 50000**, **`n_nq_anchor`: 0**. Current ranking snapshot has `nq_corpus: dpr_wikipedia_w100` / `nq_hf_dataset: Tevatron/wikipedia-nq` and NQ recall@5 **0.587** (below 1.0).  
-3. `run_pilot.py` prints `Ranking data check OK` **before** the model loads (and fails if leftover NQ answer-anchors are present), then writes `pilot_summary_default.json` with three frozen policy blocks plus `learned` if a checkpoint exists, each with `by_dataset`  
+3. `run_pilot.py` prints `Ranking data check OK` **before** the model loads, then writes per-policy JSON. `--policies learned` (2026-09-10) wrote `learned_default.json`: retrieve→stop 300/300, identical to naive. That command rewrites `pilot_summary_default.json` to the policies you passed.  
 4. `run_reward_ablation.py` writes `reward_ablation_table.json` with six presets (**re-run after a corpus swap or a reward-formula change** — the on-disk ablation JSON is the Tevatron-NQ stratified 100, rescored 2026-09-04)  
 5. `plot_results.py` writes PNGs under `results/figs/`
 6. `train_policy.py` printed `TRAIN ONLY` on the 100-example train file and wrote `train_policy_curve.json` (5 epochs; reward 0.649 → 0.564 → 0.643). It never reads `eval_slice.jsonl`.
-7. `run_pilot.py --policies learned` writes a `learned` block into `pilot_summary_default.json` with Hotpot and NQ lines. **This is the ranking row.** Copy `learned_policy.pt` here first; without it the command exits. Do not treat step 6 as step 7.
+7. `run_pilot.py --policies learned` wrote `learned_default.json` + `learned_default.jsonl`. **Ranking row:** EM 0.333 / 59+41 correct, retrieve→stop 300/300, identical to naive. Do not treat the train curve (step 6) as this row.
 
 If anything fails, start from smoke test, then re-prepare data, then re-run pilot. Do not debug the trainer against the 300-eval.
 
@@ -509,10 +527,10 @@ If anything fails, start from smoke test, then re-prepare data, then re-run pilo
 | Doc | Topic |
 |---|---|
 | `README.md` | Project overview |
-| `docs/RESULTS.md` | **Detailed results:** 80k ranking slice `d456d26` (150 Hotpot + 150 NQ), reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04. §6 is the first REINFORCE train curve (not a ranking table). SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
+| `docs/RESULTS.md` | **Detailed results:** 80k ranking slice `d456d26` (150 Hotpot + 150 NQ), reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04. §6 train curve + 300-eval `learned` (collapsed to naive). SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
 | `docs/NQ_MAX_TOOLS_ANALYSIS.md` | Leaked-NQ max-tools mechanism; tiny-corpus run `34e6585` (NQ 148/150), not the current Tevatron-NQ snapshot |
 | `docs/REWARD_DESIGN.md` | Why reward weights were chosen |
-| `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, tiny REINFORCE trainer (2026-09-05); first train curve 2026-09-09 |
-| `docs/WHY_SMALL_MLP.md` | Why the policy is 261 parameters; first train curve did not collapse |
+| `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, tiny REINFORCE trainer (2026-09-05); train 2026-09-09; learned eval 2026-09-10 |
+| `docs/WHY_SMALL_MLP.md` | Why the policy is 261 parameters; train sampled tools, eval argmax did not |
 | `docs/EXPERIMENT_LOG.md` | Recorded pilot numbers (each dated block names its run) |
 | `docs/data_cards/*.md` | Dataset cards |

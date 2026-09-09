@@ -2,7 +2,7 @@
 
 **Run this doc describes:** tiny-corpus Qwen 300-eval, **2,276 passages**, leaked-anchor NQ **148/150** (EM 0.987). Metrics/trajectories: commit `34e6585` (2026-08-22); this write-up: `6343b54`. Setup: Qwen2.5-3B-Instruct, `force_yes_no: true`, tighter ABSTAIN prompt, BM25, lexical NLI, 150 NQ items, answer-anchor passages (`The answer is {ans}`). NQ is a ceiling, not a retrieval ranking split.
 
-**Current ranking snapshot is not this file.** `results/metrics/pilot_summary_default.json` is the Tevatron-NQ 80k slice (`d456d26`, 2026-08-27; reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04): 150 Hotpot + 150 **NQ**, overall EM ~0.33. The first REINFORCE train curve (`train_policy_curve.json`) is also not this file. Do not re-read those JSON paths for the tables below. The SQuAD fallback `e8a4423` and leaked-NQ 80k snapshot `2417c43` (NQ 146/150) are also historical.
+**Current ranking snapshot is not this file.** `results/metrics/pilot_summary_default.json` currently holds naive + learned (Tevatron-NQ 80k; learned collapsed to naive). Frozen rule/max numbers are in `rule_based_default.json` / `max_tools_default.json`. Do not re-read those JSON paths for the tables below. The SQuAD fallback `e8a4423` and leaked-NQ 80k snapshot `2417c43` (NQ 146/150) are also historical.
 
 **Short answer (this leaked-NQ run only):** Max-Tools is **not worse on NQ quality**. EM/F1 match naive and rule (148/150 after the yes/no detector fix). It is worse on **cost, latency, tokens, and reward** because it always fires unused tools. The remaining two misses are the same `in …` span mismatch on all policies.
 

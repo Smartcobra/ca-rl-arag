@@ -2,7 +2,7 @@
 
 Append-only notes while running pilots. Prefer short factual entries. **Each dated block names the run it belongs to.** Do not cite a number from this file without that run line.
 
-For a full walkthrough of the current 80k ranking pilot (Tevatron NQ slice `d456d26`, **rescored 2026-09-04** after the `calibration_score` fix) plus the first REINFORCE train curve, see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
+For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09) and 300-eval (2026-09-10, learned = naive), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
 
 ## 2026-08-07
 
@@ -167,7 +167,7 @@ Observation: closing the tautology does not change the frozen-policy ranking. It
 
 ## 2026-09-09 — First REINFORCE train curve (train split only)
 
-**Run:** `python scripts/train_policy.py` on the locked 100-example train file (60 Hotpot + 40 NQ). Same 80k Tevatron-NQ corpus and 2026-09-04 calibration rule as the ranking snapshot. MLP `10 → 16 → 5` (261 params), `lr=0.003`, 5 epochs, `reward_preset=default`. Source: `results/metrics/train_policy_curve.json` (`"split": "train"`, `n=100`). **Not a GPU re-ranking of the 300.** `pilot_summary_default.json` still has no `learned` block. Checkpoints are not in this checkout.
+**Run:** `python scripts/train_policy.py` on the locked 100-example train file (60 Hotpot + 40 NQ). Same 80k Tevatron-NQ corpus and 2026-09-04 calibration rule as the ranking snapshot. MLP `10 → 16 → 5` (261 params), `lr=0.003`, 5 epochs, `reward_preset=default`. Source: `results/metrics/train_policy_curve.json` (`"split": "train"`, `n=100`). **Not a GPU re-ranking of the 300.**
 
 | Epoch | mean reward | mean EM | mean steps | mean retrieve | mean verify |
 |---|---:|---:|---:|---:|---:|
@@ -179,7 +179,24 @@ Observation: closing the tautology does not change the frozen-policy ranking. It
 
 - Best train reward: epoch 1 (0.649). Last epoch: 0.643. Curve is noisy, not monotonic.
 - Did **not** collapse to retrieve→stop (naive is 2 steps / 0 verify). Did **not** explode to max-tools (7 steps / 3 retrieves).
-- Verify stayed in 0.39–0.55 — the intern fact-checks on about half the train tickets. Whether it acts on `contradiction` is still unknown (no train/eval learned trajectories here).
+- Verify stayed in 0.39–0.55 — the intern fact-checks on about half the train tickets (sampling). Eval argmax (2026-09-10) did not.
 - Do not compare 0.649 to naive 0.580. Different questions (100 train vs 300 eval).
 
-**Next ranking step:** copy `learned_policy.pt` here, then `python scripts/run_pilot.py --policies learned`. Full write-up: `docs/RESULTS.md` §6.
+300-eval: see the 2026-09-10 block. Full write-up: `docs/RESULTS.md` §6.
+
+## 2026-09-10 — Learned 300-eval (frozen argmax)
+
+**Run:** `python scripts/run_pilot.py --policies learned` on the locked 300-eval (150 Hotpot + 150 NQ). Same 80k Tevatron-NQ corpus and 2026-09-04 calibration rule. Source: `results/metrics/learned_default.json`, `results/trajectories/learned_default.jsonl`. **Not a new train.** `--policies learned` rewrote `pilot_summary_default.json` to naive + learned only; rule / max remain in their own JSON files.
+
+### Overall (n=300)
+
+| Policy | EM | F1 | n_correct | steps | retrieve | verify | mean $ | mean reward |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| naive_rag | 0.333 | 0.397 | 100/300 | 2.0 | 1.0 | 0.0 | 1.72e-4 | 0.580 |
+| learned | 0.333 | 0.397 | 100/300 | 2.0 | 1.0 | **0.0** | 1.72e-4 | 0.580 |
+
+Hotpot 59/150 both. NQ 41/150 both. Predictions identical **300/300**. Action mix: retrieve→stop on every learned row. `verify_out` is null.
+
+- Train curve had verify 0.39–0.55 and ~4 steps because training **samples**. Eval **argmax** is the naive mode.
+- Reward tie is not a win. The controller did not use the verify signal that `rule_based` also ignores after the fact-check.
+- Full write-up: `docs/RESULTS.md` §6.

@@ -172,7 +172,9 @@ Do not train GRPO/PPO against the pre-fix \(Q_{\mathrm{cal}}\).
 
 **Eval (not training):** `run_pilot.py` default `--policies` is `naive_rag,rule_based,max_tools,learned`. The checkpoint is loaded frozen (`deterministic` argmax) and run through the same `evaluate_agent` path, so `pilot_summary_*.json` gets a fourth `by_dataset` block. Missing checkpoint → skip `learned` (or exit if it is the only policy). The trainer still never opens the 300. Train mean reward is not a ranking number.
 
-**First train run (2026-09-09):** `train_policy_curve.json` is on disk. Five epochs on n=100: mean reward 0.649 / 0.620 / 0.577 / 0.564 / 0.643. Mean verify 0.46 / 0.46 / 0.55 / 0.50 / 0.39. Mean steps 4.75 → 4.01. Did not collapse to retrieve→stop. `pilot_summary_default.json` still has no `learned` row — this checkout has the curve, not the `.pt` files. Details: `docs/RESULTS.md` §6.
+**First train run (2026-09-09):** `train_policy_curve.json` is on disk. Five epochs on n=100: mean reward 0.649 / 0.620 / 0.577 / 0.564 / 0.643. Mean verify 0.46 / 0.46 / 0.55 / 0.50 / 0.39. Mean steps 4.75 → 4.01.
+
+**First 300-eval (2026-09-10):** `learned_default.json` + `learned_default.jsonl`. Frozen argmax is retrieve→stop **300/300**, verify 0, predictions identical to naive, reward 0.580. Train entropy hid a naive mode. Details: `docs/RESULTS.md` §6.
 
 ## Observations template
 
@@ -183,4 +185,5 @@ Do not train GRPO/PPO against the pre-fix \(Q_{\mathrm{cal}}\).
 | 2026-08-24 | SQuAD fallback 80k Qwen 300-eval (`e8a4423`) | Overall EM 0.68 → 0.40. SQuAD 60/63/60, R@5 0.633. Verify SQuAD 0/24/126. Reward still naive > rule > max. | Single-hop is a ranking split. Extra tools still lose on λ. Re-run ablation on this slice. |
 | 2026-08-27 | Tevatron NQ 80k Qwen 300-eval (`d456d26`) | Overall EM 0.33. NQ 41/41/44, R@5 0.587. Verify NQ 0/18/132. Ablation regenerated (EM 0.34). Reward naive > rule > max. | Intended NQ ranking snapshot. Distinct golds 847, not 7. Extra tools still lose on λ. |
 | 2026-09-04 | Same slice, `calibration_score` fix | Lazy abstain no longer +0.6. Reward 0.580 / 0.531 / 0.509. Q_cal −0.137 / −0.147 / −0.128. Ablation default 0.499. | Train against the fixed calibration rule. Frozen ranking unchanged. |
-| 2026-09-09 | First REINFORCE train, n=100 | Reward 0.649 → 0.564 → 0.643. Verify 0.39–0.55. Steps ~4. No 300-eval `learned` row yet. | Trainer moves. Freeze-and-eval is the next ranking step, not this curve. |
+| 2026-09-09 | First REINFORCE train, n=100 | Reward 0.649 → 0.564 → 0.643. Verify 0.39–0.55. Steps ~4. | Train samples tools. Not a ranking number. |
+| 2026-09-10 | Learned 300-eval, frozen argmax | Retrieve→stop 300/300. EM 0.333, 59+41 correct, reward 0.580. Identical to naive. | Eval mode is naive. Verify-on-contradiction win condition did not fire. |

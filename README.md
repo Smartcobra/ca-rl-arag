@@ -10,7 +10,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 - Explicit multi-component reward + ablation presets (`src/rewards.py`, `configs/reward_weights.yaml`)
 - Dataset slices for **HotpotQA + single-hop** (NQ preferred; TriviaQA / SQuAD fallbacks — Scope Memo V2 §7)
 - Pilot logs, metrics, data cards, and implementation decision notes
-- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — first train curve on disk; 300-eval `learned` row not yet
+- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — train curve + 300-eval on disk; frozen argmax = naive RAG
 
 ## Design locks (review comments)
 
@@ -18,7 +18,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 |---|---|---|
 | Verifier | **NLI** (`lexical_nli` default; optional `neural_nli`) | Consistent across experiments; not LLM-as-judge |
 | Reward weights | Justified defaults + ablation presets | See `docs/REWARD_DESIGN.md` |
-| Complexity order | Frozen baselines first, then tiny REINFORCE | Rule / naive / max-tools ranked; first train curve 2026-09-09. GRPO/PPO still deferred |
+| Complexity order | Frozen baselines first, then tiny REINFORCE | Rule / naive / max ranked; learned eval (2026-09-10) tied naive. GRPO/PPO still deferred |
 | Action space | Five actions only | V1 discipline; semantic/keyword/expand deferred |
 
 ## Quick start
@@ -45,10 +45,10 @@ python scripts/run_pilot.py --run-env-check
 # 4) reward-weight ablation (same preflight; stratified 100; not the ranking table)
 python scripts/run_reward_ablation.py
 
-# 5) optional Milestone 3: REINFORCE on the 100 train examples only — never the 300 eval
+# 5) REINFORCE on the 100 train examples only — never the 300 eval
 python scripts/train_policy.py
-# then, after learned_policy.pt exists:
-# python scripts/run_pilot.py --policies learned
+# 6) freeze the .pt and score the 300 (the ranking row)
+python scripts/run_pilot.py --policies learned
 ```
 
 **Ranking preflight.** `run_pilot.py` and `run_reward_ablation.py` (default config) refuse to load Qwen unless the **on-disk** eval file is 300 (150 Hotpot + 150 single-hop: NQ, TriviaQA, or SQuAD) **and** `corpus.jsonl` has at least **50,000** passages **and** there are no leftover NQ answer-anchors. `--limit` does not skip this — a 50-question run on a 2k corpus is still the wrong experiment. `--run-env-check` only rolls a few Gym episodes; it is not the data check. Bypass with `--skip-data-check` for synthetic/extractive debug. `configs/extractive.yaml` does not set the 50k floor. The committed ranking snapshot (`d456d26`) used Tevatron/wikipedia-nq.
@@ -58,9 +58,9 @@ python scripts/train_policy.py
 
 ## Pilot results (snapshot)
 
-**Run this section describes:** 80k-passage Qwen ranking pilot, same slice as commit `d456d26` (2026-08-27), **rescored 2026-09-04** after the `calibration_score` lazy-abstain fix. Source: `results/metrics/pilot_summary_default.json` — Qwen/Qwen2.5-3B-Instruct, `default` reward, full eval (`limit: null`). Slice: **300 examples (150 Hotpot + 150 NQ)**. Tevatron/wikipedia-nq loaded (`nq_corpus: dpr_wikipedia_w100`, `n_nq_anchor: 0`, 1,450 wiki golds / 847 eval gold articles). Corpus **80,000** passages (2,086 Hotpot slice + 1,450 DPR golds + 1,509 DPR negatives + 74,955 unused-Hotpot distractors). BM25 gold recall@5: Hotpot **0.927** (11 misses), NQ **0.587** (62 misses). Lexical NLI. `force_yes_no: true`, `allow_abstain: true`. EM/F1/$ are unchanged vs `d456d26`; reward and \(Q_{\mathrm{cal}}\) dropped. The leaked-NQ write-up (148/150) is a different run: [`docs/NQ_MAX_TOOLS_ANALYSIS.md`](docs/NQ_MAX_TOOLS_ANALYSIS.md).
+**Run this section describes:** 80k-passage Qwen ranking, same slice as commit `d456d26` (2026-08-27), **rescored 2026-09-04**. Learned 300-eval: 2026-09-10 (`learned_default.json`). Source for frozen baselines: `results/metrics/rule_based_default.json` / `max_tools_default.json` / `baseline_default.json`. Slice: **300 examples (150 Hotpot + 150 NQ)**. Tevatron/wikipedia-nq loaded (`nq_corpus: dpr_wikipedia_w100`, `n_nq_anchor: 0`, 1,450 wiki golds / 847 eval gold articles). Corpus **80,000** passages. BM25 gold recall@5: Hotpot **0.927** (11 misses), NQ **0.587** (62 misses). Lexical NLI. `force_yes_no: true`, `allow_abstain: true`. Current `pilot_summary_default.json` holds naive + learned only (rewritten by `--policies learned`). The leaked-NQ write-up (148/150) is a different run: [`docs/NQ_MAX_TOOLS_ANALYSIS.md`](docs/NQ_MAX_TOOLS_ANALYSIS.md).
 
-**Comparison in one line:** Hotpot is 59 / 56 / 61. NQ is 41 / 41 / 44. Extra tools move a few answers, but spend is 4.3× on `max_tools`, so reward still ranks **naive > rule > max_tools**. Single-hop is a ranking split now (~27–29% EM), not an answer-anchor ceiling.
+**Comparison in one line:** Hotpot is 59 / 56 / 61 / **59**. NQ is 41 / 41 / 44 / **41**. `learned` (frozen argmax) **is naive RAG**. Extra tools still move a few answers on rule/max, but spend is 4.3× on `max_tools`, so reward ranks **naive = learned > rule > max_tools**.
 
 Read **Hotpot and NQ**, not Overall.
 
@@ -71,8 +71,9 @@ Read **Hotpot and NQ**, not Overall.
 | naive_rag | 0.393 | 0.445 | 59/150 | 29 | 0.193 | 1.59e-4 | **0.631** |
 | rule_based | 0.373 | 0.438 | 56/150 | 25 | 0.167 | 4.81e-4 | 0.570 |
 | max_tools | **0.407** | **0.485** | **61/150** | 23 | 0.153 | 7.38e-4 | 0.569 |
+| learned | 0.393 | 0.445 | 59/150 | 29 | 0.193 | 1.59e-4 | 0.631 |
 
-Versus the leaked-NQ 80k run: Hotpot stays in the 56–61 band. `max_tools` vs naive is **3 recoveries / 1 regression** (net +2). That is still a handful of items — not a policy win.
+Versus the leaked-NQ 80k run: Hotpot stays in the 56–61 band. `max_tools` vs naive is **3 recoveries / 1 regression** (net +2). `learned` vs naive is **0 / 0**.
 
 ### Natural Questions (n=150; ranking split — not saturated)
 
@@ -81,8 +82,9 @@ Versus the leaked-NQ 80k run: Hotpot stays in the 56–61 band. `max_tools` vs n
 | naive_rag | 0.273 | 0.348 | 41/150 | 16 | 0.107 | 1.84e-4 | **0.529** |
 | rule_based | 0.273 | 0.352 | 41/150 | 15 | 0.100 | 5.27e-4 | 0.492 |
 | max_tools | **0.293** | **0.358** | **44/150** | 18 | 0.120 | 7.55e-4 | 0.450 |
+| learned | 0.273 | 0.348 | 41/150 | 16 | 0.107 | 1.84e-4 | 0.529 |
 
-Rule vs naive is **1 recovery / 1 regression** (tied). Max vs naive is **5 / 2** (net +3). Blind extra retrieves buy three NQ hits and still lose on reward.
+Rule vs naive is **1 recovery / 1 regression** (tied). Max vs naive is **5 / 2** (net +3). Learned vs naive is **0 / 0** (same 41 answers).
 
 ### Overall (mix-weighted; do not rank from this)
 
@@ -91,6 +93,7 @@ Rule vs naive is **1 recovery / 1 regression** (tied). Max vs naive is **5 / 2**
 | naive_rag | 0.333 | 0.397 | 100/300 | 45 | 1.72e-4 | 2.0 | **0.580** |
 | rule_based | 0.323 | 0.395 | 97/300 | 40 | 5.04e-4 | 4.0 | 0.531 |
 | max_tools | **0.350** | **0.422** | **105/300** | 41 | 7.47e-4 | 7.0 | 0.509 |
+| learned | 0.333 | 0.397 | 100/300 | 45 | 1.72e-4 | 2.0 | 0.580 |
 
 Overall EM dropped **0.68 → 0.33** vs leaked NQ because copy-the-anchor is gone.
 
@@ -101,22 +104,22 @@ Overall EM dropped **0.68 → 0.33** vs leaked NQ because copy-the-anchor is gon
 | naive_rag | 1.0 | 0.0 | 0.0 | 0.0 | 1.72e-4 | 1046 ms | 795 |
 | rule_based | 1.0 | 0.0 | 1.0 | 1.0 | 5.04e-4 | 1765 ms | 1599 |
 | max_tools | 3.0 | 1.0 | 1.0 | 1.0 | 7.47e-4 | 3420 ms | 2055 |
+| learned | 1.0 | 0.0 | 0.0 | 0.0 | 1.72e-4 | 1169 ms | 795 |
 
 Latency is high because BM25 scores 80k passages per query.
 
-### What the three policies show
+### What the four policies show
 
 - **Retrieval can fail now.** Hotpot recall@5 is 0.927 (11/150). NQ recall@5 is 0.587 (62/150). That was the point of the distractor pool plus real (non-anchor) golds.
-- **Hotpot quality is still a few-hit race** (59 / 56 / 61). Extra retrieves recover 3 and lose 1; not enough to pay 4.3× $.
-- **NQ can rank policies on quality, barely.** Max 44 vs naive/rule 41. Rule is tied with naive at 1 recovery / 1 regression.
-- **Abstain** on Hotpot is 29 / 25 / 23 (~15–19%). NQ abstain is 16 / 15 / 18 (~10–12%).
-- **Cost still decides reward:** naive 0.580 > rule 0.531 > max_tools 0.509 (Hotpot 0.631 > 0.570 > 0.569; NQ 0.529 > 0.492 > 0.450). Versus the pre-fix table, rewards dropped ~0.02 because lazy abstains are now −0.2, not +0.6.
+- **Hotpot quality is still a few-hit race** (59 / 56 / 61 / 59). Extra retrieves recover 3 and lose 1; not enough to pay 4.3× $. Learned recovers 0.
+- **NQ can rank policies on quality, barely.** Max 44 vs naive/rule/learned 41.
+- **Abstain** on Hotpot is 29 / 25 / 23 / 29. NQ abstain is 16 / 15 / 18 / 16.
+- **Cost still decides reward:** naive = learned 0.580 > rule 0.531 > max_tools 0.509.
+- **`learned` is naive on the exam.** Frozen argmax: retrieve→stop 300/300, 0 verify, same 100 answers as naive.
 
-Milestone 3 takeaway: both splits are hard enough that extra tools can change a few answers. A learned controller must **select** when that is worth the cost; blindly using max tools still loses on reward.
+### REINFORCE train curve vs 300-eval
 
-### First REINFORCE train curve (not a ranking table)
-
-`python scripts/train_policy.py` on the **100 train examples only** (60 Hotpot + 40 NQ). Source: `results/metrics/train_policy_curve.json`. Same 80k corpus and 2026-09-04 calibration rule. MLP `10 → 16 → 5`, 5 epochs, `lr=0.003`.
+Train (`train_policy_curve.json`, 100 examples) sampled extra tools. Eval (`learned_default.json`, 300) did not.
 
 | Epoch | mean reward | mean EM | mean steps | mean retrieve | mean verify |
 |---|---:|---:|---:|---:|---:|
@@ -126,7 +129,7 @@ Milestone 3 takeaway: both splits are hard enough that extra tools can change a 
 | 4 | 0.564 | 0.36 | 4.30 | 1.44 | 0.50 |
 | 5 | 0.643 | 0.41 | 4.01 | 1.30 | 0.39 |
 
-Did not collapse to retrieve→stop (verify stayed ~0.4–0.55; steps ~4). Did not explode to max-tools. **Do not compare 0.649 to naive 0.580** — different questions. The 300-eval table above still has no `learned` row (`learned_policy.pt` is not in this checkout). Next ranking step: freeze the checkpoint and `python scripts/run_pilot.py --policies learned`.
+Train verify stayed ~0.4–0.55. Eval verify is **0.0**. Do not compare 0.649 to naive 0.580 — different questions, and train samples while eval uses argmax. The ranking row is the 300-eval: learned = naive.
 
 ### Reward-weight ablation (not a ranking table)
 
@@ -189,7 +192,7 @@ Sparse episode reward is returned on `stop` with a full component breakdown in `
 
 ## Next (Milestone 3)
 
-- Freeze `learned_policy.pt` and score the 300 eval (`run_pilot.py --policies learned`) so the ranking table gets a fourth `by_dataset` block
-- Compare that frozen policy to naive / rule-based / max-tools (and later Adaptive-RAG)
+- Learned 300-eval exists and **tied naive** (retrieve→stop). Next controller must use verify on eval, not only while sampling in train
+- Compare against Adaptive-RAG as the open-loop baseline
 - λ–μ Pareto sweeps using `configs/reward_weights.yaml` → `pareto_sweep`
 - Optional neural NLI + denser retriever once the extractive/BM25 pipeline is solid
