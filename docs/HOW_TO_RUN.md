@@ -26,7 +26,9 @@ python scripts/run_pilot.py --policies learned  # freeze the .pt; score the 300 
 
 `--policies learned` is **not** a re-train. `train_policy.py` only writes a homework curve. The exam is this second `run_pilot` command. Needs `results/checkpoints/learned_policy.pt`.
 
-**This checkout already ran the exam.** Source: `results/metrics/learned_default.json` + `results/trajectories/learned_default.jsonl`. Frozen argmax is **naive RAG**: retrieve→stop on 300/300, verify 0, predictions identical to naive. `pilot_summary_default.json` currently holds **naive + learned only** (this command rewrote it). Rule / max_tools numbers still live in `rule_based_default.json` / `max_tools_default.json`.
+**This checkout already ran the exam.** Source: `results/metrics/learned_default.json` + `results/trajectories/learned_default.jsonl`. Frozen argmax under `default` is **naive RAG**: retrieve→stop on 300/300, verify 0, predictions identical to naive. `pilot_summary_default.json` currently holds **naive + learned only** (this command rewrote it). Rule / max_tools numbers still live in `rule_based_default.json` / `max_tools_default.json`.
+
+**Free-cost sanity (2026-09-13) also ran.** Separate checkpoints: `learned_policy_correctness_only.pt` (eval used the step cap: 8 / 3 retrieve / 2 verify) and `learned_policy_lambda_zero.pt` (still retrieve→stop). Notebook: `notebooks/FreeCost_Trainer_Sanity_CA_RL_ARAG.ipynb`. See §4.7.
 
 Fast extractive-only debug (not a ranking run; `extractive.yaml` has no 50k corpus floor):
 
@@ -48,6 +50,7 @@ If you point **default.yaml** at a synthetic or 2k-passage corpus, the ranking s
 | 4 | `run_reward_ablation.py` | Sweeps reward-weight presets on a fixed policy/slice so you can justify α/β/γ/λ choices (reviewer comment) and later write the paper ablation section. |
 | 5 | `train_policy.py` | Milestone 3 REINFORCE: tiny MLP on the **100 train examples only**. Logs mean reward per epoch. Does **not** open the 300-example eval file. That curve is homework, not the paper table. |
 | 6 | `run_pilot.py --policies learned` | **Why this exists:** freeze `learned_policy.pt` and score the **300 eval** questions training never saw. Same Hotpot/NQ table as naive / rule / max_tools. Without this step you cannot claim a learned-policy result. **This run (2026-09-10):** argmax collapsed to retrieve→stop (identical to naive). |
+| 7 | `train_policy.py --reward-preset correctness_only` then `lambda_zero` + matching `--policies learned` | **Why this exists:** prove the trainer can leave two steps when cost is free. **This run (2026-09-13):** `correctness_only` eval hit the 8-step cap; `lambda_zero` stayed retrieve→stop. Use `--checkpoint` / `--curve` / `--no-figures` so the `default` ranking artifacts stay put. |
 
 They are sequenced so you never debug data/reward issues on a broken pipeline. Train after the frozen ranking exists. Score the learned policy **after** the `.pt` exists; do not mix the train curve into the ranking table.
 
@@ -418,8 +421,9 @@ python scripts/train_policy.py --config configs/extractive.yaml --limit 8 --epoc
 | `--entropy-coef` | 0.01 | Keeps the policy from collapsing to retrieve→stop on epoch 1 |
 | `--limit` | off (full train file) | Stratified cap on **train** only |
 | `--skip-data-check` | off | Skip train-size + corpus-size preflight (synthetic / extractive debug only) |
-| `--checkpoint` | `results/checkpoints/learned_policy.pt` | Last-epoch weights; best mean-reward copy is `learned_policy_best.pt` |
-| `--reward-preset` | from config (`default`) | Must be the **fixed** 2026-09-04 calibration rule |
+| `--checkpoint` | `results/checkpoints/learned_policy.pt` | Last-epoch weights; best mean-reward copy is `<stem>_best.pt` |
+| `--curve` | derived from the checkpoint stem | Learning-curve JSON. Default checkpoint keeps `train_policy_curve.json`; a named `.pt` writes `train_policy_curve_<suffix>.json` |
+| `--reward-preset` | from config (`default`) | `default` is the ranking train. `correctness_only` / `lambda_zero` are the 2026-09-13 sanity. Calibration rule is still the 2026-09-04 fix. |
 
 **What it does:**
 1. Loads corpus + **train** examples (refuses eval paths)
@@ -453,6 +457,8 @@ Best train reward was epoch 1 (0.649). Last epoch is 0.643. The curve did not co
 | `results/checkpoints/learned_policy_best.pt` | Best **train** mean reward so far |
 
 This curve is a **train** learning signal, not a ranking table. Scoring is the next command (§4.6). Do not claim a policy win from `train_policy_curve.json`. The 300-eval is on disk (`learned_default.json`): frozen argmax is retrieve→stop, identical to naive.
+
+Free-cost trains (2026-09-13) wrote `train_policy_curve_correctness_only.json` (steps 4.66 → 5.84, verify 0.50 → 1.20) and `train_policy_curve_lambda_zero.json` (looks like `default`). See §4.7.
 
 ---
 
@@ -506,6 +512,51 @@ With `--policies learned` only, the script **exits** if the checkpoint is missin
 | `results/metrics/pilot_summary_default.json` | Combined table for the policies in **this** `run_pilot` invocation (here: naive + learned) |
 | `results/trajectories/learned_default.jsonl` | Per-question logs on the **eval** split |
 
+`--learned-checkpoint` points eval at a non-default `.pt`. `--no-figures` skips rewriting `results/figs/` (use this on the free-cost presets so the ranking plots stay the `default` table).
+
+---
+
+### 4.7 Free-cost trainer sanity (`correctness_only` vs `lambda_zero`)
+
+**Why:** under `default`, extra tools are −EV, so retrieve→stop is the correct greedy policy. That does not tell you whether REINFORCE can learn tools at all. Train once with cost off, freeze, score the 300.
+
+Two steps = `retrieve → stop` (naive RAG). Notebook: `notebooks/FreeCost_Trainer_Sanity_CA_RL_ARAG.ipynb`.
+
+```bash
+python scripts/train_policy.py --reward-preset correctness_only \
+  --checkpoint results/checkpoints/learned_policy_correctness_only.pt \
+  --curve results/metrics/train_policy_curve_correctness_only.json
+python scripts/run_pilot.py --reward-preset correctness_only \
+  --policies naive_rag,learned \
+  --learned-checkpoint results/checkpoints/learned_policy_correctness_only.pt \
+  --no-figures
+# repeat with --reward-preset lambda_zero and *_lambda_zero paths
+```
+
+**This run (2026-09-13).**
+
+| Preset | Train last epoch | Frozen 300-eval | Verdict |
+|---|---|---|---|
+| `correctness_only` | steps 5.84, retrieve 1.84, verify 1.20 | **8.0 / 3.0 / 2.0 verify**, EM 0.340 (102/300) | Trainer works; used the step cap |
+| `lambda_zero` | steps 4.03, verify 0.39 (like `default`) | **2.0 / 1.0 / 0 verify**, identical to naive | \(P_{\mathrm{act}}\) still collapses the policy |
+
+`correctness_only` vs naive: 9 recoveries / 7 regressions (Hotpot 2/1, NQ 7/6). Dominant eval path (245/300): retrieve → rewrite ×2 → verify → retrieve ×2 → verify → stop.
+
+**Artifacts:**
+
+| Path | Contents |
+|---|---|
+| `results/metrics/train_policy_curve_correctness_only.json` | Train epochs for the free-tools preset |
+| `results/metrics/train_policy_curve_lambda_zero.json` | Train epochs with λ=μ=0, \(P_{\mathrm{act}}\) on |
+| `results/checkpoints/learned_policy_correctness_only.pt` | Last-epoch weights (plus `_best.pt`) |
+| `results/checkpoints/learned_policy_lambda_zero.pt` | Last-epoch weights (plus `_best.pt`) |
+| `results/metrics/learned_correctness_only.json` | 300-eval summary |
+| `results/metrics/learned_lambda_zero.json` | 300-eval summary |
+| `results/trajectories/learned_correctness_only.jsonl` | 300 rows, all 8 steps |
+| `results/trajectories/learned_lambda_zero.jsonl` | 300 rows, all retrieve→stop |
+
+These are **not** ranking rows. The paper table still uses `learned_default.json`.
+
 ---
 
 ## 5. Minimal “first successful run” checklist
@@ -517,8 +568,9 @@ With `--policies learned` only, the script **exits** if the checkpoint is missin
 5. `plot_results.py` writes PNGs under `results/figs/`
 6. `train_policy.py` printed `TRAIN ONLY` on the 100-example train file and wrote `train_policy_curve.json` (5 epochs; reward 0.649 → 0.564 → 0.643). It never reads `eval_slice.jsonl`.
 7. `run_pilot.py --policies learned` wrote `learned_default.json` + `learned_default.jsonl`. **Ranking row:** EM 0.333 / 59+41 correct, retrieve→stop 300/300, identical to naive. Do not treat the train curve (step 6) as this row.
+8. Free-cost sanity (2026-09-13) wrote `learned_correctness_only.json` (8 steps / 102 correct) and `learned_lambda_zero.json` (2 steps / 100 correct). Trainer is not stuck; \(P_{\mathrm{act}}\) is.
 
-If anything fails, start from smoke test, then re-prepare data, then re-run pilot. Do not debug the trainer against the 300-eval.
+If anything fails, start from smoke test, then re-prepare data, then re-run pilot. Do not debug the trainer against the 300-eval until `correctness_only` has also collapsed.
 
 ---
 
@@ -527,10 +579,10 @@ If anything fails, start from smoke test, then re-prepare data, then re-run pilo
 | Doc | Topic |
 |---|---|
 | `README.md` | Project overview |
-| `docs/RESULTS.md` | **Detailed results:** 80k ranking slice `d456d26` (150 Hotpot + 150 NQ), reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04. §6 train curve + 300-eval `learned` (collapsed to naive). SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
+| `docs/RESULTS.md` | **Detailed results:** 80k ranking slice `d456d26` (150 Hotpot + 150 NQ), reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04. §6 `default` train + 300-eval (collapsed to naive) and 2026-09-13 free-cost sanity. SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
 | `docs/NQ_MAX_TOOLS_ANALYSIS.md` | Leaked-NQ max-tools mechanism; tiny-corpus run `34e6585` (NQ 148/150), not the current Tevatron-NQ snapshot |
 | `docs/REWARD_DESIGN.md` | Why reward weights were chosen |
-| `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, tiny REINFORCE trainer (2026-09-05); train 2026-09-09; learned eval 2026-09-10 |
-| `docs/WHY_SMALL_MLP.md` | Why the policy is 261 parameters; train sampled tools, eval argmax did not |
+| `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, tiny REINFORCE trainer (2026-09-05); train 2026-09-09; learned eval 2026-09-10; free-cost sanity 2026-09-13 |
+| `docs/WHY_SMALL_MLP.md` | Why the policy is 261 parameters; `default` eval was naive, `correctness_only` eval used the step cap |
 | `docs/EXPERIMENT_LOG.md` | Recorded pilot numbers (each dated block names its run) |
 | `docs/data_cards/*.md` | Dataset cards |

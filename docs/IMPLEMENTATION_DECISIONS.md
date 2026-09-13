@@ -168,7 +168,7 @@ Do not train GRPO/PPO against the pre-fix \(Q_{\mathrm{cal}}\).
 
 **Why tiny:** 100 trajectories cannot support a wide net. Hidden width is capped at 32 (`ValueError` above that). Observation is the existing env vector (including verify `support` / `contradiction`). Reward is the **fixed** 2026-09-04 calibration rule.
 
-**Update:** per-episode REINFORCE with an EMA reward baseline and entropy 0.01. Sparse terminal reward from `AgenticRAGEnv`. Learning curve: `results/metrics/train_policy_curve.json` (mean reward per epoch). Checkpoints: `results/checkpoints/learned_policy.pt` and `_best.pt`.
+**Update:** per-episode REINFORCE with an EMA reward baseline and entropy 0.01. Sparse terminal reward from `AgenticRAGEnv`. Learning curves: `results/metrics/train_policy_curve.json` (`default`) plus `train_policy_curve_correctness_only.json` / `train_policy_curve_lambda_zero.json`. Checkpoints: `results/checkpoints/learned_policy.pt` (`default` ranking) plus `learned_policy_correctness_only.pt` / `learned_policy_lambda_zero.pt`. `--curve` / `--checkpoint` keep those runs from overwriting each other.
 
 **Eval (not training):** `run_pilot.py` default `--policies` is `naive_rag,rule_based,max_tools,learned`. The checkpoint is loaded frozen (`deterministic` argmax) and run through the same `evaluate_agent` path, so `pilot_summary_*.json` gets a fourth `by_dataset` block. Missing checkpoint → skip `learned` (or exit if it is the only policy). The trainer still never opens the 300. Train mean reward is not a ranking number.
 
@@ -202,6 +202,16 @@ Using the full tool suite costs an extra **0.10** in the flat action tax plus ab
 
 This is a reward-design finding, not a trainer or architecture finding. Do not retune the MLP to “use more tools” while this scalar still makes tools −EV. A later weight change (shrink \(P_{\mathrm{act}}\), or make it a true loop tax rather than a per-step tax) is a new experiment; it is not a code bug in `src/rewards.py`.
 
+## 2026-09-13 — Free-cost sanity: trainer works; \(P_{\mathrm{act}}\) is the pin
+
+Trained and scored two new checkpoints on the same 100 / 300 split. Did not overwrite `learned_policy.pt`.
+
+**`correctness_only`** (cost free): train steps 4.66 → 5.84, verify 0.50 → 1.20. Frozen 300-eval is **8.0 steps / 3.0 retrieve / 2.0 rewrite / 2.0 verify on 300/300** (step cap). EM 0.340 (102/300) vs naive 100/300 (Hotpot 60 vs 59, NQ 42 vs 41; 9 recoveries / 7 regressions). Reward 0.378 vs naive 0.365. Sources: `learned_correctness_only.json`, `train_policy_curve_correctness_only.json`, `learned_policy_correctness_only.pt`.
+
+**`lambda_zero`** (λ=μ=0, \(P_{\mathrm{act}}\) kept): train looks like `default` (steps ~4, verify 0.39–0.55). Frozen 300-eval is retrieve→stop **300/300**, predictions identical to naive, reward 0.581. Sources: `learned_lambda_zero.json`, `train_policy_curve_lambda_zero.json`, `learned_policy_lambda_zero.pt`.
+
+The 09-12 arithmetic predicted this split. The network was never stuck at two steps; the default scalar made two steps optimal. Turning off dollars is not the fix — \(P_{\mathrm{act}}\) is.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
@@ -214,3 +224,4 @@ This is a reward-design finding, not a trainer or architecture finding. Do not r
 | 2026-09-09 | First REINFORCE train, n=100 | Reward 0.649 → 0.564 → 0.643. Verify 0.39–0.55. Steps ~4. | Train samples tools. Not a ranking number. |
 | 2026-09-10 | Learned 300-eval, frozen argmax | Retrieve→stop 300/300. EM 0.333, 59+41 correct, reward 0.580. Identical to naive. | Eval mode is naive. Verify-on-contradiction win condition did not fire. |
 | 2026-09-12 | Reward arithmetic on committed 300-eval | Extra tools: +0.10 \(P_{\mathrm{act}}\), +0.001 \(\lambda\$\), +0.028 quality. Reward −0.071. Cost mix ~99% action tax / ~1% dollars. | Collapse to naive is the reward, not the MLP. \(P_{\mathrm{act}}\) is backwards for a dollar-aware paper. |
+| 2026-09-13 | Free-cost trains + 300-eval | `correctness_only` argmax: 8 steps / 3 retrieve / 2 verify, EM 0.340 (102/300). `lambda_zero` argmax: retrieve→stop 300/300. | Trainer can learn tools. \(P_{\mathrm{act}}\), not λ, pins the ranking row to naive. |

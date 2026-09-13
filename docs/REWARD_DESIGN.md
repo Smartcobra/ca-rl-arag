@@ -39,6 +39,8 @@ Configured in `configs/reward_weights.yaml` and executed by `scripts/run_reward_
 
 Additionally, Milestone 3 will sweep `pareto_sweep.lambda_cost` × `mu_latency` for quality–cost curves. The first REINFORCE run used the **default** preset only; it is a train curve, not a new ablation.
 
+**Trainer sanity (2026-09-13), not a rescore:** presets 1 and 5 were used as *training* objectives. `correctness_only` frozen eval left two steps (8 / 3 retrieve / 2 verify, EM 0.340). `lambda_zero` frozen eval stayed retrieve→stop. That isolates \(P_{\mathrm{act}}\) as the term that pins the ranking `learned` row to naive; λ is almost unused. Details: [`RESULTS.md`](RESULTS.md) §6.
+
 ## Component definitions (implementation)
 
 | Symbol | Implementation |
@@ -71,4 +73,4 @@ Evidence is **weak** (justified abstain) only if any of these hold: no passages,
 
 ## Impact on the ranking snapshot (2026-09-04)
 
-The Tevatron-NQ 80k pilot was rescored with this rule. EM/F1/$ did not move (frozen policies). Mean <em>Q</em><sub>cal</sub> dropped (overall −0.017 → −0.137 on naive) because lazy abstains are no longer +0.6. Mean reward dropped in lockstep (naive 0.598 → 0.580); ranking is still naive > rule > max_tools. The REINFORCE train curve and the 300-eval `learned` row (tied with naive) used this same fixed rule. Details: [`RESULTS.md`](RESULTS.md).
+The Tevatron-NQ 80k pilot was rescored with this rule. EM/F1/$ did not move (frozen policies). Mean <em>Q</em><sub>cal</sub> dropped (overall −0.017 → −0.137 on naive) because lazy abstains are no longer +0.6. Mean reward dropped in lockstep (naive 0.598 → 0.580); ranking is still naive > rule > max_tools. The `default` REINFORCE train curve and the 300-eval `learned` row (tied with naive) used this same fixed rule. The 2026-09-13 free-cost trains reused it for `correctness_only` / `lambda_zero` (trainer sanity, not a new ranking row). Details: [`RESULTS.md`](RESULTS.md).

@@ -2,7 +2,7 @@
 
 Append-only notes while running pilots. Prefer short factual entries. **Each dated block names the run it belongs to.** Do not cite a number from this file without that run line.
 
-For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09) and 300-eval (2026-09-10, learned = naive), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
+For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), and the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
 
 ## 2026-08-07
 
@@ -200,3 +200,50 @@ Hotpot 59/150 both. NQ 41/150 both. Predictions identical **300/300**. Action mi
 - Train curve had verify 0.39–0.55 and ~4 steps because training **samples**. Eval **argmax** is the naive mode.
 - Reward tie is not a win. The controller did not use the verify signal that `rule_based` also ignores after the fact-check.
 - Full write-up: `docs/RESULTS.md` §6.
+
+## 2026-09-13 — Free-cost trainer sanity (`correctness_only` vs `lambda_zero`)
+
+**Run:** one Colab session, notebook `notebooks/FreeCost_Trainer_Sanity_CA_RL_ARAG.ipynb`. Same 80k Tevatron-NQ corpus, 100-train / 300-eval, 261-param MLP, 5 epochs. Separate checkpoints so `learned_policy.pt` / `train_policy_curve.json` stay the `default` run.
+
+```text
+python scripts/train_policy.py --reward-preset correctness_only \
+  --checkpoint results/checkpoints/learned_policy_correctness_only.pt \
+  --curve results/metrics/train_policy_curve_correctness_only.json
+python scripts/run_pilot.py --reward-preset correctness_only \
+  --policies naive_rag,learned \
+  --learned-checkpoint results/checkpoints/learned_policy_correctness_only.pt \
+  --no-figures
+# then the same pair with --reward-preset lambda_zero and *_lambda_zero.pt / curve
+```
+
+### `correctness_only` train (`train_policy_curve_correctness_only.json`)
+
+| Epoch | mean reward | mean EM | mean steps | mean retrieve | mean verify |
+|---|---:|---:|---:|---:|---:|
+| 1 | 0.450 | 0.42 | 4.66 | 1.62 | 0.50 |
+| 2 | 0.383 | 0.36 | 4.14 | 1.55 | 0.41 |
+| 3 | 0.403 | 0.38 | 4.26 | 1.61 | 0.53 |
+| 4 | **0.464** | **0.43** | 5.49 | 1.80 | 1.06 |
+| 5 | 0.402 | 0.37 | 5.84 | 1.84 | 1.20 |
+
+Sampling moved toward more tools. Did not collapse to two steps.
+
+### `correctness_only` 300-eval (`learned_correctness_only.json`)
+
+| Policy | EM | n_correct | steps | retrieve | rewrite | verify | mean reward |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| naive_rag | 0.333 | 100/300 | 2.0 | 1.0 | 0.0 | 0.0 | 0.365 |
+| learned | 0.340 | 102/300 | **8.0** | **3.0** | **2.0** | **2.0** | 0.378 |
+
+Hotpot 60/150 vs naive 59 (2 recoveries / 1 regression). NQ 42/150 vs naive 41 (7 / 6). Overall 9 recoveries / 7 regressions. Predictions differ 38/300. **300/300 hit max_steps=8.** Dominant path (245/300): retrieve → rewrite ×2 → verify → retrieve ×2 → verify → stop.
+
+### `lambda_zero` train + 300-eval
+
+Train curve matches `default` homework (reward 0.651 / 0.621 / 0.579 / 0.566 / 0.648; steps 4.75 → 4.03; verify 0.39–0.55). Source: `train_policy_curve_lambda_zero.json`.
+
+Eval (`learned_lambda_zero.json`): retrieve→stop **300/300**, verify 0, predictions identical to naive **300/300**, reward 0.581 = naive 0.581.
+
+- **Trainer works.** When only \(Q_{\mathrm{ans}}\) pays, frozen argmax leaves two steps and uses retrieve/verify (here: the step cap).
+- **`lambda_zero` still collapses.** Dollars/latency off is not enough; \(P_{\mathrm{act}}=0.02\) still makes extra tools −EV.
+- Quality ceiling is still small: +2 EM vs naive, below `max_tools` 105/300 under `default`.
+- Full write-up: `docs/RESULTS.md` §6 (Free-cost trainer sanity).

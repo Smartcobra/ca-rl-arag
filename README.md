@@ -10,7 +10,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 - Explicit multi-component reward + ablation presets (`src/rewards.py`, `configs/reward_weights.yaml`)
 - Dataset slices for **HotpotQA + single-hop** (NQ preferred; TriviaQA / SQuAD fallbacks — Scope Memo V2 §7)
 - Pilot logs, metrics, data cards, and implementation decision notes
-- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — train curve + 300-eval on disk; frozen argmax = naive RAG
+- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — `default` 300-eval is naive RAG; free-cost sanity (`correctness_only`) used the step cap
 
 ## Design locks (review comments)
 
@@ -18,7 +18,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 |---|---|---|
 | Verifier | **NLI** (`lexical_nli` default; optional `neural_nli`) | Consistent across experiments; not LLM-as-judge |
 | Reward weights | Justified defaults + ablation presets | See `docs/REWARD_DESIGN.md` |
-| Complexity order | Frozen baselines first, then tiny REINFORCE | Rule / naive / max ranked; learned eval (2026-09-10) tied naive. GRPO/PPO still deferred |
+| Complexity order | Frozen baselines first, then tiny REINFORCE | Rule / naive / max ranked; `default` learned eval (2026-09-10) tied naive. Free-cost sanity 2026-09-13. GRPO/PPO still deferred |
 | Action space | Five actions only | V1 discipline; semantic/keyword/expand deferred |
 
 ## Quick start
@@ -49,6 +49,15 @@ python scripts/run_reward_ablation.py
 python scripts/train_policy.py
 # 6) freeze the .pt and score the 300 (the ranking row)
 python scripts/run_pilot.py --policies learned
+
+# 7) optional free-cost sanity (separate .pt / curve; see notebooks/FreeCost_Trainer_Sanity_CA_RL_ARAG.ipynb)
+python scripts/train_policy.py --reward-preset correctness_only \
+  --checkpoint results/checkpoints/learned_policy_correctness_only.pt \
+  --curve results/metrics/train_policy_curve_correctness_only.json
+python scripts/run_pilot.py --reward-preset correctness_only \
+  --policies naive_rag,learned \
+  --learned-checkpoint results/checkpoints/learned_policy_correctness_only.pt \
+  --no-figures
 ```
 
 **Ranking preflight.** `run_pilot.py` and `run_reward_ablation.py` (default config) refuse to load Qwen unless the **on-disk** eval file is 300 (150 Hotpot + 150 single-hop: NQ, TriviaQA, or SQuAD) **and** `corpus.jsonl` has at least **50,000** passages **and** there are no leftover NQ answer-anchors. `--limit` does not skip this — a 50-question run on a 2k corpus is still the wrong experiment. `--run-env-check` only rolls a few Gym episodes; it is not the data check. Bypass with `--skip-data-check` for synthetic/extractive debug. `configs/extractive.yaml` does not set the 50k floor. The committed ranking snapshot (`d456d26`) used Tevatron/wikipedia-nq.
@@ -58,7 +67,7 @@ python scripts/run_pilot.py --policies learned
 
 ## Pilot results (snapshot)
 
-**Run this section describes:** 80k-passage Qwen ranking, same slice as commit `d456d26` (2026-08-27), **rescored 2026-09-04**. Learned 300-eval: 2026-09-10 (`learned_default.json`). Source for frozen baselines: `results/metrics/rule_based_default.json` / `max_tools_default.json` / `baseline_default.json`. Slice: **300 examples (150 Hotpot + 150 NQ)**. Tevatron/wikipedia-nq loaded (`nq_corpus: dpr_wikipedia_w100`, `n_nq_anchor: 0`, 1,450 wiki golds / 847 eval gold articles). Corpus **80,000** passages. BM25 gold recall@5: Hotpot **0.927** (11 misses), NQ **0.587** (62 misses). Lexical NLI. `force_yes_no: true`, `allow_abstain: true`. Current `pilot_summary_default.json` holds naive + learned only (rewritten by `--policies learned`). The leaked-NQ write-up (148/150) is a different run: [`docs/NQ_MAX_TOOLS_ANALYSIS.md`](docs/NQ_MAX_TOOLS_ANALYSIS.md).
+**Run this section describes:** 80k-passage Qwen ranking, same slice as commit `d456d26` (2026-08-27), **rescored 2026-09-04**. Learned 300-eval: 2026-09-10 (`learned_default.json`). Free-cost sanity: 2026-09-13 (`learned_correctness_only.json` / `learned_lambda_zero.json`). Source for frozen baselines: `results/metrics/rule_based_default.json` / `max_tools_default.json` / `baseline_default.json`. Slice: **300 examples (150 Hotpot + 150 NQ)**. Tevatron/wikipedia-nq loaded (`nq_corpus: dpr_wikipedia_w100`, `n_nq_anchor: 0`, 1,450 wiki golds / 847 eval gold articles). Corpus **80,000** passages. BM25 gold recall@5: Hotpot **0.927** (11 misses), NQ **0.587** (62 misses). Lexical NLI. `force_yes_no: true`, `allow_abstain: true`. Current `pilot_summary_default.json` holds naive + learned only (rewritten by `--policies learned`). The leaked-NQ write-up (148/150) is a different run: [`docs/NQ_MAX_TOOLS_ANALYSIS.md`](docs/NQ_MAX_TOOLS_ANALYSIS.md).
 
 **Comparison in one line:** Hotpot is 59 / 56 / 61 / **59**. NQ is 41 / 41 / 44 / **41**. `learned` (frozen argmax) **is naive RAG**. Extra tools still move a few answers on rule/max, but spend is 4.3× on `max_tools`, so reward ranks **naive = learned > rule > max_tools**.
 
@@ -131,6 +140,17 @@ Train (`train_policy_curve.json`, 100 examples) sampled extra tools. Eval (`lear
 
 Train verify stayed ~0.4–0.55. Eval verify is **0.0**. Do not compare 0.649 to naive 0.580 — different questions, and train samples while eval uses argmax. The ranking row is the 300-eval: learned = naive.
 
+### Free-cost trainer sanity (2026-09-13; not a ranking table)
+
+Same 100-train / 300-eval. Separate checkpoints. Notebook: `notebooks/FreeCost_Trainer_Sanity_CA_RL_ARAG.ipynb`.
+
+| Preset | Train last steps / retrieve / verify | Eval steps / retrieve / verify | Eval EM (n_correct) |
+|---|---|---|---|
+| `correctness_only` | 5.84 / 1.84 / 1.20 | **8.0 / 3.0 / 2.0** (300/300 at the step cap) | **0.340 (102/300)** |
+| `lambda_zero` | 4.03 / 1.32 / 0.39 | **2.0 / 1.0 / 0.0** (retrieve→stop 300/300) | 0.333 (100/300) |
+
+`correctness_only` vs naive: Hotpot 60 vs 59, NQ 42 vs 41 (9 recoveries / 7 regressions). The trainer can leave two steps when only \(Q_{\mathrm{ans}}\) pays. `lambda_zero` stays naive because \(P_{\mathrm{act}}=0.02\) is still on. Sources: `train_policy_curve_correctness_only.json`, `learned_correctness_only.json`, `train_policy_curve_lambda_zero.json`, `learned_lambda_zero.json`.
+
 ### Reward-weight ablation (not a ranking table)
 
 Fixed `rule_based` policy, **stratified 100** from the **same Tevatron-NQ** 300-file (50 Hotpot + 50 NQ). EM/F1/$ stay flat (EM 0.34); only the scalar reward changes. Source: `results/metrics/reward_ablation_table.json` (rescored 2026-09-04). Presets with γ \(Q_{\mathrm{cal}}\) dropped vs the pre-fix table.
@@ -165,7 +185,7 @@ agentic_rag_rl/
 ├── configs/           # default, reward weights, FinOps price card
 ├── data/processed/    # train/eval slices + corpus
 ├── docs/              # reward design, decisions, experiment log, data cards
-├── notebooks/         # Colab 80k ranking run
+├── notebooks/         # Colab 80k ranking + free-cost sanity
 ├── scripts/           # prepare_data, run_pilot, ablation, train_policy, smoke_test
 ├── src/               # baseline, agent, env, rewards, retrieval, NLI verify
 └── results/           # trajectories + metrics
@@ -192,7 +212,7 @@ Sparse episode reward is returned on `stop` with a full component breakdown in `
 
 ## Next (Milestone 3)
 
-- Learned 300-eval exists and **tied naive** (retrieve→stop). Next controller must use verify on eval, not only while sampling in train
+- `default` learned 300-eval **tied naive** (retrieve→stop). Free-cost sanity shows the trainer can use tools (`correctness_only` hit the step cap). Next: shrink \(P_{\mathrm{act}}\), then require verify on eval when it is +EV
 - Compare against Adaptive-RAG as the open-loop baseline
 - λ–μ Pareto sweeps using `configs/reward_weights.yaml` → `pareto_sweep`
 - Optional neural NLI + denser retriever once the extractive/BM25 pipeline is solid

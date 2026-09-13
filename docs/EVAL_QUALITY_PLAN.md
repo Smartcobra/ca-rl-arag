@@ -1,6 +1,6 @@
 # Eval Quality Plan
 
-**Status (2026-09-10):** the locked 300-eval ranking run exists. Current numbers live in [`RESULTS.md`](RESULTS.md) (80k Qwen, slice `d456d26`, **rescored after the `calibration_score` lazy-abstain fix**: 150 Hotpot + 150 **NQ** on Tevatron/wikipedia-nq). EM/F1/$ match the 2026-08-27 table; reward and \(Q_{\mathrm{cal}}\) are the new numbers. First REINFORCE train curve is on disk (`train_policy_curve.json`, n=100). Frozen 300-eval `learned` is on disk (`learned_default.json`): retrieve→stop 300/300, identical to naive.
+**Status (2026-09-13):** the locked 300-eval ranking run exists. Current numbers live in [`RESULTS.md`](RESULTS.md) (80k Qwen, slice `d456d26`, **rescored after the `calibration_score` lazy-abstain fix**: 150 Hotpot + 150 **NQ** on Tevatron/wikipedia-nq). EM/F1/$ match the 2026-08-27 table; reward and \(Q_{\mathrm{cal}}\) are the new numbers. `default` REINFORCE: train curve `train_policy_curve.json`; frozen 300-eval `learned_default.json` is retrieve→stop 300/300, identical to naive. Free-cost sanity: `learned_correctness_only.json` used the step cap (8 / 3 retrieve / 2 verify, EM 0.340); `learned_lambda_zero.json` stayed retrieve→stop.
 
 **This file is a hygiene plan, not a ranking table.** The diagnosis below describes the 40-example Qwen mix (~2026-08-20), before the locked 300-eval. Keep it as history; do not cite those 40-ex numbers as current.
 
