@@ -51,6 +51,7 @@ If you point **default.yaml** at a synthetic or 2k-passage corpus, the ranking s
 | 5 | `train_policy.py` | Milestone 3 REINFORCE: tiny MLP on the **100 train examples only**. Logs mean reward per epoch. Does **not** open the 300-example eval file. That curve is homework, not the paper table. |
 | 6 | `run_pilot.py --policies learned` | **Why this exists:** freeze `learned_policy.pt` and score the **300 eval** questions training never saw. Same Hotpot/NQ table as naive / rule / max_tools. Without this step you cannot claim a learned-policy result. **This run (2026-09-10):** argmax collapsed to retrieve→stop (identical to naive). |
 | 7 | `train_policy.py --reward-preset correctness_only` then `lambda_zero` + matching `--policies learned` | **Why this exists:** prove the trainer can leave two steps when cost is free. **This run (2026-09-13):** `correctness_only` eval hit the 8-step cap; `lambda_zero` stayed retrieve→stop. Use `--checkpoint` / `--curve` / `--no-figures` so the `default` ranking artifacts stay put. |
+| 8 | `train_policy.py --reward-preset frontier_act0` (then `act005`, `act02`) + `plot_results.py --frontier` | **Why this exists:** paper headline. One learned policy per `act_penalty` at \(\lambda=80\). Plot EM vs $ next to naive / rule / max. Notebook: `Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`. |
 
 They are sequenced so you never debug data/reward issues on a broken pipeline. Train after the frozen ranking exists. Score the learned policy **after** the `.pt` exists; do not mix the train curve into the ranking table.
 
@@ -559,6 +560,39 @@ These are **not** ranking rows. The paper table still uses `learned_default.json
 
 ---
 
+### 4.8 Learned cost-pressure frontier (paper headline)
+
+**Why:** one learned policy that beats naive is a weak claim. Train the **same** tiny MLP at three `act_penalty` levels with \(\lambda=80\) (so FinOps $ is on the same scale as quality). Score each frozen checkpoint on the locked 300. Plot **EM vs mean $** next to naive / rule / max_tools.
+
+Quality weights stay at `default`. Only `act_penalty` changes: `0`, `0.005`, `0.02`. Presets: `frontier_act0`, `frontier_act005`, `frontier_act02`. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`.
+
+```bash
+python scripts/train_policy.py --reward-preset frontier_act0 \
+  --checkpoint results/checkpoints/learned_policy_frontier_act0.pt \
+  --curve results/metrics/train_policy_curve_frontier_act0.json
+python scripts/run_pilot.py --reward-preset frontier_act0 \
+  --policies learned \
+  --learned-checkpoint results/checkpoints/learned_policy_frontier_act0.pt \
+  --no-figures
+# repeat for frontier_act005 and frontier_act02
+python scripts/plot_results.py --frontier
+```
+
+`--policies learned` does **not** re-run naive. Frozen dots come from `baseline_default.json` / `rule_based_default.json` / `max_tools_default.json`.
+
+**Artifacts:**
+
+| Path | Contents |
+|---|---|
+| `results/checkpoints/learned_policy_frontier_act*.pt` | One MLP per pressure |
+| `results/metrics/learned_frontier_act*.json` | 300-eval per pressure |
+| `results/metrics/frontier_sweep_table.json` | Combined EM / $ / steps |
+| `results/figs/frontier_em_usd.png` | Headline scatter |
+
+Does not overwrite `learned_policy.pt` or the ranking plots.
+
+---
+
 ## 5. Minimal “first successful run” checklist
 
 1. `smoke_test.py` prints `SMOKE OK` (then re-run `--hf` if you need the ranking corpus; smoke overwrites `data/processed/`)  
@@ -569,6 +603,7 @@ These are **not** ranking rows. The paper table still uses `learned_default.json
 6. `train_policy.py` printed `TRAIN ONLY` on the 100-example train file and wrote `train_policy_curve.json` (5 epochs; reward 0.649 → 0.564 → 0.643). It never reads `eval_slice.jsonl`.
 7. `run_pilot.py --policies learned` wrote `learned_default.json` + `learned_default.jsonl`. **Ranking row:** EM 0.333 / 59+41 correct, retrieve→stop 300/300, identical to naive. Do not treat the train curve (step 6) as this row.
 8. Free-cost sanity (2026-09-13) wrote `learned_correctness_only.json` (8 steps / 102 correct) and `learned_lambda_zero.json` (2 steps / 100 correct). Trainer is not stuck; \(P_{\mathrm{act}}\) is.
+9. Frontier sweep (after this notebook): `learned_frontier_act*.json` + `results/figs/frontier_em_usd.png`. Do not overwrite `learned_policy.pt`.
 
 If anything fails, start from smoke test, then re-prepare data, then re-run pilot. Do not debug the trainer against the 300-eval until `correctness_only` has also collapsed.
 

@@ -185,7 +185,7 @@ agentic_rag_rl/
 ├── configs/           # default, reward weights, FinOps price card
 ├── data/processed/    # train/eval slices + corpus
 ├── docs/              # reward design, decisions, experiment log, data cards
-├── notebooks/         # Colab 80k ranking + free-cost sanity
+├── notebooks/         # Colab 80k ranking, free-cost sanity, cost-pressure frontier
 ├── scripts/           # prepare_data, run_pilot, ablation, train_policy, smoke_test
 ├── src/               # baseline, agent, env, rewards, retrieval, NLI verify
 └── results/           # trajectories + metrics

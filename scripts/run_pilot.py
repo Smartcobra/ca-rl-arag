@@ -109,6 +109,8 @@ def main() -> None:
     baseline = None
     agent = None
     env = None
+    policy_names = [p.strip() for p in args.policies.split(",") if p.strip()]
+    run_naive = any(p == "naive_rag" for p in policy_names)
 
     # Strategy B: one immutable inference model shared across policies.
     # Isolation is at the policy/reward layer, not by loading a new Qwen copy.
@@ -117,22 +119,22 @@ def main() -> None:
     log_gpu_memory("after model creation")
 
     try:
-        # 1) Standard RAG baseline
-        log_gpu_memory("before naive_rag")
-        baseline = RAGBaseline(cfg, retriever, generator=generator)
-        base_path = traj_dir / f"baseline_{cfg['reward_preset_name']}.jsonl"
-        if base_path.exists():
-            base_path.unlink()
-        base_out = evaluate_baseline(baseline, examples, out_path=base_path)
-        save_metrics(metrics_dir / f"baseline_{cfg['reward_preset_name']}.json", base_out["summary"], {"policy": "naive_rag"})
-        results["naive_rag"] = base_out["summary"]
-        print(format_eval_summary("naive_rag", base_out["summary"]))
-        del base_out
-        log_gpu_memory("after naive_rag")
+        # 1) Standard RAG baseline (only if requested — skip on --policies learned)
+        if run_naive:
+            log_gpu_memory("before naive_rag")
+            baseline = RAGBaseline(cfg, retriever, generator=generator)
+            base_path = traj_dir / f"baseline_{cfg['reward_preset_name']}.jsonl"
+            if base_path.exists():
+                base_path.unlink()
+            base_out = evaluate_baseline(baseline, examples, out_path=base_path)
+            save_metrics(metrics_dir / f"baseline_{cfg['reward_preset_name']}.json", base_out["summary"], {"policy": "naive_rag"})
+            results["naive_rag"] = base_out["summary"]
+            print(format_eval_summary("naive_rag", base_out["summary"]))
+            del base_out
+            log_gpu_memory("after naive_rag")
 
         # 2) Agentic policies — same generator, different action policies
         agent = AgenticRAG(cfg, retriever, generator=generator)
-        policy_names = [p.strip() for p in args.policies.split(",") if p.strip()]
         if any(p.lower() in {"learned", "reinforce"} for p in policy_names):
             from src.policies.learned import learned_checkpoint_path
 

@@ -41,6 +41,8 @@ Additionally, Milestone 3 will sweep `pareto_sweep.lambda_cost` × `mu_latency` 
 
 **Trainer sanity (2026-09-13), not a rescore:** presets 1 and 5 were used as *training* objectives. `correctness_only` frozen eval left two steps (8 / 3 retrieve / 2 verify, EM 0.340). `lambda_zero` frozen eval stayed retrieve→stop. That isolates \(P_{\mathrm{act}}\) as the term that pins the ranking `learned` row to naive; λ is almost unused. Details: [`RESULTS.md`](RESULTS.md) §6.
 
+**Learned frontier family (not an ablation rescore):** `frontier_act0` / `frontier_act005` / `frontier_act02` keep the `default` quality terms and set \(\lambda=80\) so measured $ is visible. Only `act_penalty` changes (0 / 0.005 / 0.02). Train one MLP per preset; plot EM vs $ next to naive / rule / max_tools. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`. Not in `run_reward_ablation.py`'s default list.
+
 ## Component definitions (implementation)
 
 | Symbol | Implementation |

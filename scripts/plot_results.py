@@ -38,6 +38,22 @@ COLORS = {
     "max_tools": "#3A5A40",
     "always_max": "#3A5A40",
     "learned": "#7B2D8E",
+    "frontier_act0": "#7B2D8E",
+    "frontier_act005": "#9B4DB0",
+    "frontier_act02": "#C77DFF",
+}
+
+# Frozen ranking anchors + learned family for the headline EM-vs-$ figure.
+FRONTIER_FROZEN = ("naive_rag", "rule_based", "max_tools")
+FRONTIER_LEARNED = (
+    ("frontier_act0", "learned act=0"),
+    ("frontier_act005", "learned act=0.005"),
+    ("frontier_act02", "learned act=0.02"),
+)
+FRONTIER_FROZEN_FILES = {
+    "naive_rag": "baseline_default.json",
+    "rule_based": "rule_based_default.json",
+    "max_tools": "max_tools_default.json",
 }
 
 
@@ -152,6 +168,114 @@ def plot_reward_components(results: dict, out_dir: Path) -> None:
     ax.legend(frameon=False, ncol=4)
     fig.tight_layout()
     _save(fig, out_dir / "policy_reward_components.png")
+
+
+def _summary_block(blob: dict) -> dict:
+    if isinstance(blob, dict) and "summary" in blob and isinstance(blob["summary"], dict):
+        return blob["summary"]
+    return blob
+
+
+def collect_frontier_table(metrics_dir: Path) -> dict:
+    """Build the EM-vs-$ table from frozen ranking JSON + per-preset learned evals."""
+    metrics_dir = Path(metrics_dir)
+    frozen: dict[str, dict] = {}
+    for name, fname in FRONTIER_FROZEN_FILES.items():
+        path = metrics_dir / fname
+        if not path.exists():
+            continue
+        stats = _summary_block(_load_json(path))
+        frozen[name] = {
+            "mean_em": float(stats.get("mean_em") or 0.0),
+            "mean_total_usd": float(stats.get("mean_total_usd") or 0.0),
+            "mean_n_steps": float(stats.get("mean_n_steps") or 0.0),
+            "mean_n_retrieve": float(stats.get("mean_n_retrieve") or 0.0),
+            "mean_n_verify": float(stats.get("mean_n_verify") or 0.0),
+            "n_correct": float(stats.get("n_correct") or 0.0),
+            "n_examples": float(stats.get("n_examples") or 0.0),
+            "kind": "frozen",
+        }
+    learned: dict[str, dict] = {}
+    for preset, _label in FRONTIER_LEARNED:
+        path = metrics_dir / f"learned_{preset}.json"
+        if not path.exists():
+            continue
+        stats = _summary_block(_load_json(path))
+        learned[preset] = {
+            "mean_em": float(stats.get("mean_em") or 0.0),
+            "mean_total_usd": float(stats.get("mean_total_usd") or 0.0),
+            "mean_n_steps": float(stats.get("mean_n_steps") or 0.0),
+            "mean_n_retrieve": float(stats.get("mean_n_retrieve") or 0.0),
+            "mean_n_verify": float(stats.get("mean_n_verify") or 0.0),
+            "n_correct": float(stats.get("n_correct") or 0.0),
+            "n_examples": float(stats.get("n_examples") or 0.0),
+            "kind": "learned",
+            "reward_preset": preset,
+        }
+    return {
+        "lambda_cost": 80.0,
+        "act_penalty": [0.0, 0.005, 0.02],
+        "frozen": frozen,
+        "learned": learned,
+    }
+
+
+def plot_frontier_em_usd(table: dict, out_dir: Path) -> None:
+    """Headline figure: frozen naive/rule/max + learned family on the EM-vs-$ plane."""
+    fig, ax = plt.subplots(figsize=(6.6, 4.6))
+    frozen = table.get("frozen") or {}
+    for name in FRONTIER_FROZEN:
+        if name not in frozen:
+            continue
+        row = frozen[name]
+        ax.scatter(
+            row["mean_total_usd"],
+            row["mean_em"],
+            s=110,
+            marker="s",
+            color=COLORS.get(name, "#666"),
+            label=POLICY_LABELS.get(name, name),
+            zorder=3,
+        )
+        ax.annotate(
+            POLICY_LABELS.get(name, name),
+            (row["mean_total_usd"], row["mean_em"]),
+            textcoords="offset points",
+            xytext=(6, 6),
+            fontsize=9,
+        )
+    xs, ys = [], []
+    for preset, label in FRONTIER_LEARNED:
+        learned = (table.get("learned") or {}).get(preset)
+        if not learned:
+            continue
+        xs.append(learned["mean_total_usd"])
+        ys.append(learned["mean_em"])
+        ax.scatter(
+            learned["mean_total_usd"],
+            learned["mean_em"],
+            s=100,
+            marker="o",
+            color=COLORS.get(preset, "#7B2D8E"),
+            label=label,
+            zorder=4,
+        )
+        ax.annotate(
+            label,
+            (learned["mean_total_usd"], learned["mean_em"]),
+            textcoords="offset points",
+            xytext=(6, -12),
+            fontsize=8,
+        )
+    if len(xs) >= 2:
+        ax.plot(xs, ys, color="#7B2D8E", linewidth=1.2, alpha=0.7, zorder=2)
+    ax.set_xlabel("Mean USD / example")
+    ax.set_ylabel("Mean EM")
+    ax.set_title("Learned cost-pressure frontier (λ=80, locked 300-eval)")
+    ax.grid(True, alpha=0.3)
+    ax.legend(frameon=False, fontsize=8)
+    fig.tight_layout()
+    _save(fig, Path(out_dir) / "frontier_em_usd.png")
 
 
 def plot_pareto(results: dict, out_dir: Path) -> None:
@@ -328,6 +452,11 @@ def main() -> None:
     parser.add_argument("--out-dir", default="results/figs")
     parser.add_argument("--pilot-summary", default=None, help="Override pilot summary JSON path")
     parser.add_argument("--ablation-table", default=None, help="Override ablation table JSON path")
+    parser.add_argument(
+        "--frontier",
+        action="store_true",
+        help="Also write frontier_sweep_table.json + frontier_em_usd.png from learned_frontier_*.json.",
+    )
     args = parser.parse_args()
 
     metrics_dir = (ROOT / args.metrics_dir).resolve() if not Path(args.metrics_dir).is_absolute() else Path(args.metrics_dir)
@@ -346,6 +475,16 @@ def main() -> None:
         write_figures(pilot_path, out_dir, ablation_path)
     except (FileNotFoundError, ValueError) as e:
         raise SystemExit(str(e)) from e
+
+    if args.frontier:
+        table = collect_frontier_table(metrics_dir)
+        table_path = metrics_dir / "frontier_sweep_table.json"
+        table_path.write_text(json.dumps(table, indent=2), encoding="utf-8")
+        print(f"Wrote {table_path}")
+        if table.get("learned"):
+            plot_frontier_em_usd(table, out_dir)
+        else:
+            print("Skip frontier figure (no learned_frontier_*.json yet)")
 
 
 if __name__ == "__main__":
