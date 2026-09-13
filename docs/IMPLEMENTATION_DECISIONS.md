@@ -176,6 +176,32 @@ Do not train GRPO/PPO against the pre-fix \(Q_{\mathrm{cal}}\).
 
 **First 300-eval (2026-09-10):** `learned_default.json` + `learned_default.jsonl`. Frozen argmax is retrieve→stop **300/300**, verify 0, predictions identical to naive, reward 0.580. Train entropy hid a naive mode. Details: `docs/RESULTS.md` §6.
 
+## 2026-09-12 — Collapse to naive is the reward, not the network
+
+The frozen argmax tying naive RAG is not a failed MLP. Under the default weights the network read the landscape correctly and picked the cheapest corner.
+
+Arithmetic from the committed 300-eval (`RESULTS.md` §3, same Tevatron-NQ 80k slice):
+
+| Term | naive | max_tools | Δ (max − naive) |
+|---|---:|---:|---:|
+| steps | 2.0 | 7.0 | +5 |
+| \(P_{\mathrm{act}}\) (`0.02 * max(0, n-1)`) | 0.02 | 0.12 | **+0.10** |
+| mean $ | 1.72e-4 | 7.47e-4 | +5.75e-4 |
+| \(\lambda(C_{\mathrm{tok}}+C_{\mathrm{ret}})\), \(\lambda=2\) | 3.4e-4 | 1.5e-3 | **+0.001** |
+| \(Q_{\mathrm{ans}}\) | 0.365 | 0.386 | +0.021 |
+| \(Q_{\mathrm{ground}}\) | 0.647 | 0.665 | +0.018 |
+| \(Q_{\mathrm{cal}}\) | −0.137 | −0.128 | +0.009 |
+| quality \(\alpha\Delta Q_a+\beta\Delta Q_g+\gamma\Delta Q_c\) | | | **≈ +0.028** |
+| mean reward | 0.580 | 0.509 | **−0.071** |
+
+Using the full tool suite costs an extra **0.10** in the flat action tax plus about **0.001** in real dollars. The best quality those tools buy on this eval is about **0.028** (max_tools recovering a couple of answers — Hotpot net +2, NQ net +3 — plus a little grounding). Spending therefore loses by roughly **0.07** on average. Even perfectly targeted spending barely breaks even: the quality ceiling is smaller than the tax on five extra steps. After 500 train episodes the 261-parameter MLP chose retrieve→stop. It solved the problem we gave it. That problem is not the dollar-aware control problem we meant.
+
+**Cost is currently ~99% the flat action tax and ~1% real dollars.** Of the extra 0.101 paid to run max_tools, \(0.10 / 0.101 \approx 99\%\) is \(P_{\mathrm{act}}\) and \(0.001 / 0.101 \approx 1\%\) is \(\lambda \times \$\). The FinOps price card is almost decorative. Independently: the `lambda_zero` ablation (same rule_based trajectories, \(\lambda=\mu=0\), \(P_{\mathrm{act}}\) kept) moves mean reward only 0.499 → 0.501.
+
+`act_penalty: 0.02` was designed as an anti-loop guard. `reward_weights.yaml` says “anti-loop, not anti-retrieve”; `REWARD_DESIGN.md` says it is “deliberately ≪ cost of one useful retrieve.” At 0.02 per action after the first it dominates everything. One extra retrieve’s measured dollar hit is \(\lambda \times \sim 1.7\times 10^{-4} \approx 3\times 10^{-4}\); the action tax on that same step is 0.02 — about **60×** larger. For a paper whose claim is dollar-aware control, that balance is backwards.
+
+This is a reward-design finding, not a trainer or architecture finding. Do not retune the MLP to “use more tools” while this scalar still makes tools −EV. A later weight change (shrink \(P_{\mathrm{act}}\), or make it a true loop tax rather than a per-step tax) is a new experiment; it is not a code bug in `src/rewards.py`.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
@@ -187,3 +213,4 @@ Do not train GRPO/PPO against the pre-fix \(Q_{\mathrm{cal}}\).
 | 2026-09-04 | Same slice, `calibration_score` fix | Lazy abstain no longer +0.6. Reward 0.580 / 0.531 / 0.509. Q_cal −0.137 / −0.147 / −0.128. Ablation default 0.499. | Train against the fixed calibration rule. Frozen ranking unchanged. |
 | 2026-09-09 | First REINFORCE train, n=100 | Reward 0.649 → 0.564 → 0.643. Verify 0.39–0.55. Steps ~4. | Train samples tools. Not a ranking number. |
 | 2026-09-10 | Learned 300-eval, frozen argmax | Retrieve→stop 300/300. EM 0.333, 59+41 correct, reward 0.580. Identical to naive. | Eval mode is naive. Verify-on-contradiction win condition did not fire. |
+| 2026-09-12 | Reward arithmetic on committed 300-eval | Extra tools: +0.10 \(P_{\mathrm{act}}\), +0.001 \(\lambda\$\), +0.028 quality. Reward −0.071. Cost mix ~99% action tax / ~1% dollars. | Collapse to naive is the reward, not the MLP. \(P_{\mathrm{act}}\) is backwards for a dollar-aware paper. |

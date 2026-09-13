@@ -107,9 +107,13 @@ def format_metric_line(label: str, stats: dict[str, Any]) -> str:
     f1 = float(stats.get("mean_f1") or 0.0)
     reward = float(stats.get("mean_reward") or 0.0)
     abstain = float(stats.get("abstain_rate") or 0.0)
+    steps = float(stats.get("mean_n_steps") or 0.0)
+    retrieve = float(stats.get("mean_n_retrieve") or 0.0)
+    verify = float(stats.get("mean_n_verify") or 0.0)
     return (
         f"{label}: EM={em:.3f} F1={f1:.3f} reward={reward:.3f} "
-        f"abstain={abstain:.3f} n_correct={n_correct}/{n} n_abstained={n_abs}"
+        f"abstain={abstain:.3f} n_correct={n_correct}/{n} n_abstained={n_abs} "
+        f"steps={steps:.2f} retrieve={retrieve:.2f} verify={verify:.2f}"
     )
 
 

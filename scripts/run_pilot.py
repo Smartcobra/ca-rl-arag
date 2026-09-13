@@ -73,6 +73,11 @@ def main() -> None:
         action="store_true",
         help="Refusal ablation: never emit ABSTAIN (generation.allow_abstain=false).",
     )
+    parser.add_argument(
+        "--no-figures",
+        action="store_true",
+        help="Skip rewriting results/figs (use when scoring a non-ranking preset).",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config, reward_preset=args.reward_preset)
@@ -211,8 +216,9 @@ def main() -> None:
             encoding="utf-8",
         )
         print(f"Wrote {summary_path}")
-        figs_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["figs_dir"]))
-        _write_result_figures(summary_path, figs_dir, metrics_dir / "reward_ablation_table.json")
+        if not args.no_figures:
+            figs_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["figs_dir"]))
+            _write_result_figures(summary_path, figs_dir, metrics_dir / "reward_ablation_table.json")
     finally:
         log_gpu_memory("before cleanup")
         cleanup_gpu_resources(env, agent, baseline, generator)

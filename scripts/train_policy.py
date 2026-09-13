@@ -78,6 +78,12 @@ def main() -> None:
         help="Skip train-size + corpus-size preflight (synthetic / extractive debug only).",
     )
     parser.add_argument("--checkpoint", default=None)
+    parser.add_argument(
+        "--curve",
+        default=None,
+        help="Learning-curve JSON. Default: train_policy_curve.json for the default "
+        "checkpoint, else train_policy_curve_<checkpoint-suffix>.json.",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config, reward_preset=args.reward_preset)
@@ -114,7 +120,15 @@ def main() -> None:
     metrics_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["metrics_dir"]))
     ckpt_path = resolve_path(cfg, ckpt_rel)
     best_path = ckpt_path.with_name(ckpt_path.stem + "_best" + ckpt_path.suffix)
-    curve_path = metrics_dir / "train_policy_curve.json"
+    if args.curve:
+        curve_path = resolve_path(cfg, args.curve)
+    else:
+        default_ckpt = Path(str(learned.get("checkpoint", "results/checkpoints/learned_policy.pt")))
+        if Path(ckpt_rel).as_posix() == default_ckpt.as_posix() or ckpt_path.stem == "learned_policy":
+            curve_path = metrics_dir / "train_policy_curve.json"
+        else:
+            suffix = ckpt_path.stem.removeprefix("learned_policy_").removeprefix("learned_policy")
+            curve_path = metrics_dir / f"train_policy_curve_{suffix or ckpt_path.stem}.json"
 
     generator = None
     agent = None
