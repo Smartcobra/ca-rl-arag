@@ -1,6 +1,6 @@
 # Results Guide — What Was Produced and How to Read It
 
-**Run this doc describes:** 80k-passage Qwen ranking pilot (300 eval: 150 Hotpot + 150 **Natural Questions** on DPR Wikipedia). Quality/cost numbers for naive / rule / max_tools are the same slice as `d456d26` (2026-08-27), **rescored 2026-09-04** after closing the `calibration_score` lazy-abstain tautology ([`REWARD_DESIGN.md`](REWARD_DESIGN.md)). Section 5 (reward ablation) is the **same corpus**, stratified 100. Section 6 is REINFORCE: `default` train curve (`train_policy_curve.json`, 2026-09-09) plus the **300-eval** (`learned_default.json`, 2026-09-10). Frozen argmax under `default` **collapsed to naive RAG** (retrieve→stop 300/300; predictions identical). Section 6 also has the 2026-09-13 free-cost sanity: `correctness_only` eval used the step cap (8 / 3 retrieve / 2 verify); `lambda_zero` stayed retrieve→stop. `slice_meta.json`: `nq_corpus: dpr_wikipedia_w100`, `nq_hf_dataset: Tevatron/wikipedia-nq`, `n_nq_anchor: 0`, **1,450** NQ wiki golds / **847** distinct eval gold articles. Section 7 (synthetic) is extractive, 2026-08-07. Section 9 (verifier labels) uses `rule_based_default.jsonl` from this NQ run. The SQuAD fallback table (`e8a4423`) and leaked-NQ table (`2417c43`) are historical.
+**Run this doc describes:** 80k-passage Qwen ranking pilot (300 eval: 150 Hotpot + 150 **Natural Questions** on DPR Wikipedia). Quality/cost numbers for naive / rule / max_tools are the same slice as `d456d26` (2026-08-27), **rescored 2026-09-04** after closing the `calibration_score` lazy-abstain tautology ([`REWARD_DESIGN.md`](REWARD_DESIGN.md)). Section 5 (reward ablation) is the **same corpus**, stratified 100. Section 6 is REINFORCE: `default` train curve (`train_policy_curve.json`, 2026-09-09) plus the **300-eval** (`learned_default.json`, 2026-09-10). Frozen argmax under `default` **collapsed to naive RAG** (retrieve→stop 300/300; predictions identical). Section 6 also has the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop) and the λ=80 `act_penalty` frontier (all three learned evals retrieve→stop 300/300). `slice_meta.json`: `nq_corpus: dpr_wikipedia_w100`, `nq_hf_dataset: Tevatron/wikipedia-nq`, `n_nq_anchor: 0`, **1,450** NQ wiki golds / **847** distinct eval gold articles. Section 7 (synthetic) is extractive, 2026-08-07. Section 9 (verifier labels) uses `rule_based_default.jsonl` from this NQ run. The SQuAD fallback table (`e8a4423`) and leaked-NQ table (`2417c43`) are historical.
 
 This document describes the **Milestone 2 ranking results** plus Milestone 3 train + 300-eval: where files live, what each metric means, how to interpret the current numbers, and known limitations.
 
@@ -29,6 +29,13 @@ results/
 │   ├── train_policy_curve.json       # default REINFORCE train-only, 5 epochs, n=100
 │   ├── train_policy_curve_correctness_only.json
 │   ├── train_policy_curve_lambda_zero.json
+│   ├── learned_frontier_act0.json    # λ=80 family, 300 eval (2026-09-13)
+│   ├── learned_frontier_act005.json
+│   ├── learned_frontier_act02.json
+│   ├── frontier_sweep_table.json     # EM / $ for frozen + learned family
+│   ├── train_policy_curve_frontier_act0.json
+│   ├── train_policy_curve_frontier_act005.json
+│   ├── train_policy_curve_frontier_act02.json
 │   ├── reward_ablation_table.json    # Compact reward-weight sweep (nests by_dataset)
 │   ├── reward_ablation_by_dataset.json
 │   └── ablation_rule_based_*.json    # Per-preset full summaries
@@ -36,7 +43,10 @@ results/
 │   ├── learned_policy.pt             # default last-epoch (eval loads this)
 │   ├── learned_policy_best.pt        # default best train mean reward (epoch 1)
 │   ├── learned_policy_correctness_only.pt
-│   └── learned_policy_lambda_zero.pt
+│   ├── learned_policy_lambda_zero.pt
+│   ├── learned_policy_frontier_act0.pt
+│   ├── learned_policy_frontier_act005.pt
+│   └── learned_policy_frontier_act02.pt
 ├── figs/                             # Plots from metrics (via plot_results.py)
 │   ├── policy_quality_reward.png     # overall, mix-weighted
 │   ├── policy_cost.png
@@ -45,7 +55,8 @@ results/
 │   ├── policy_pareto_em_usd.png
 │   ├── policy_by_dataset.png         # Hotpot vs NQ vs overall
 │   ├── reward_ablation.png
-│   └── reward_ablation_by_dataset.png
+│   ├── reward_ablation_by_dataset.png
+│   └── frontier_em_usd.png            # EM vs $ (frozen + λ=80 family)
 └── trajectories/                     # Per-example logs (JSONL; often gitignored)
     ├── baseline_default.jsonl
     ├── rule_based_default.jsonl
@@ -53,6 +64,9 @@ results/
     ├── learned_default.jsonl         # 300 eval rows; all retrieve→stop
     ├── learned_correctness_only.jsonl  # 300/300 at 8 steps
     ├── learned_lambda_zero.jsonl       # 300/300 retrieve→stop
+    ├── learned_frontier_act0.jsonl     # 300/300 retrieve→stop
+    ├── learned_frontier_act005.jsonl
+    ├── learned_frontier_act02.jsonl
     └── env_rollouts.jsonl            # Short Gym env check dumps
 ```
 
@@ -63,6 +77,7 @@ results/
 | `learned_correctness_only.json` / `learned_lambda_zero.json` | Frozen REINFORCE on the same 300, free-cost presets | Trainer sanity, not the ranking table |
 | `train_policy_curve.json` | One object per **train** epoch (`default`) | Learning signal on the 100. **Not** a ranking number |
 | `train_policy_curve_correctness_only.json` / `_lambda_zero.json` | Same, per free-cost preset | Homework curves for the 2026-09-13 sanity |
+| `learned_frontier_act*.json` / `frontier_sweep_table.json` | λ=80 `act_penalty` family on the 300 | Headline EM-vs-$ attempt; all three tied naive |
 | `*.jsonl` trajectories | One row per question | Failure analysis (wrong EM, action loops, costs) |
 | `env_rollouts.jsonl` | Tiny env sanity rows (`id`, `reward`, `em`, `f1`) | Confirms Gymnasium env scores episodes |
 | `reward_ablation_table.json` | Same policy, different reward presets | Justify α/β/γ/λ choices — **same NQ slice**, stratified 100 |
@@ -83,7 +98,7 @@ results/
 | Generator | **Qwen2.5-3B-Instruct** |
 | Verifier | Lexical NLI |
 | Policies (ranking table) | `naive_rag`, `rule_based`, `max_tools`, `learned` |
-| Learned policy | Ranking row: `learned_default.json` (2026-09-10), frozen argmax = naive (retrieve→stop 300/300). Free-cost sanity (2026-09-13): `learned_correctness_only.json` used the step cap; `learned_lambda_zero.json` stayed retrieve→stop. |
+| Learned policy | Ranking row: `learned_default.json` (2026-09-10), frozen argmax = naive. Free-cost: `correctness_only` used the step cap. λ=80 frontier: all three `learned_frontier_act*.json` retrieve→stop 300/300. |
 
 These runs validate the **pipeline, costs, and frozen-policy reward ranking**, not SOTA Hotpot/NQ accuracy. NQ golds are real DPR Wikipedia 100-word passages (not `{question} The answer is {gold}`). 847 distinct eval gold articles sit in an 80k Hotpot-heavy index, so first-shot BM25 can fail. Hotpot retrieval is also no longer near-perfect.
 
@@ -310,6 +325,40 @@ Eval source: `results/metrics/learned_lambda_zero.json`, `results/trajectories/l
 
 **Read the pair together:** `correctness_only` proves the MLP can leave two steps. `lambda_zero` proves \(P_{\mathrm{act}}\), not λ, is what pins the ranking `learned` row to naive.
 
+### Learned cost-pressure frontier (2026-09-13, λ=80)
+
+Same 80k slice, same 100 / 300, same 261-param MLP. Quality weights stay at `default`. \(\lambda=80\) so extra max_tools $ is \(80 \times 5.75\times 10^{-4} \approx 0.046\) (vs ~0.028 quality). Only `act_penalty` changes: 0 / 0.005 / 0.02. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`. Table: `results/metrics/frontier_sweep_table.json`.
+
+**Train** (sampling; not a ranking number):
+
+| Preset | ep1 steps / verify | ep5 steps / verify | last-epoch reward |
+|---|---|---|---:|
+| `frontier_act0` | 4.75 / 0.46 | 2.93 / 0.14 | 0.715 |
+| `frontier_act005` | 4.75 / 0.46 | 3.50 / 0.37 | 0.701 |
+| `frontier_act02` | 4.61 / 0.47 | 3.03 / 0.21 | 0.629 |
+
+Sampling shrank toward two steps on every knob, including `act_penalty=0`.
+
+**Eval** (frozen argmax, n=300):
+
+| Point | EM | n_correct | $ | steps | retrieve | verify | vs naive preds |
+|---|---:|---:|---:|---:|---:|---:|---|
+| naive_rag (frozen) | 0.333 | 100/300 | 1.72e-4 | 2.0 | 1.0 | 0.0 | — |
+| rule_based (frozen) | 0.323 | 97/300 | 5.04e-4 | 4.0 | 1.0 | 1.0 | — |
+| max_tools (frozen) | **0.350** | **105/300** | 7.47e-4 | 7.0 | 3.0 | 1.0 | — |
+| learned `frontier_act0` | 0.333 | 100/300 | 1.72e-4 | **2.0** | **1.0** | **0.0** | identical 300/300 |
+| learned `frontier_act005` | 0.333 | 100/300 | 1.72e-4 | **2.0** | **1.0** | **0.0** | identical 300/300 |
+| learned `frontier_act02` | 0.333 | 100/300 | 1.72e-4 | **2.0** | **1.0** | **0.0** | identical 300/300 |
+
+Hotpot 59/150 and NQ 41/150 on every learned row — same as naive.
+
+- **The three learned dots stack on naive.** There is no frontier on this sweep. EM vs $ is one point, not a curve.
+- \(\lambda=80\) alone makes untargeted extra tools −EV (~0.046 $ term vs ~0.028 quality) even when \(P_{\mathrm{act}}=0\). Shrinking the action tax was not enough.
+- Train still sampled tools; eval argmax did not. Same entropy/mode trap as `default`.
+- This is a **knob** result, not a trainer bug. `correctness_only` already left two steps. Next sweep lowers λ (or only charges $ after a targeted win), not more MLP width.
+
+Eval reward under each training preset (same 2-step trajectories; only \(P_{\mathrm{act}}\) differs): act0 **0.587**, act005 **0.582**, act02 **0.567**.
+
 ---
 
 ## 7. Synthetic pilot (sanity / offline)
@@ -392,7 +441,8 @@ That gap is precisely where a learned policy should win: see `contradiction` / l
 6. **Verify is informative and unused by `rule_based`.** Lexical NLI returns 14 contradiction / 31 neutral / 105 support on Hotpot, and 0 / 18 / 132 on NQ. After every verify the frozen policy just stops. That unused state feature is a Milestone-3 win condition for RL, not a reason to drop verify.
 7. **REINFORCE under `default` sampled tools; eval argmax is naive.** Five train epochs: reward 0.649 → 0.564 → 0.643, verify 0.39–0.55, steps ~4. Frozen 300-eval: retrieve→stop **300/300**, predictions identical to naive, reward 0.580. Entropy hid the mode. The verify-on-contradiction win condition did not fire (`verify_out` is null).
 8. **Free-cost sanity (2026-09-13) validates the trainer.** `correctness_only` frozen eval is **8 steps / 3 retrieve / 2 verify on 300/300** (step cap), EM 0.340 (102/300, net +2 vs naive). `lambda_zero` frozen eval is still retrieve→stop 300/300. The loop can learn tools; \(P_{\mathrm{act}}\) is what keeps the ranking row naive.
-9. **Next:** shrink or re-shape \(P_{\mathrm{act}}\) (loop tax, not per-step tax). Do not retune the MLP to “use more tools” while the default scalar still makes tools −EV. The ranking `learned` row stays the `default` checkpoint. Do not cite the train curve as a policy win.
+9. **λ=80 `act_penalty` sweep did not draw a frontier.** `frontier_act0` / `act005` / `act02` frozen evals are all retrieve→stop 300/300, EM 0.333, identical to naive. Extra max_tools $ at λ=80 is ~0.046 vs ~0.028 quality, so even \(P_{\mathrm{act}}=0\) is still high pressure on average. Next: lower λ, not a bigger net.
+10. **Next:** a cheaper $ term (or quality-gated spend) if the paper figure needs points between naive and max_tools. The ranking `learned` row stays the `default` checkpoint. Do not cite any train curve as a policy win.
 
 ---
 
@@ -416,6 +466,9 @@ python scripts/run_pilot.py --reward-preset correctness_only \
   --learned-checkpoint results/checkpoints/learned_policy_correctness_only.pt \
   --no-figures
 python scripts/plot_results.py
+# Frontier family (separate checkpoints; does not overwrite default):
+# train + eval frontier_act0 / act005 / act02, then:
+python scripts/plot_results.py --frontier
 ```
 
 Then update numbers in this file and in `EXPERIMENT_LOG.md` from:
@@ -424,6 +477,7 @@ Then update numbers in this file and in `EXPERIMENT_LOG.md` from:
 - `results/metrics/learned_default.json` and `results/trajectories/learned_default.jsonl`
 - `results/metrics/learned_correctness_only.json` / `learned_lambda_zero.json` and matching JSONL
 - `results/metrics/train_policy_curve_correctness_only.json` / `train_policy_curve_lambda_zero.json`
+- `results/metrics/learned_frontier_act*.json` / `frontier_sweep_table.json` / `train_policy_curve_frontier_act*.json`
 - `results/metrics/reward_ablation_table.json` and `reward_ablation_by_dataset.json`
 - `results/metrics/train_policy_curve.json` (`"split": "train"`, n=100)
 - `data/processed/slice_meta.json` (`nq_corpus`, `n_nq_anchor`, `retrieval_diag`)

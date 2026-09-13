@@ -212,6 +212,14 @@ Trained and scored two new checkpoints on the same 100 / 300 split. Did not over
 
 The 09-12 arithmetic predicted this split. The network was never stuck at two steps; the default scalar made two steps optimal. Turning off dollars is not the fix — \(P_{\mathrm{act}}\) is.
 
+## 2026-09-13 — λ=80 frontier: three learned policies, one naive point
+
+Trained `frontier_act0` / `frontier_act005` / `frontier_act02` (same quality terms as `default`, \(\lambda=80\)). Frozen 300-eval is retrieve→stop **300/300** on every knob. Predictions identical to naive. EM 0.333 / $ 1.72e-4 / 0 verify.
+
+Train sampling still used tools, then shrank (act0: steps 4.75 → 2.93, verify 0.46 → 0.14). Sources: `learned_frontier_act*.json`, `train_policy_curve_frontier_act*.json`, `frontier_sweep_table.json`.
+
+Arithmetic: extra max_tools $ × 80 ≈ **0.046** vs quality ≈ **0.028**. Zeroing \(P_{\mathrm{act}}\) is not enough while λ is this large. The missing frontier is a **λ** problem. The only eval that left two steps remains `correctness_only` (λ=0 and \(P_{\mathrm{act}}=0\)).
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
@@ -225,3 +233,4 @@ The 09-12 arithmetic predicted this split. The network was never stuck at two st
 | 2026-09-10 | Learned 300-eval, frozen argmax | Retrieve→stop 300/300. EM 0.333, 59+41 correct, reward 0.580. Identical to naive. | Eval mode is naive. Verify-on-contradiction win condition did not fire. |
 | 2026-09-12 | Reward arithmetic on committed 300-eval | Extra tools: +0.10 \(P_{\mathrm{act}}\), +0.001 \(\lambda\$\), +0.028 quality. Reward −0.071. Cost mix ~99% action tax / ~1% dollars. | Collapse to naive is the reward, not the MLP. \(P_{\mathrm{act}}\) is backwards for a dollar-aware paper. |
 | 2026-09-13 | Free-cost trains + 300-eval | `correctness_only` argmax: 8 steps / 3 retrieve / 2 verify, EM 0.340 (102/300). `lambda_zero` argmax: retrieve→stop 300/300. | Trainer can learn tools. \(P_{\mathrm{act}}\), not λ, pins the ranking row to naive. |
+| 2026-09-13 | λ=80 `act_penalty` sweep | All three learned evals retrieve→stop 300/300, identical to naive. Train shrank toward 2 steps. | Extra $ at λ=80 is still −EV even at \(P_{\mathrm{act}}=0\). Next: lower λ. |

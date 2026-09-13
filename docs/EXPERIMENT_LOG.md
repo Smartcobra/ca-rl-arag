@@ -2,7 +2,7 @@
 
 Append-only notes while running pilots. Prefer short factual entries. **Each dated block names the run it belongs to.** Do not cite a number from this file without that run line.
 
-For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), and the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
+For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), and the λ=80 frontier (all three learned evals retrieve→stop 300/300), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
 
 ## 2026-08-07
 
@@ -247,3 +247,36 @@ Eval (`learned_lambda_zero.json`): retrieve→stop **300/300**, verify 0, predic
 - **`lambda_zero` still collapses.** Dollars/latency off is not enough; \(P_{\mathrm{act}}=0.02\) still makes extra tools −EV.
 - Quality ceiling is still small: +2 EM vs naive, below `max_tools` 105/300 under `default`.
 - Full write-up: `docs/RESULTS.md` §6 (Free-cost trainer sanity).
+
+## 2026-09-13 — Learned cost-pressure frontier (λ=80, act_penalty 0 / 0.005 / 0.02)
+
+**Run:** notebook `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`. Same 80k Tevatron-NQ 100-train / 300-eval, 261-param MLP, 5 epochs. Quality weights = `default`. \(\lambda=80\). Separate checkpoints (`learned_policy_frontier_act*.pt`). Frozen naive/rule/max were **not** re-scored.
+
+### Train (sampling)
+
+| Preset | ep1 steps / verify | ep5 steps / verify | last reward |
+|---|---|---|---:|
+| `frontier_act0` | 4.75 / 0.46 | 2.93 / 0.14 | 0.715 |
+| `frontier_act005` | 4.75 / 0.46 | 3.50 / 0.37 | 0.701 |
+| `frontier_act02` | 4.61 / 0.47 | 3.03 / 0.21 | 0.629 |
+
+Sources: `train_policy_curve_frontier_act0.json` / `_act005.json` / `_act02.json`.
+
+### 300-eval (frozen argmax)
+
+| Policy | EM | n_correct | $ | steps | retrieve | verify |
+|---|---:|---:|---:|---:|---:|---:|
+| naive_rag (frozen) | 0.333 | 100/300 | 1.72e-4 | 2.0 | 1.0 | 0.0 |
+| rule_based (frozen) | 0.323 | 97/300 | 5.04e-4 | 4.0 | 1.0 | 1.0 |
+| max_tools (frozen) | 0.350 | 105/300 | 7.47e-4 | 7.0 | 3.0 | 1.0 |
+| learned act=0 | 0.333 | 100/300 | 1.72e-4 | **2.0** | **1.0** | **0.0** |
+| learned act=0.005 | 0.333 | 100/300 | 1.72e-4 | **2.0** | **1.0** | **0.0** |
+| learned act=0.02 | 0.333 | 100/300 | 1.72e-4 | **2.0** | **1.0** | **0.0** |
+
+Predictions identical to naive **300/300** on every learned row (`learned_frontier_act*.jsonl`). Hotpot 59/150, NQ 41/150. Combined table: `frontier_sweep_table.json`.
+
+- **No EM-vs-$ curve.** Three learned dots sit on naive.
+- \(\lambda \times\) extra max_tools $ ≈ 0.046 vs ~0.028 quality, so even `act_penalty=0` is still high pressure on average.
+- Train sampled then shrank toward two steps. Eval argmax is naive. Not a trainer bug (`correctness_only` already used the step cap).
+- Next knob: **lower λ**, not a wider MLP.
+- Full write-up: `docs/RESULTS.md` §6 (Learned cost-pressure frontier).

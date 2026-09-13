@@ -10,7 +10,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 - Explicit multi-component reward + ablation presets (`src/rewards.py`, `configs/reward_weights.yaml`)
 - Dataset slices for **HotpotQA + single-hop** (NQ preferred; TriviaQA / SQuAD fallbacks — Scope Memo V2 §7)
 - Pilot logs, metrics, data cards, and implementation decision notes
-- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — `default` 300-eval is naive RAG; free-cost sanity (`correctness_only`) used the step cap
+- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — `default` and λ=80 frontier evals are naive RAG; free-cost `correctness_only` used the step cap
 
 ## Design locks (review comments)
 
@@ -18,7 +18,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 |---|---|---|
 | Verifier | **NLI** (`lexical_nli` default; optional `neural_nli`) | Consistent across experiments; not LLM-as-judge |
 | Reward weights | Justified defaults + ablation presets | See `docs/REWARD_DESIGN.md` |
-| Complexity order | Frozen baselines first, then tiny REINFORCE | Rule / naive / max ranked; `default` learned eval (2026-09-10) tied naive. Free-cost sanity 2026-09-13. GRPO/PPO still deferred |
+| Complexity order | Frozen baselines first, then tiny REINFORCE | Rule / naive / max ranked; `default` and λ=80 frontier learned evals tied naive. Free-cost sanity used the step cap. GRPO/PPO still deferred |
 | Action space | Five actions only | V1 discipline; semantic/keyword/expand deferred |
 
 ## Quick start
@@ -151,6 +151,19 @@ Same 100-train / 300-eval. Separate checkpoints. Notebook: `notebooks/FreeCost_T
 
 `correctness_only` vs naive: Hotpot 60 vs 59, NQ 42 vs 41 (9 recoveries / 7 regressions). The trainer can leave two steps when only \(Q_{\mathrm{ans}}\) pays. `lambda_zero` stays naive because \(P_{\mathrm{act}}=0.02\) is still on. Sources: `train_policy_curve_correctness_only.json`, `learned_correctness_only.json`, `train_policy_curve_lambda_zero.json`, `learned_lambda_zero.json`.
 
+### Learned cost-pressure frontier (2026-09-13; not a ranking table)
+
+Same quality terms as `default`, \(\lambda=80\), `act_penalty` 0 / 0.005 / 0.02. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`. Source: `frontier_sweep_table.json`.
+
+| Point | Eval EM | $ | steps / retrieve / verify |
+|---|---:|---:|---|
+| naive / rule / max (frozen) | 0.333 / 0.323 / **0.350** | 1.72e-4 / 5.04e-4 / 7.47e-4 | 2 / 4 / 7 |
+| learned act=0 | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
+| learned act=0.005 | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
+| learned act=0.02 | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
+
+All three learned evals are retrieve→stop 300/300, same 100 answers as naive. Extra max_tools $ at λ=80 is ~0.046 vs ~0.028 quality, so even `act_penalty=0` is still high pressure. No frontier curve yet. Next: lower λ.
+
 ### Reward-weight ablation (not a ranking table)
 
 Fixed `rule_based` policy, **stratified 100** from the **same Tevatron-NQ** 300-file (50 Hotpot + 50 NQ). EM/F1/$ stay flat (EM 0.34); only the scalar reward changes. Source: `results/metrics/reward_ablation_table.json` (rescored 2026-09-04). Presets with γ \(Q_{\mathrm{cal}}\) dropped vs the pre-fix table.
@@ -212,7 +225,7 @@ Sparse episode reward is returned on `stop` with a full component breakdown in `
 
 ## Next (Milestone 3)
 
-- `default` learned 300-eval **tied naive** (retrieve→stop). Free-cost sanity shows the trainer can use tools (`correctness_only` hit the step cap). Next: shrink \(P_{\mathrm{act}}\), then require verify on eval when it is +EV
+- `default` and λ=80 frontier learned evals **tied naive** (retrieve→stop). Free-cost `correctness_only` hit the step cap, so the trainer can use tools. Next: lower λ until extra $ is not larger than the quality those tools buy.
 - Compare against Adaptive-RAG as the open-loop baseline
 - λ–μ Pareto sweeps using `configs/reward_weights.yaml` → `pareto_sweep`
 - Optional neural NLI + denser retriever once the extractive/BM25 pipeline is solid
