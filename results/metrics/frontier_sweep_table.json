@@ -1,0 +1,75 @@
+{
+  "lambda_cost": 80.0,
+  "act_penalty": [
+    0.0,
+    0.005,
+    0.02
+  ],
+  "frozen": {
+    "naive_rag": {
+      "mean_em": 0.3333333333333333,
+      "mean_total_usd": 0.0001715225,
+      "mean_n_steps": 2.0,
+      "mean_n_retrieve": 1.0,
+      "mean_n_verify": 0.0,
+      "n_correct": 100.0,
+      "n_examples": 300.0,
+      "kind": "frozen"
+    },
+    "rule_based": {
+      "mean_em": 0.3233333333333333,
+      "mean_total_usd": 0.000504364,
+      "mean_n_steps": 4.0,
+      "mean_n_retrieve": 1.0,
+      "mean_n_verify": 1.0,
+      "n_correct": 97.0,
+      "n_examples": 300.0,
+      "kind": "frozen"
+    },
+    "max_tools": {
+      "mean_em": 0.35,
+      "mean_total_usd": 0.0007465066666666667,
+      "mean_n_steps": 7.0,
+      "mean_n_retrieve": 3.0,
+      "mean_n_verify": 1.0,
+      "n_correct": 105.0,
+      "n_examples": 300.0,
+      "kind": "frozen"
+    }
+  },
+  "learned": {
+    "frontier_act0": {
+      "mean_em": 0.3333333333333333,
+      "mean_total_usd": 0.0001715225,
+      "mean_n_steps": 2.0,
+      "mean_n_retrieve": 1.0,
+      "mean_n_verify": 0.0,
+      "n_correct": 100.0,
+      "n_examples": 300.0,
+      "kind": "learned",
+      "reward_preset": "frontier_act0"
+    },
+    "frontier_act005": {
+      "mean_em": 0.3333333333333333,
+      "mean_total_usd": 0.0001715225,
+      "mean_n_steps": 2.0,
+      "mean_n_retrieve": 1.0,
+      "mean_n_verify": 0.0,
+      "n_correct": 100.0,
+      "n_examples": 300.0,
+      "kind": "learned",
+      "reward_preset": "frontier_act005"
+    },
+    "frontier_act02": {
+      "mean_em": 0.3333333333333333,
+      "mean_total_usd": 0.0001715225,
+      "mean_n_steps": 2.0,
+      "mean_n_retrieve": 1.0,
+      "mean_n_verify": 0.0,
+      "n_correct": 100.0,
+      "n_examples": 300.0,
+      "kind": "learned",
+      "reward_preset": "frontier_act02"
+    }
+  }
+}
