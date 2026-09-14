@@ -26,7 +26,7 @@ python scripts/run_pilot.py --policies learned  # freeze the .pt; score the 300 
 
 `--policies learned` is **not** a re-train. `train_policy.py` only writes a homework curve. The exam is this second `run_pilot` command. Needs `results/checkpoints/learned_policy.pt`.
 
-**This checkout already ran the exam.** Source: `results/metrics/learned_default.json` + `results/trajectories/learned_default.jsonl`. Frozen argmax under `default` is **naive RAG**: retrieve→stop on 300/300, verify 0, predictions identical to naive. `pilot_summary_default.json` currently holds **naive + learned only** (this command rewrote it). Rule / max_tools numbers still live in `rule_based_default.json` / `max_tools_default.json`.
+**This checkout already ran the exam.** Source: `results/metrics/learned_default.json` + `results/trajectories/learned_default.jsonl`. Frozen argmax under `default` is **naive RAG**: retrieve→stop on 300/300, verify 0, predictions identical to naive. `pilot_summary_default.json` holds all four policies (naive / rule / max / learned), restored from the frozen `*_default.json` files. `--policies learned` **merges** into that file; it does not drop rule / max.
 
 **Free-cost sanity (2026-09-13) also ran.** Separate checkpoints: `learned_policy_correctness_only.pt` (eval used the step cap: 8 / 3 retrieve / 2 verify) and `learned_policy_lambda_zero.pt` (still retrieve→stop). Notebook: `notebooks/FreeCost_Trainer_Sanity_CA_RL_ARAG.ipynb`. See §4.7.
 
@@ -473,11 +473,15 @@ Needs `results/checkpoints/learned_policy.pt`.
 python scripts/run_pilot.py --policies learned
 ```
 
-`--policies learned` means **only the new row**. It **rewrites** `pilot_summary_default.json` to the policies you passed. This checkout’s summary currently has naive + learned; rule / max_tools remain in their own `*_default.json` files. To rebuild a four-policy summary:
+`--policies learned` means **only score the new row**. It **merges** into the existing `pilot_summary_default.json`. It does not drop rule / max.
+
+The canonical table is four policies: naive, rule, max, learned. After a learned-only exam the other rows stay. After a reward or slice change, rerun the default four-policy pilot so every row shares the new setup (needs `learned_policy.pt`):
 
 ```bash
 python scripts/run_pilot.py --run-env-check
 ```
+
+This checkout has no `.pt` on disk. The four-row summary was restored from `baseline_default.json` / `rule_based_default.json` / `max_tools_default.json` / `learned_default.json` (same ranking numbers; no new GPU exam).
 
 **This run (2026-09-10).** Source: `results/metrics/learned_default.json`, `results/trajectories/learned_default.jsonl` (300 rows).
 
@@ -501,7 +505,7 @@ If the `.pt` is missing:
 learned checkpoint missing: .../learned_policy.pt. Train first: python scripts/train_policy.py
 ```
 
-With `--policies learned` only, the script **exits** if the checkpoint is missing. With the default four-policy list, it **skips** `learned` and still writes naive / rule / max_tools.
+With `--policies learned` only, the script **exits** if the checkpoint is missing. With the default four-policy list, it **skips** `learned` and still writes naive / rule / max_tools (and **keeps** a previous `learned` row if the summary already had one).
 
 **What to look at:** overall, then Hotpot, then NQ — same as §4.3. You are not trying to beat Qwen. You are trying to beat the **controllers**. On this snapshot, learned **did not**: it matched naive on quality and cost, and never called verify.
 
@@ -510,7 +514,7 @@ With `--policies learned` only, the script **exits** if the checkpoint is missin
 | Path | Contents |
 |---|---|
 | `results/metrics/learned_default.json` | Learned-only summary (`by_dataset` same schema) |
-| `results/metrics/pilot_summary_default.json` | Combined table for the policies in **this** `run_pilot` invocation (here: naive + learned) |
+| `results/metrics/pilot_summary_default.json` | Combined four-policy table. This run’s keys overwrite matching rows; other policies are kept |
 | `results/trajectories/learned_default.jsonl` | Per-question logs on the **eval** split |
 
 `--learned-checkpoint` points eval at a non-default `.pt`. `--no-figures` skips rewriting `results/figs/` (use this on the free-cost presets so the ranking plots stay the `default` table).
@@ -599,7 +603,7 @@ Does not overwrite `learned_policy.pt` or the ranking plots.
 
 1. `smoke_test.py` prints `SMOKE OK` (then re-run `--hf` if you need the ranking corpus; smoke overwrites `data/processed/`)  
 2. `prepare_data.py --hf` writes `slice_meta.json` with `source: huggingface_nq_hotpot`, `n_eval: 300`, `eval_by_dataset` 150/150, **`n_passages` ≥ 50000**, **`n_nq_anchor`: 0**. Current ranking snapshot has `nq_corpus: dpr_wikipedia_w100` / `nq_hf_dataset: Tevatron/wikipedia-nq` and NQ recall@5 **0.587** (below 1.0).  
-3. `run_pilot.py` prints `Ranking data check OK` **before** the model loads, then writes per-policy JSON. `--policies learned` (2026-09-10) wrote `learned_default.json`: retrieve→stop 300/300, identical to naive. That command rewrites `pilot_summary_default.json` to the policies you passed.  
+3. `run_pilot.py` prints `Ranking data check OK` **before** the model loads, then writes per-policy JSON. `--policies learned` (2026-09-10) wrote `learned_default.json`: retrieve→stop 300/300, identical to naive. That command now **merges** into `pilot_summary_default.json` (it does not drop rule / max). A four-policy rerun still rebuilds every row if the reward or slice changed.  
 4. `run_reward_ablation.py` writes `reward_ablation_table.json` with six presets (**re-run after a corpus swap or a reward-formula change** — the on-disk ablation JSON is the Tevatron-NQ stratified 100, rescored 2026-09-04)  
 5. `plot_results.py` writes PNGs under `results/figs/`
 6. `train_policy.py` printed `TRAIN ONLY` on the 100-example train file and wrote `train_policy_curve.json` (5 epochs; reward 0.649 → 0.564 → 0.643). It never reads `eval_slice.jsonl`.

@@ -280,3 +280,7 @@ Predictions identical to naive **300/300** on every learned row (`learned_fronti
 - Train sampled then shrank toward two steps. Eval argmax is naive. Not a trainer bug (`correctness_only` already used the step cap).
 - Next knob: **lower λ**, not a wider MLP.
 - Full write-up: `docs/RESULTS.md` §6 (Learned cost-pressure frontier).
+
+## 2026-09-14 — Housekeeping: four-policy summary + merge
+
+**Not a new GPU exam.** `run_pilot.py` now merges this run's rows into an existing `pilot_summary_*.json` so `--policies learned` does not drop rule / max. `pilot_summary_default.json` was restored from the frozen `baseline_default.json` / `rule_based_default.json` / `max_tools_default.json` / `learned_default.json` (same ranking numbers). A four-policy rerun (`python scripts/run_pilot.py --run-env-check`) is still the clean rebuild after a reward or slice change; this checkout has no `learned_policy.pt` so that command was not re-run. Contract: [`HOW_TO_RUN.md`](HOW_TO_RUN.md) §4.6.

@@ -15,9 +15,9 @@ Historical leaked-NQ max-tools mechanism (tiny-corpus 2,276-passage run `34e6585
 ```text
 results/
 ├── metrics/                          # Aggregated summaries (committed)
-│   ├── pilot_summary_default.json    # Currently naive + learned (rewritten by --policies learned)
+│   ├── pilot_summary_default.json    # Four-policy ranking table (naive / rule / max / learned)
 │   ├── baseline_default.json         # Naive RAG only
-│   ├── rule_based_default.json       # Frozen ranking (not in current pilot_summary)
+│   ├── rule_based_default.json       # Frozen ranking
 │   ├── max_tools_default.json
 │   ├── learned_default.json          # Frozen REINFORCE on the 300 eval (2026-09-10)
 │   ├── learned_correctness_only.json # Free-cost sanity, 300 eval (2026-09-13)
@@ -72,7 +72,7 @@ results/
 
 | File type | Granularity | Typical use |
 |---|---|---|
-| `pilot_summary_*.json` | Overall + `by_dataset` (Hotpot / NQ) per policy | Comparison table; never cite overall alone. Current file has naive + learned only; rule/max are in their own JSON |
+| `pilot_summary_*.json` | Overall + `by_dataset` (Hotpot / NQ) per policy | Comparison table; never cite overall alone. Canonical `default` file has naive / rule / max / learned |
 | `learned_default.json` | Frozen REINFORCE on the **300 eval** (`default` reward) | Ranking row for the learned policy |
 | `learned_correctness_only.json` / `learned_lambda_zero.json` | Frozen REINFORCE on the same 300, free-cost presets | Trainer sanity, not the ranking table |
 | `train_policy_curve.json` | One object per **train** epoch (`default`) | Learning signal on the 100. **Not** a ranking number |
@@ -269,7 +269,7 @@ Best **train** mean reward is epoch 1 (0.649). Last-epoch reward is 0.643. Train
 - Train entropy hid a naive **mode**. Sampling during training used verify; argmax at test did not. That is why the homework curve is not the exam score.
 - The Milestone-3 win condition (re-retrieve / rewrite after `contradiction` or `neutral`) **did not fire** — verify never ran.
 
-`pilot_summary_default.json` was rewritten by `--policies learned` to naive + learned only. Rule / max_tools remain in `rule_based_default.json` / `max_tools_default.json`. Rebuild a four-policy summary with `python scripts/run_pilot.py --run-env-check` if you need one JSON blob.
+`pilot_summary_default.json` holds all four policies. `--policies learned` merges the learned row and does not drop rule / max. A full four-policy rerun (`python scripts/run_pilot.py --run-env-check`) still rebuilds every row after a reward or slice change.
 
 ### Free-cost trainer sanity (2026-09-13)
 
@@ -473,7 +473,7 @@ python scripts/plot_results.py --frontier
 
 Then update numbers in this file and in `EXPERIMENT_LOG.md` from:
 
-- `results/metrics/pilot_summary_default.json` (currently naive + learned; rule/max in their own JSON)
+- `results/metrics/pilot_summary_default.json` (four-policy ranking table)
 - `results/metrics/learned_default.json` and `results/trajectories/learned_default.jsonl`
 - `results/metrics/learned_correctness_only.json` / `learned_lambda_zero.json` and matching JSONL
 - `results/metrics/train_policy_curve_correctness_only.json` / `train_policy_curve_lambda_zero.json`

@@ -24,7 +24,7 @@ from src.data.preflight import assert_ranking_data
 from src.evaluate import evaluate_agent, evaluate_baseline, save_metrics
 from src.generation import build_generator
 from src.gpu import cleanup_gpu_resources, log_gpu_memory
-from src.metrics import counts_by_dataset, format_eval_summary
+from src.metrics import counts_by_dataset, format_eval_summary, merge_pilot_summary_results
 from src.policies import get_policy
 from src.rag_baseline import RAGBaseline
 from src.rag_env import ACTION_TO_IDX, AgenticRAGEnv
@@ -55,7 +55,10 @@ def main() -> None:
     parser.add_argument(
         "--policies",
         default="naive_rag,rule_based,max_tools,learned",
-        help="Comma-separated policies. learned is skipped if the checkpoint is missing.",
+        help=(
+            "Comma-separated policies. learned is skipped if the checkpoint is missing. "
+            "This run's rows merge into an existing pilot_summary_*.json; they do not drop other policies."
+        ),
     )
     parser.add_argument(
         "--learned-checkpoint",
@@ -200,6 +203,26 @@ def main() -> None:
 
         n_by_dataset = counts_by_dataset(examples)
         summary_path = metrics_dir / f"pilot_summary_{cfg['reward_preset_name']}.json"
+        existing_summary = None
+        if summary_path.exists():
+            try:
+                loaded = json.loads(summary_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                print(f"Could not read existing {summary_path.name} ({exc}); writing this run only")
+            else:
+                if isinstance(loaded, dict):
+                    existing_summary = loaded
+        merged_results = merge_pilot_summary_results(existing_summary, results)
+        kept = [k for k in merged_results if k not in results]
+        if existing_summary is None:
+            print(f"Wrote new {summary_path.name} (no prior file)")
+        elif kept:
+            print(
+                f"Merged into existing {summary_path.name} "
+                f"(kept {', '.join(kept)}; wrote {', '.join(results) or 'nothing'})"
+            )
+        else:
+            print(f"Merged into existing {summary_path.name} (wrote {', '.join(results) or 'nothing'})")
         summary_path.write_text(
             json.dumps(
                 {
@@ -210,7 +233,7 @@ def main() -> None:
                     "n_examples_by_dataset_in_file": n_file,
                     "limit": args.limit,
                     "split": args.split,
-                    "results": results,
+                    "results": merged_results,
                     "ablation_presets_available": cfg["reward_ablation_presets"],
                 },
                 indent=2,

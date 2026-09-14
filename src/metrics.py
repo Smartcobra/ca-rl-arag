@@ -127,6 +127,25 @@ def format_eval_summary(policy: str, summary: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def merge_pilot_summary_results(
+    existing: dict[str, Any] | None,
+    new_results: dict[str, Any],
+) -> dict[str, Any]:
+    """Keep rows from a previous ``pilot_summary_*.json``; this run's keys win.
+
+    ``--policies learned`` must not drop ``rule_based`` / ``max_tools``. A full
+    four-policy run replaces all four keys and looks like a rewrite of
+    ``results``.
+    """
+    merged: dict[str, Any] = {}
+    if existing:
+        old = existing.get("results")
+        if isinstance(old, dict):
+            merged.update(old)
+    merged.update(new_results)
+    return merged
+
+
 def compact_ablation_row(summary: dict[str, Any]) -> dict[str, Any]:
     keys = (
         "mean_em",
