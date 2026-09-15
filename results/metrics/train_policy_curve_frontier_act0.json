@@ -2,7 +2,7 @@
   {
     "epoch": 1,
     "n": 100,
-    "mean_reward": 0.6927967493969382,
+    "mean_reward": 0.6929089116821132,
     "mean_em": 0.42,
     "mean_n_steps": 4.75,
     "mean_n_retrieve": 1.62,
@@ -15,7 +15,7 @@
   {
     "epoch": 2,
     "n": 100,
-    "mean_reward": 0.6927845764573335,
+    "mean_reward": 0.6929000240471386,
     "mean_em": 0.42,
     "mean_n_steps": 3.97,
     "mean_n_retrieve": 1.36,
@@ -28,7 +28,7 @@
   {
     "epoch": 3,
     "n": 100,
-    "mean_reward": 0.6893010361478176,
+    "mean_reward": 0.6893923952118926,
     "mean_em": 0.43,
     "mean_n_steps": 3.36,
     "mean_n_retrieve": 1.28,
@@ -41,7 +41,7 @@
   {
     "epoch": 4,
     "n": 100,
-    "mean_reward": 0.6749647826954831,
+    "mean_reward": 0.675054958133738,
     "mean_em": 0.41,
     "mean_n_steps": 3.02,
     "mean_n_retrieve": 1.23,
@@ -54,7 +54,7 @@
   {
     "epoch": 5,
     "n": 100,
-    "mean_reward": 0.715210505676236,
+    "mean_reward": 0.7152881203147511,
     "mean_em": 0.43,
     "mean_n_steps": 2.93,
     "mean_n_retrieve": 1.23,
