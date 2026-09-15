@@ -97,14 +97,18 @@ presets:
     quality_gate: 0.5
     unused_budget_bonus: 0.2
 
-  # Paper headline family: same quality terms as default, λ=80 so measured $
-  # is visible (~0.046 on a max_tools extra vs ~0.028 quality), only P_act changes.
+  # Paper headline family: same quality terms as default. The sweep must
+  # straddle break-even on extra max_tools $ (~5.8e-4) vs ~0.028 quality:
+  #   λ=0  → $ term 0 (tools free; sanity: policy uses them)
+  #   λ=20 → 20 × 5.8e-4 ≈ 0.012 < 0.028 (tools still +EV)
+  #   λ=80 → 80 × 5.8e-4 ≈ 0.046 > 0.028 (tools −EV; keep P_act=0.02)
+  # The 2026-09-13 λ=80 / act 0–0.02 family sat entirely on the −EV side.
   # Not part of run_reward_ablation.py's default preset list.
-  frontier_act0:
+  frontier_lambda0:
     alpha: 1.0
     beta: 0.4
     gamma: 0.15
-    lambda_cost: 80.0
+    lambda_cost: 0.0
     mu_latency: 0.5
     hall_weight: 0.5
     act_penalty: 0.0
@@ -113,14 +117,14 @@ presets:
     quality_gate: 0.5
     unused_budget_bonus: 0.1
 
-  frontier_act005:
+  frontier_lambda20:
     alpha: 1.0
     beta: 0.4
     gamma: 0.15
-    lambda_cost: 80.0
+    lambda_cost: 20.0
     mu_latency: 0.5
     hall_weight: 0.5
-    act_penalty: 0.005
+    act_penalty: 0.0
     bud_penalty: 1.0
     verify_ignored_extra: 0.15
     quality_gate: 0.5
@@ -144,8 +148,9 @@ pareto_sweep:
   lambda_cost: [0.0, 0.5, 1.0, 2.0, 4.0, 8.0]
   mu_latency: [0.0, 0.25, 0.5, 1.0]
 
-# Learned-policy cost-pressure family (train one MLP per act_penalty).
+# Learned-policy cost-pressure family. One MLP per (λ, P_act) that crosses
+# the extra-spend break-even line. Train 40 epochs; log greedy eval_reward.
 frontier_sweep:
-  lambda_cost: 80.0
-  act_penalty: [0.0, 0.005, 0.02]
-  presets: [frontier_act0, frontier_act005, frontier_act02]
+  lambda_cost: [0.0, 20.0, 80.0]
+  act_penalty: [0.0, 0.0, 0.02]
+  presets: [frontier_lambda0, frontier_lambda20, frontier_act02]

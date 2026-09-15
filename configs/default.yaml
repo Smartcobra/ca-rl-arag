@@ -97,7 +97,9 @@ policy:
   learned:
     hidden: 16
     lr: 0.003
-    epochs: 5
+    # 5 epochs left every curve in the sampled mode. 40 is inside 30–50 so
+    # argmax can settle; train_policy.py also logs greedy eval_reward / epoch.
+    epochs: 40
     entropy_coef: 0.01
     checkpoint: results/checkpoints/learned_policy.pt
 

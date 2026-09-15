@@ -66,6 +66,8 @@ policy:
   learned:
     hidden: 16
     lr: 0.003
+    # Laptop / extractive debug only. Ranking and frontier trains use
+    # configs/default.yaml (40 epochs) plus a greedy eval_reward pass.
     epochs: 5
     entropy_coef: 0.01
     checkpoint: results/checkpoints/learned_policy.pt

@@ -3,6 +3,10 @@
 
 Train split only: reads ``train_slice.jsonl`` (100 examples). Never opens
 ``eval_slice.jsonl``. The 300-example ranking file is a later, separate eval.
+
+Each epoch logs sampled ``mean_reward`` and a deterministic (argmax)
+``eval_reward`` on the same train examples. Frozen ``run_pilot`` scoring
+also uses argmax; without this pass the sample-vs-greedy gap is invisible.
 """
 
 from __future__ import annotations
@@ -58,6 +62,93 @@ def _reinforce_loss(
     return -(logp_sum * float(advantage)) - float(entropy_coef) * ent_sum
 
 
+def _mean(xs: list[float]) -> float:
+    return float(sum(xs) / len(xs)) if xs else 0.0
+
+
+def _episode_action_stats(env: AgenticRAGEnv) -> dict[str, float]:
+    state = env._state
+    if state is None:
+        return {"n_steps": 0.0, "n_retrieve": 0.0, "n_verify": 0.0}
+    return {
+        "n_steps": float(len(state.action_history)),
+        "n_retrieve": float(state.counts.get("retrieve", 0)),
+        "n_verify": float(state.counts.get("verify", 0)),
+    }
+
+
+def _rollout(
+    env: AgenticRAGEnv,
+    policy: LearnedPolicy,
+    cfg: dict,
+    example: dict,
+    *,
+    deterministic: bool,
+) -> tuple[float, float, dict[str, float], list[torch.Tensor], list[torch.Tensor]]:
+    """One episode. Training samples; greedy eval uses argmax (deterministic=True)."""
+    obs, _info = env.reset(options={"example": example})
+    log_probs: list[torch.Tensor] = []
+    entropies: list[torch.Tensor] = []
+    done = False
+    last_info: dict = {}
+    reward = 0.0
+    while not done:
+        obs_before = obs
+        action_idx, logp, ent = policy.act(obs, cfg=cfg, deterministic=deterministic)
+        obs, r, term, trunc, info = env.step(action_idx)
+        executed_name = str(info.get("action") or "")
+        executed_idx = ACTION_TO_IDX.get(executed_name, action_idx)
+        if executed_idx != action_idx:
+            logp, ent = policy.log_prob_action(obs_before, executed_idx, cfg=cfg)
+        if not deterministic:
+            log_probs.append(logp)
+            entropies.append(ent)
+        reward = float(r)
+        last_info = info
+        done = bool(term or trunc)
+    ep = last_info.get("episode_result") or {}
+    return reward, float(ep.get("em") or 0.0), _episode_action_stats(env), log_probs, entropies
+
+
+def greedy_eval_epoch(
+    env: AgenticRAGEnv,
+    policy: LearnedPolicy,
+    cfg: dict,
+    examples: list[dict],
+) -> dict[str, float]:
+    """Argmax pass on the TRAIN examples. Never opens eval_slice.jsonl.
+
+    Frozen run_pilot scoring also uses argmax. Logging this as eval_reward is
+    how we see the sample-vs-greedy gap that previously erased tool use.
+    """
+    was_training = policy.mlp.training
+    policy.mlp.eval()
+    rewards: list[float] = []
+    ems: list[float] = []
+    steps: list[float] = []
+    retrieves: list[float] = []
+    verifies: list[float] = []
+    try:
+        with torch.no_grad():
+            for ex in examples:
+                reward, em, stats, _, _ = _rollout(env, policy, cfg, ex, deterministic=True)
+                rewards.append(reward)
+                ems.append(em)
+                steps.append(stats["n_steps"])
+                retrieves.append(stats["n_retrieve"])
+                verifies.append(stats["n_verify"])
+    finally:
+        if was_training:
+            policy.mlp.train()
+    return {
+        "eval_reward": _mean(rewards),
+        "eval_em": _mean(ems),
+        "eval_n_steps": _mean(steps),
+        "eval_n_retrieve": _mean(retrieves),
+        "eval_n_verify": _mean(verifies),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the tiny REINFORCE policy on the 100-example train split only.")
     parser.add_argument("--config", default="configs/default.yaml")
@@ -88,7 +179,7 @@ def main() -> None:
 
     cfg = load_config(args.config, reward_preset=args.reward_preset)
     learned = _learned_cfg(cfg)
-    epochs = int(args.epochs if args.epochs is not None else learned.get("epochs", 5))
+    epochs = int(args.epochs if args.epochs is not None else learned.get("epochs", 40))
     lr = float(args.lr if args.lr is not None else learned.get("lr", 0.003))
     hidden = int(args.hidden if args.hidden is not None else learned.get("hidden", 16))
     entropy_coef = float(args.entropy_coef if args.entropy_coef is not None else learned.get("entropy_coef", 0.01))
@@ -135,7 +226,7 @@ def main() -> None:
     env = None
     curve: list[dict] = []
     baseline = 0.0
-    best_reward = float("-inf")
+    best_eval_reward = float("-inf")
 
     log_gpu_memory("before model creation")
     generator = build_generator(cfg)
@@ -157,38 +248,14 @@ def main() -> None:
             epoch_verify: list[float] = []
 
             for ex in order:
-                obs, _info = env.reset(options={"example": ex})
-                log_probs: list[torch.Tensor] = []
-                entropies: list[torch.Tensor] = []
-                done = False
-                last_info: dict = {}
-                reward = 0.0
-                while not done:
-                    obs_before = obs
-                    action_idx, logp, ent = policy.act(obs, cfg=cfg)
-                    obs, r, term, trunc, info = env.step(action_idx)
-                    executed_name = str(info.get("action") or "")
-                    executed_idx = ACTION_TO_IDX.get(executed_name, action_idx)
-                    if executed_idx != action_idx:
-                        logp, ent = policy.log_prob_action(obs_before, executed_idx, cfg=cfg)
-                    log_probs.append(logp)
-                    entropies.append(ent)
-                    reward = float(r)
-                    last_info = info
-                    done = bool(term or trunc)
-
+                reward, em, stats, log_probs, entropies = _rollout(
+                    env, policy, cfg, ex, deterministic=False
+                )
                 epoch_rewards.append(reward)
-                ep = last_info.get("episode_result") or {}
-                epoch_em.append(float(ep.get("em") or 0.0))
-                state = env._state
-                if state is not None:
-                    epoch_steps.append(float(len(state.action_history)))
-                    epoch_retrieve.append(float(state.counts.get("retrieve", 0)))
-                    epoch_verify.append(float(state.counts.get("verify", 0)))
-                else:
-                    epoch_steps.append(0.0)
-                    epoch_retrieve.append(0.0)
-                    epoch_verify.append(0.0)
+                epoch_em.append(em)
+                epoch_steps.append(stats["n_steps"])
+                epoch_retrieve.append(stats["n_retrieve"])
+                epoch_verify.append(stats["n_verify"])
 
                 if log_probs:
                     advantage = reward - baseline
@@ -198,14 +265,21 @@ def main() -> None:
                     opt.step()
                 baseline = 0.95 * baseline + 0.05 * reward
 
+            greedy = greedy_eval_epoch(env, policy, cfg, examples)
             row = {
                 "epoch": epoch,
                 "n": len(order),
-                "mean_reward": float(sum(epoch_rewards) / len(epoch_rewards)),
-                "mean_em": float(sum(epoch_em) / len(epoch_em)),
-                "mean_n_steps": float(sum(epoch_steps) / len(epoch_steps)),
-                "mean_n_retrieve": float(sum(epoch_retrieve) / len(epoch_retrieve)),
-                "mean_n_verify": float(sum(epoch_verify) / len(epoch_verify)),
+                "mean_reward": _mean(epoch_rewards),
+                "mean_em": _mean(epoch_em),
+                "mean_n_steps": _mean(epoch_steps),
+                "mean_n_retrieve": _mean(epoch_retrieve),
+                "mean_n_verify": _mean(epoch_verify),
+                "eval_reward": greedy["eval_reward"],
+                "eval_em": greedy["eval_em"],
+                "eval_n_steps": greedy["eval_n_steps"],
+                "eval_n_retrieve": greedy["eval_n_retrieve"],
+                "eval_n_verify": greedy["eval_n_verify"],
+                "eval_split": "train_greedy",
                 "split": "train",
                 "hidden": hidden,
                 "lr": lr,
@@ -215,21 +289,26 @@ def main() -> None:
             curve_path.write_text(json.dumps(curve, indent=2), encoding="utf-8")
             print(
                 f"epoch {epoch}/{epochs}  n={row['n']}  "
-                f"mean_reward={row['mean_reward']:.4f}  mean_em={row['mean_em']:.3f}  "
-                f"mean_steps={row['mean_n_steps']:.2f}  "
-                f"mean_retrieve={row['mean_n_retrieve']:.2f}  "
-                f"mean_verify={row['mean_n_verify']:.2f}"
+                f"mean_reward={row['mean_reward']:.4f}  eval_reward={row['eval_reward']:.4f}  "
+                f"mean_em={row['mean_em']:.3f}  eval_em={row['eval_em']:.3f}  "
+                f"mean_steps={row['mean_n_steps']:.2f}  eval_steps={row['eval_n_steps']:.2f}  "
+                f"mean_retrieve={row['mean_n_retrieve']:.2f}  eval_retrieve={row['eval_n_retrieve']:.2f}  "
+                f"mean_verify={row['mean_n_verify']:.2f}  eval_verify={row['eval_n_verify']:.2f}"
             )
-            extra = {"epoch": epoch, "mean_reward": row["mean_reward"]}
+            extra = {
+                "epoch": epoch,
+                "mean_reward": row["mean_reward"],
+                "eval_reward": row["eval_reward"],
+            }
             policy.save(ckpt_path, extra=extra)
-            if row["mean_reward"] > best_reward:
-                best_reward = row["mean_reward"]
+            if row["eval_reward"] > best_eval_reward:
+                best_eval_reward = row["eval_reward"]
                 policy.save(best_path, extra=extra)
 
         print(f"Wrote {curve_path}")
         print(f"Wrote {ckpt_path}")
         if best_path.exists():
-            print(f"Wrote {best_path} (best mean_reward={best_reward:.4f})")
+            print(f"Wrote {best_path} (best eval_reward={best_eval_reward:.4f})")
     finally:
         log_gpu_memory("before cleanup")
         cleanup_gpu_resources(env, agent, generator)

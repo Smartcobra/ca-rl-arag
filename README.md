@@ -151,18 +151,20 @@ Same 100-train / 300-eval. Separate checkpoints. Notebook: `notebooks/FreeCost_T
 
 `correctness_only` vs naive: Hotpot 60 vs 59, NQ 42 vs 41 (9 recoveries / 7 regressions). The trainer can leave two steps when only \(Q_{\mathrm{ans}}\) pays. `lambda_zero` stays naive because \(P_{\mathrm{act}}=0.02\) is still on. Sources: `train_policy_curve_correctness_only.json`, `learned_correctness_only.json`, `train_policy_curve_lambda_zero.json`, `learned_lambda_zero.json`.
 
-### Learned cost-pressure frontier (2026-09-13; not a ranking table)
+### Learned cost-pressure frontier (2026-09-13 failed; 2026-09-15 retarget)
 
-Same quality terms as `default`, \(\lambda=80\), `act_penalty` 0 / 0.005 / 0.02. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`. Source: `frontier_sweep_table.json`.
+Same quality terms as `default`. **2026-09-13:** \(\lambda=80\), `act_penalty` 0 / 0.005 / 0.02. All three learned evals retrieve→stop 300/300. Extra max_tools $ at λ=80 is ~0.046 vs ~0.028 quality, so even `act_penalty=0` was still high pressure. Source: `frontier_sweep_table.json`.
+
+**2026-09-15 config (not yet a GPU run):** `frontier_lambda0` (λ=0, act=0), `frontier_lambda20` (λ=20, act=0), `frontier_act02` (λ=80, act=0.02). 40 epochs + greedy `eval_reward` each epoch. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`.
 
 | Point | Eval EM | $ | steps / retrieve / verify |
 |---|---:|---:|---|
 | naive / rule / max (frozen) | 0.333 / 0.323 / **0.350** | 1.72e-4 / 5.04e-4 / 7.47e-4 | 2 / 4 / 7 |
-| learned act=0 | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
-| learned act=0.005 | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
-| learned act=0.02 | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
+| learned act=0 (λ=80, 09-13) | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
+| learned act=0.005 (λ=80, 09-13) | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
+| learned act=0.02 (λ=80, 09-13) | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
 
-All three learned evals are retrieve→stop 300/300, same 100 answers as naive. Extra max_tools $ at λ=80 is ~0.046 vs ~0.028 quality, so even `act_penalty=0` is still high pressure. No frontier curve yet. Next: lower λ.
+All three 09-13 learned evals are retrieve→stop 300/300, same 100 answers as naive. Re-run with the λ=0 / 20 / 80 family before citing a frontier curve.
 
 ### Reward-weight ablation (not a ranking table)
 

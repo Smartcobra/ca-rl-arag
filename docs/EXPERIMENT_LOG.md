@@ -2,7 +2,7 @@
 
 Append-only notes while running pilots. Prefer short factual entries. **Each dated block names the run it belongs to.** Do not cite a number from this file without that run line.
 
-For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), and the λ=80 frontier (all three learned evals retrieve→stop 300/300), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
+For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), the λ=80 frontier (all three learned evals retrieve→stop 300/300), and the 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`; not a GPU run), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
 
 ## 2026-08-07
 
@@ -280,6 +280,12 @@ Predictions identical to naive **300/300** on every learned row (`learned_fronti
 - Train sampled then shrank toward two steps. Eval argmax is naive. Not a trainer bug (`correctness_only` already used the step cap).
 - Next knob: **lower λ**, not a wider MLP.
 - Full write-up: `docs/RESULTS.md` §6 (Learned cost-pressure frontier).
+
+## 2026-09-15 — Frontier retarget (config + trainer; not a GPU run)
+
+Replaced the three λ=80 `act_penalty` presets with `frontier_lambda0` (λ=0, act=0), `frontier_lambda20` (λ=20, act=0), `frontier_act02` (λ=80, act=0.02). Trainer default is **40 epochs**. Each epoch logs greedy `eval_reward` (argmax on the 100 train examples). `_best.pt` tracks greedy reward. Notebook commands pass `--epochs 40`.
+
+Break-even: extra max_tools $ ≈ 5.8e-4. λ=20 → ≈0.012 < 0.028 quality. λ=80 → ≈0.046 > 0.028. The 09-13 family never left the −EV side.
 
 ## 2026-09-14 — Housekeeping: four-policy summary + merge
 

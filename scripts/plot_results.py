@@ -38,18 +38,27 @@ COLORS = {
     "max_tools": "#3A5A40",
     "always_max": "#3A5A40",
     "learned": "#7B2D8E",
+    "frontier_lambda0": "#7B2D8E",
+    "frontier_lambda20": "#9B4DB0",
+    "frontier_act02": "#C77DFF",
+    # Historical 2026-09-13 λ=80 family (failed sweep; kept so old JSON still plots).
     "frontier_act0": "#7B2D8E",
     "frontier_act005": "#9B4DB0",
-    "frontier_act02": "#C77DFF",
 }
 
 # Frozen ranking anchors + learned family for the headline EM-vs-$ figure.
+# Order is free → mid → expensive so the line, if it exists, reads left-to-right.
 FRONTIER_FROZEN = ("naive_rag", "rule_based", "max_tools")
 FRONTIER_LEARNED = (
-    ("frontier_act0", "learned act=0"),
-    ("frontier_act005", "learned act=0.005"),
-    ("frontier_act02", "learned act=0.02"),
+    ("frontier_lambda0", "learned λ=0"),
+    ("frontier_lambda20", "learned λ=20"),
+    ("frontier_act02", "learned λ=80 act=0.02"),
 )
+FRONTIER_PRESET_META = {
+    "frontier_lambda0": {"lambda_cost": 0.0, "act_penalty": 0.0},
+    "frontier_lambda20": {"lambda_cost": 20.0, "act_penalty": 0.0},
+    "frontier_act02": {"lambda_cost": 80.0, "act_penalty": 0.02},
+}
 FRONTIER_FROZEN_FILES = {
     "naive_rag": "baseline_default.json",
     "rule_based": "rule_based_default.json",
@@ -211,10 +220,12 @@ def collect_frontier_table(metrics_dir: Path) -> dict:
             "n_examples": float(stats.get("n_examples") or 0.0),
             "kind": "learned",
             "reward_preset": preset,
+            **dict(FRONTIER_PRESET_META.get(preset) or {}),
         }
     return {
-        "lambda_cost": 80.0,
-        "act_penalty": [0.0, 0.005, 0.02],
+        "lambda_cost": [FRONTIER_PRESET_META[p]["lambda_cost"] for p, _ in FRONTIER_LEARNED],
+        "act_penalty": [FRONTIER_PRESET_META[p]["act_penalty"] for p, _ in FRONTIER_LEARNED],
+        "presets": [p for p, _ in FRONTIER_LEARNED],
         "frozen": frozen,
         "learned": learned,
     }
@@ -271,7 +282,7 @@ def plot_frontier_em_usd(table: dict, out_dir: Path) -> None:
         ax.plot(xs, ys, color="#7B2D8E", linewidth=1.2, alpha=0.7, zorder=2)
     ax.set_xlabel("Mean USD / example")
     ax.set_ylabel("Mean EM")
-    ax.set_title("Learned cost-pressure frontier (λ=80, locked 300-eval)")
+    ax.set_title("Learned cost-pressure frontier (λ=0 / 20 / 80, locked 300-eval)")
     ax.grid(True, alpha=0.3)
     ax.legend(frameon=False, fontsize=8)
     fig.tight_layout()

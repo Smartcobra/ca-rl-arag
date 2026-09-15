@@ -94,7 +94,15 @@ def main() -> None:
     assert "episode_result" in info
 
     # Reward ablation presets load
-    for preset in ["default", "correctness_only", "lambda_zero", "high_cost_pressure"]:
+    for preset in [
+        "default",
+        "correctness_only",
+        "lambda_zero",
+        "high_cost_pressure",
+        "frontier_lambda0",
+        "frontier_lambda20",
+        "frontier_act02",
+    ]:
         c = load_config(reward_preset=preset)
         assert c["reward_preset_name"] == preset
 

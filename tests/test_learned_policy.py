@@ -77,6 +77,18 @@ def test_legal_mask_last_step() -> None:
     assert mask.sum() == 1
 
 
+def test_act_deterministic_is_argmax() -> None:
+    pol = LearnedPolicy(hidden=16, seed=0)
+    obs = np.zeros(OBS_DIM, dtype=np.float32)
+    obs[1] = 0.5
+    obs[2] = 1.0
+    with torch.no_grad():
+        a1, _, _ = pol.act(obs, cfg=_CFG, deterministic=True)
+        a2, _, _ = pol.act(obs, cfg=_CFG, deterministic=True)
+        expected = int(pol._dist(obs, _CFG).probs.argmax(dim=-1).item())
+    assert a1 == a2 == expected
+
+
 def test_act_respects_mask() -> None:
     pol = LearnedPolicy(hidden=16, seed=0)
     obs = _empty_evidence_obs()
@@ -165,6 +177,7 @@ def main() -> None:
     test_legal_mask_empty_evidence()
     test_legal_mask_last_step()
     test_act_respects_mask()
+    test_act_deterministic_is_argmax()
     test_reinforce_step_finite()
     test_assert_train_only_path()
     test_as_callable_empty_evidence()

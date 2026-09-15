@@ -220,6 +220,18 @@ Train sampling still used tools, then shrank (act0: steps 4.75 → 2.93, verify 
 
 Arithmetic: extra max_tools $ × 80 ≈ **0.046** vs quality ≈ **0.028**. Zeroing \(P_{\mathrm{act}}\) is not enough while λ is this large. The missing frontier is a **λ** problem. The only eval that left two steps remains `correctness_only` (λ=0 and \(P_{\mathrm{act}}=0\)).
 
+## 2026-09-15 — Frontier retarget: cross break-even; 40 epochs; greedy eval
+
+**Choice:** replace the three λ=80 `act_penalty` presets with a family that actually straddles the extra-spend break-even line, and stop training 5-epoch curves.
+
+**Presets** (`configs/reward_weights.yaml`): `frontier_lambda0` (λ=0, \(P_{\mathrm{act}}=0\)), `frontier_lambda20` (λ=20, \(P_{\mathrm{act}}=0\)), keep `frontier_act02` (λ=80, \(P_{\mathrm{act}}=0.02\)). Retired: `frontier_act0`, `frontier_act005`. Arithmetic: extra max_tools $ \(\approx 5.8\times 10^{-4}\); 20 × that ≈ **0.012 < 0.028** quality; 80 × that ≈ **0.046 > 0.028**.
+
+**Trainer:** `policy.learned.epochs` is **40** (inside 30–50). After every sampled epoch, `train_policy.py` rolls out argmax on the same 100 train examples and logs `eval_reward` / `eval_n_steps` / `eval_n_verify` (`eval_split: train_greedy`). `_best.pt` is the best greedy reward. The trainer still never opens `eval_slice.jsonl`. Frozen 300-eval remains a separate `run_pilot.py --policies learned` job.
+
+**Why both:** five epochs left every curve in the sampled mode. Eval argmax dropped verify. Without a greedy column on the next sweep we cannot tell whether a collapse is the reward or the training.
+
+Not a GPU run. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
@@ -234,3 +246,4 @@ Arithmetic: extra max_tools $ × 80 ≈ **0.046** vs quality ≈ **0.028**. Zero
 | 2026-09-12 | Reward arithmetic on committed 300-eval | Extra tools: +0.10 \(P_{\mathrm{act}}\), +0.001 \(\lambda\$\), +0.028 quality. Reward −0.071. Cost mix ~99% action tax / ~1% dollars. | Collapse to naive is the reward, not the MLP. \(P_{\mathrm{act}}\) is backwards for a dollar-aware paper. |
 | 2026-09-13 | Free-cost trains + 300-eval | `correctness_only` argmax: 8 steps / 3 retrieve / 2 verify, EM 0.340 (102/300). `lambda_zero` argmax: retrieve→stop 300/300. | Trainer can learn tools. \(P_{\mathrm{act}}\), not λ, pins the ranking row to naive. |
 | 2026-09-13 | λ=80 `act_penalty` sweep | All three learned evals retrieve→stop 300/300, identical to naive. Train shrank toward 2 steps. | Extra $ at λ=80 is still −EV even at \(P_{\mathrm{act}}=0\). Next: lower λ. |
+| 2026-09-15 | Frontier retarget (config + trainer) | Presets λ=0 / 20 / 80; 40 epochs; greedy `eval_reward` per epoch. | Sweep now crosses break-even; sample-vs-greedy gap is logged. Not a GPU run. |
