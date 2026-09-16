@@ -2,7 +2,7 @@
 
 Append-only notes while running pilots. Prefer short factual entries. **Each dated block names the run it belongs to.** Do not cite a number from this file without that run line.
 
-For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), the λ=80 frontier (all three learned evals retrieve→stop 300/300), and the 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`; not a GPU run), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
+For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), the λ=80 frontier (all three learned evals retrieve→stop 300/300; **`.pt` now in this checkout**), and the 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`; **no `learned_frontier_lambda0.json` / `_lambda20.json` yet**), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
 
 ## 2026-08-07
 
@@ -258,7 +258,7 @@ Eval (`learned_lambda_zero.json`): retrieve→stop **300/300**, verify 0, predic
 |---|---|---|---:|
 | `frontier_act0` | 4.75 / 0.46 | 2.93 / 0.14 | 0.715 |
 | `frontier_act005` | 4.75 / 0.46 | 3.50 / 0.37 | 0.701 |
-| `frontier_act02` | 4.61 / 0.47 | 3.03 / 0.21 | 0.629 |
+| `frontier_act02` | 4.61 / 0.47 | 3.11 / 0.23 | 0.642 |
 
 Sources: `train_policy_curve_frontier_act0.json` / `_act005.json` / `_act02.json`.
 
@@ -281,7 +281,7 @@ Predictions identical to naive **300/300** on every learned row (`learned_fronti
 - Next knob: **lower λ**, not a wider MLP.
 - Full write-up: `docs/RESULTS.md` §6 (Learned cost-pressure frontier).
 
-## 2026-09-15 — Frontier retarget (config + trainer; not a GPU run)
+## 2026-09-15 — Frontier retarget (config + trainer; λ=0 / 20 family not scored)
 
 Replaced the three λ=80 `act_penalty` presets with `frontier_lambda0` (λ=0, act=0), `frontier_lambda20` (λ=20, act=0), `frontier_act02` (λ=80, act=0.02). Trainer default is **40 epochs**. Each epoch logs greedy `eval_reward` (argmax on the 100 train examples). `_best.pt` tracks greedy reward. Notebook commands pass `--epochs 40`.
 
@@ -289,4 +289,19 @@ Break-even: extra max_tools $ ≈ 5.8e-4. λ=20 → ≈0.012 < 0.028 quality. λ
 
 ## 2026-09-14 — Housekeeping: four-policy summary + merge
 
-**Not a new GPU exam.** `run_pilot.py` now merges this run's rows into an existing `pilot_summary_*.json` so `--policies learned` does not drop rule / max. `pilot_summary_default.json` was restored from the frozen `baseline_default.json` / `rule_based_default.json` / `max_tools_default.json` / `learned_default.json` (same ranking numbers). A four-policy rerun (`python scripts/run_pilot.py --run-env-check`) is still the clean rebuild after a reward or slice change; this checkout has no `learned_policy.pt` so that command was not re-run. Contract: [`HOW_TO_RUN.md`](HOW_TO_RUN.md) §4.6.
+**Not a new GPU exam.** `run_pilot.py` now merges this run's rows into an existing `pilot_summary_*.json` so `--policies learned` does not drop rule / max. `pilot_summary_default.json` was restored from the frozen `baseline_default.json` / `rule_based_default.json` / `max_tools_default.json` / `learned_default.json` (same ranking numbers). A four-policy rerun (`python scripts/run_pilot.py --run-env-check`) is still the clean rebuild after a reward or slice change. Contract: [`HOW_TO_RUN.md`](HOW_TO_RUN.md) §4.6.
+
+## 2026-09-16 — Colab artifacts now local; still the λ=80 family
+
+**Run:** Drive/Colab sync into this checkout. Not the λ=0 / 20 / 80 40-epoch family.
+
+Now on disk:
+
+- `results/checkpoints/learned_policy.pt` / `_best.pt` (`default` ranking)
+- `learned_policy_correctness_only.pt` / `learned_policy_lambda_zero.pt` (and `_best.pt`)
+- `learned_policy_frontier_act0.pt` / `_act005.pt` / `_act02.pt` (and `_best.pt`)
+- matching `learned_frontier_act*.json` / `train_policy_curve_frontier_act*.json` / JSONL
+
+`pilot_summary_default.json` holds naive / rule / max / learned. Frozen λ=80 exams are still retrieve→stop **300/300**, EM 0.333, identical to naive. Train last-epoch on disk: act0 2.93 / 0.14 / 0.715; act005 3.50 / 0.37 / 0.701; act02 **3.11 / 0.23 / 0.642**.
+
+There is **no** `learned_frontier_lambda0.json` or `learned_frontier_lambda20.json`. `Frontier_Cost_Pressure_CA_RL_ARAG_v2.ipynb` cell source asks for `--reward-preset frontier_lambda0 --epochs 40`; saved outputs print `preset=frontier_act0 epochs=5`. The Drive clone trained the old yaml. Full write-up: [`RESULTS.md`](RESULTS.md) §6.

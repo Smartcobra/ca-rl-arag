@@ -42,7 +42,7 @@ Easy single-hop items stress-test cost-aware stopping. Quality-only agents often
 | max_tools | 0.293 | 44/150 | 18 | 7.55e-4 | 0.450 |
 | learned | 0.273 | 41/150 | 16 | 1.84e-4 | 0.529 |
 
-BM25 R@5 **0.587** (62/150 miss@5). Verify (`rule_based`): 0 contradiction / 18 neutral / 132 support. After every verify the frozen policy stops. `default` learned on this split is also 41/150, retrieve→stop, identical to naive (`learned_default.json`). Free-cost `correctness_only` learned is 42/150 at 8 steps (`learned_correctness_only.json`); not the ranking row. The λ=80 frontier family is also 41/150 retrieve→stop on every knob (`learned_frontier_act*.json`); not a ranking row. The 2026-09-15 retarget (`frontier_lambda0` / `_lambda20` / `_act02`) has not been scored yet.
+BM25 R@5 **0.587** (62/150 miss@5). Verify (`rule_based`): 0 contradiction / 18 neutral / 132 support. After every verify the frozen policy stops. `default` learned on this split is also 41/150, retrieve→stop, identical to naive (`learned_default.json`). Free-cost `correctness_only` learned is 42/150 at 8 steps (`learned_correctness_only.json`); not the ranking row. The λ=80 frontier family is also 41/150 retrieve→stop on every knob (`learned_frontier_act*.json`; `.pt` now local); not a ranking row. The 2026-09-15 retarget (`frontier_lambda0` / `_lambda20`) has **not** been scored — those JSON files are not on disk.
 
 ## Ethical / license notes
 - Follow Natural Questions / DPR / Tevatron / HuggingFace dataset terms

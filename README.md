@@ -10,7 +10,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 - Explicit multi-component reward + ablation presets (`src/rewards.py`, `configs/reward_weights.yaml`)
 - Dataset slices for **HotpotQA + single-hop** (NQ preferred; TriviaQA / SQuAD fallbacks — Scope Memo V2 §7)
 - Pilot logs, metrics, data cards, and implementation decision notes
-- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — `default` and λ=80 frontier evals are naive RAG; free-cost `correctness_only` used the step cap
+- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — `default` and λ=80 frontier evals are naive RAG (`.pt` files now local); free-cost `correctness_only` used the step cap; λ=0 / 20 family not scored
 
 ## Design locks (review comments)
 
@@ -18,7 +18,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 |---|---|---|
 | Verifier | **NLI** (`lexical_nli` default; optional `neural_nli`) | Consistent across experiments; not LLM-as-judge |
 | Reward weights | Justified defaults + ablation presets | See `docs/REWARD_DESIGN.md` |
-| Complexity order | Frozen baselines first, then tiny REINFORCE | Rule / naive / max ranked; `default` and λ=80 frontier learned evals tied naive. Free-cost sanity used the step cap. GRPO/PPO still deferred |
+| Complexity order | Frozen baselines first, then tiny REINFORCE | Rule / naive / max ranked; `default` and λ=80 frontier learned evals tied naive (checkpoints on disk). Free-cost sanity used the step cap. λ=0 / 20 not scored. GRPO/PPO still deferred |
 | Action space | Five actions only | V1 discipline; semantic/keyword/expand deferred |
 
 ## Quick start
@@ -67,7 +67,7 @@ python scripts/run_pilot.py --reward-preset correctness_only \
 
 ## Pilot results (snapshot)
 
-**Run this section describes:** 80k-passage Qwen ranking, same slice as commit `d456d26` (2026-08-27), **rescored 2026-09-04**. Learned 300-eval: 2026-09-10 (`learned_default.json`). Free-cost sanity: 2026-09-13 (`learned_correctness_only.json` / `learned_lambda_zero.json`). Source for frozen baselines: `results/metrics/rule_based_default.json` / `max_tools_default.json` / `baseline_default.json`. Slice: **300 examples (150 Hotpot + 150 NQ)**. Tevatron/wikipedia-nq loaded (`nq_corpus: dpr_wikipedia_w100`, `n_nq_anchor: 0`, 1,450 wiki golds / 847 eval gold articles). Corpus **80,000** passages. BM25 gold recall@5: Hotpot **0.927** (11 misses), NQ **0.587** (62 misses). Lexical NLI. `force_yes_no: true`, `allow_abstain: true`. Current `pilot_summary_default.json` holds naive / rule / max / learned. `--policies learned` merges into that file. The leaked-NQ write-up (148/150) is a different run: [`docs/NQ_MAX_TOOLS_ANALYSIS.md`](docs/NQ_MAX_TOOLS_ANALYSIS.md).
+**Run this section describes:** 80k-passage Qwen ranking, same slice as commit `d456d26` (2026-08-27), **rescored 2026-09-04**. Learned 300-eval: 2026-09-10 (`learned_default.json`; `learned_policy.pt` now local). Free-cost sanity: 2026-09-13 (`learned_correctness_only.json` / `learned_lambda_zero.json`). λ=80 frontier: 2026-09-13 exam, `.pt` synced 2026-09-15/16 (`learned_frontier_act*.json`). Source for frozen baselines: `results/metrics/rule_based_default.json` / `max_tools_default.json` / `baseline_default.json`. Slice: **300 examples (150 Hotpot + 150 NQ)**. Tevatron/wikipedia-nq loaded (`nq_corpus: dpr_wikipedia_w100`, `n_nq_anchor: 0`, 1,450 wiki golds / 847 eval gold articles). Corpus **80,000** passages. BM25 gold recall@5: Hotpot **0.927** (11 misses), NQ **0.587** (62 misses). Lexical NLI. `force_yes_no: true`, `allow_abstain: true`. Current `pilot_summary_default.json` holds naive / rule / max / learned. `--policies learned` merges into that file. The leaked-NQ write-up (148/150) is a different run: [`docs/NQ_MAX_TOOLS_ANALYSIS.md`](docs/NQ_MAX_TOOLS_ANALYSIS.md).
 
 **Comparison in one line:** Hotpot is 59 / 56 / 61 / **59**. NQ is 41 / 41 / 44 / **41**. `learned` (frozen argmax) **is naive RAG**. Extra tools still move a few answers on rule/max, but spend is 4.3× on `max_tools`, so reward ranks **naive = learned > rule > max_tools**.
 
@@ -151,20 +151,20 @@ Same 100-train / 300-eval. Separate checkpoints. Notebook: `notebooks/FreeCost_T
 
 `correctness_only` vs naive: Hotpot 60 vs 59, NQ 42 vs 41 (9 recoveries / 7 regressions). The trainer can leave two steps when only \(Q_{\mathrm{ans}}\) pays. `lambda_zero` stays naive because \(P_{\mathrm{act}}=0.02\) is still on. Sources: `train_policy_curve_correctness_only.json`, `learned_correctness_only.json`, `train_policy_curve_lambda_zero.json`, `learned_lambda_zero.json`.
 
-### Learned cost-pressure frontier (2026-09-13 failed; 2026-09-15 retarget)
+### Learned cost-pressure frontier (2026-09-13 failed; 2026-09-15/16 checkpoints local)
 
-Same quality terms as `default`. **2026-09-13:** \(\lambda=80\), `act_penalty` 0 / 0.005 / 0.02. All three learned evals retrieve→stop 300/300. Extra max_tools $ at λ=80 is ~0.046 vs ~0.028 quality, so even `act_penalty=0` was still high pressure. Source: `frontier_sweep_table.json`.
+Same quality terms as `default`. **2026-09-13 / re-synced 2026-09-15:** \(\lambda=80\), `act_penalty` 0 / 0.005 / 0.02. All three learned evals retrieve→stop 300/300. Extra max_tools $ at λ=80 is ~0.046 vs ~0.028 quality, so even `act_penalty=0` was still high pressure. Source: `frontier_sweep_table.json`. Checkpoints: `learned_policy_frontier_act*.pt` (now on disk).
 
-**2026-09-15 config (not yet a GPU run):** `frontier_lambda0` (λ=0, act=0), `frontier_lambda20` (λ=20, act=0), `frontier_act02` (λ=80, act=0.02). 40 epochs + greedy `eval_reward` each epoch. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`.
+**2026-09-15 config (no metric files yet):** `frontier_lambda0` (λ=0, act=0), `frontier_lambda20` (λ=20, act=0), `frontier_act02` (λ=80, act=0.02). 40 epochs + greedy `eval_reward` each epoch. Colab on 2026-09-15 still trained the old 5-epoch λ=80 family. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`.
 
 | Point | Eval EM | $ | steps / retrieve / verify |
 |---|---:|---:|---|
 | naive / rule / max (frozen) | 0.333 / 0.323 / **0.350** | 1.72e-4 / 5.04e-4 / 7.47e-4 | 2 / 4 / 7 |
-| learned act=0 (λ=80, 09-13) | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
-| learned act=0.005 (λ=80, 09-13) | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
-| learned act=0.02 (λ=80, 09-13) | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
+| learned act=0 (λ=80) | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
+| learned act=0.005 (λ=80) | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
+| learned act=0.02 (λ=80) | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
 
-All three 09-13 learned evals are retrieve→stop 300/300, same 100 answers as naive. Re-run with the λ=0 / 20 / 80 family before citing a frontier curve.
+All three λ=80 learned evals are retrieve→stop 300/300, same 100 answers as naive. There is no `learned_frontier_lambda0.json`. Re-run with the λ=0 / 20 / 80 family before citing a frontier curve.
 
 ### Reward-weight ablation (not a ranking table)
 
@@ -227,7 +227,7 @@ Sparse episode reward is returned on `stop` with a full component breakdown in `
 
 ## Next (Milestone 3)
 
-- `default` and λ=80 frontier learned evals **tied naive** (retrieve→stop). Free-cost `correctness_only` hit the step cap, so the trainer can use tools. Next: lower λ until extra $ is not larger than the quality those tools buy.
+- `default` and λ=80 frontier learned evals **tied naive** (retrieve→stop). Checkpoints for those runs are now local. Free-cost `correctness_only` hit the step cap, so the trainer can use tools. Next: actually train λ=0 / 20 / 80 for 40 epochs (yaml is wired; no metric files yet).
 - Compare against Adaptive-RAG as the open-loop baseline
 - λ–μ Pareto sweeps using `configs/reward_weights.yaml` → `pareto_sweep`
 - Optional neural NLI + denser retriever once the extractive/BM25 pipeline is solid

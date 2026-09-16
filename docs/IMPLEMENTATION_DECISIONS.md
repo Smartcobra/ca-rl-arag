@@ -168,7 +168,7 @@ Do not train GRPO/PPO against the pre-fix \(Q_{\mathrm{cal}}\).
 
 **Why tiny:** 100 trajectories cannot support a wide net. Hidden width is capped at 32 (`ValueError` above that). Observation is the existing env vector (including verify `support` / `contradiction`). Reward is the **fixed** 2026-09-04 calibration rule.
 
-**Update:** per-episode REINFORCE with an EMA reward baseline and entropy 0.01. Sparse terminal reward from `AgenticRAGEnv`. Learning curves: `results/metrics/train_policy_curve.json` (`default`) plus `train_policy_curve_correctness_only.json` / `train_policy_curve_lambda_zero.json`. Checkpoints: `results/checkpoints/learned_policy.pt` (`default` ranking) plus `learned_policy_correctness_only.pt` / `learned_policy_lambda_zero.pt`. `--curve` / `--checkpoint` keep those runs from overwriting each other.
+**Update:** per-episode REINFORCE with an EMA reward baseline and entropy 0.01. Sparse terminal reward from `AgenticRAGEnv`. Learning curves: `results/metrics/train_policy_curve.json` (`default`) plus `train_policy_curve_correctness_only.json` / `train_policy_curve_lambda_zero.json` / `train_policy_curve_frontier_act*.json`. Checkpoints now on disk: `learned_policy.pt` (`default` ranking) plus `learned_policy_correctness_only.pt` / `learned_policy_lambda_zero.pt` / `learned_policy_frontier_act0.pt` / `_act005.pt` / `_act02.pt` (and `_best.pt` copies). `--curve` / `--checkpoint` keep those runs from overwriting each other. Missing: `learned_policy_frontier_lambda0.pt` / `_lambda20.pt`.
 
 **Eval (not training):** `run_pilot.py` default `--policies` is `naive_rag,rule_based,max_tools,learned`. The checkpoint is loaded frozen (`deterministic` argmax) and run through the same `evaluate_agent` path, so `pilot_summary_*.json` gets a fourth `by_dataset` block. Missing checkpoint → skip `learned` (or exit if it is the only policy). The trainer still never opens the 300. Train mean reward is not a ranking number.
 
@@ -216,7 +216,7 @@ The 09-12 arithmetic predicted this split. The network was never stuck at two st
 
 Trained `frontier_act0` / `frontier_act005` / `frontier_act02` (same quality terms as `default`, \(\lambda=80\)). Frozen 300-eval is retrieve→stop **300/300** on every knob. Predictions identical to naive. EM 0.333 / $ 1.72e-4 / 0 verify.
 
-Train sampling still used tools, then shrank (act0: steps 4.75 → 2.93, verify 0.46 → 0.14). Sources: `learned_frontier_act*.json`, `train_policy_curve_frontier_act*.json`, `frontier_sweep_table.json`.
+Train sampling still used tools, then shrank (act0: steps 4.75 → 2.93, verify 0.46 → 0.14; act02 last-epoch on disk: 3.11 / 0.23 / 0.642). Sources: `learned_frontier_act*.json`, `train_policy_curve_frontier_act*.json`, `frontier_sweep_table.json`. Checkpoints synced into this checkout 2026-09-15/16.
 
 Arithmetic: extra max_tools $ × 80 ≈ **0.046** vs quality ≈ **0.028**. Zeroing \(P_{\mathrm{act}}\) is not enough while λ is this large. The missing frontier is a **λ** problem. The only eval that left two steps remains `correctness_only` (λ=0 and \(P_{\mathrm{act}}=0\)).
 
@@ -230,7 +230,7 @@ Arithmetic: extra max_tools $ × 80 ≈ **0.046** vs quality ≈ **0.028**. Zero
 
 **Why both:** five epochs left every curve in the sampled mode. Eval argmax dropped verify. Without a greedy column on the next sweep we cannot tell whether a collapse is the reward or the training.
 
-Not a GPU run. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`.
+Not a GPU run of the new family. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`. 2026-09-15/16 Colab still trained `frontier_act0` / 5 epochs; those `.pt` files are now local. There is no `learned_frontier_lambda0.json`.
 
 ## Observations template
 
@@ -246,4 +246,5 @@ Not a GPU run. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG.ipynb`.
 | 2026-09-12 | Reward arithmetic on committed 300-eval | Extra tools: +0.10 \(P_{\mathrm{act}}\), +0.001 \(\lambda\$\), +0.028 quality. Reward −0.071. Cost mix ~99% action tax / ~1% dollars. | Collapse to naive is the reward, not the MLP. \(P_{\mathrm{act}}\) is backwards for a dollar-aware paper. |
 | 2026-09-13 | Free-cost trains + 300-eval | `correctness_only` argmax: 8 steps / 3 retrieve / 2 verify, EM 0.340 (102/300). `lambda_zero` argmax: retrieve→stop 300/300. | Trainer can learn tools. \(P_{\mathrm{act}}\), not λ, pins the ranking row to naive. |
 | 2026-09-13 | λ=80 `act_penalty` sweep | All three learned evals retrieve→stop 300/300, identical to naive. Train shrank toward 2 steps. | Extra $ at λ=80 is still −EV even at \(P_{\mathrm{act}}=0\). Next: lower λ. |
-| 2026-09-15 | Frontier retarget (config + trainer) | Presets λ=0 / 20 / 80; 40 epochs; greedy `eval_reward` per epoch. | Sweep now crosses break-even; sample-vs-greedy gap is logged. Not a GPU run. |
+| 2026-09-15 | Frontier retarget (config + trainer) | Presets λ=0 / 20 / 80; 40 epochs; greedy `eval_reward` per epoch. | Sweep now crosses break-even; sample-vs-greedy gap is logged. |
+| 2026-09-16 | Colab `.pt` sync | λ=80 family checkpoints now local. Still retrieve→stop 300/300. No `lambda0` / `lambda20` JSON. | Do not cite v2 notebook outputs as the new family. |
