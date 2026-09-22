@@ -110,6 +110,58 @@ def _rollout(
     return reward, float(ep.get("em") or 0.0), _episode_action_stats(env), log_probs, entropies
 
 
+def _trainer_state_path(ckpt_path: Path) -> Path:
+    return Path(ckpt_path).with_name(Path(ckpt_path).stem + "_trainer" + Path(ckpt_path).suffix)
+
+
+def _load_curve(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, list):
+        raise ValueError(f"curve file must be a JSON list: {path}")
+    return data
+
+
+def _last_finished_epoch(curve: list[dict]) -> int:
+    epochs = [int(row["epoch"]) for row in curve if row.get("epoch") is not None]
+    return max(epochs) if epochs else 0
+
+
+def save_trainer_state(
+    path: Path,
+    *,
+    epoch: int,
+    optimizer: torch.optim.Optimizer,
+    baseline: float,
+    best_eval_reward: float,
+) -> Path:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "epoch": int(epoch),
+            "optimizer": optimizer.state_dict(),
+            "baseline": float(baseline),
+            "best_eval_reward": float(best_eval_reward),
+        },
+        path,
+    )
+    return path
+
+
+def load_trainer_state(path: Path) -> dict:
+    path = Path(path)
+    try:
+        payload = torch.load(path, map_location="cpu", weights_only=False)
+    except TypeError:
+        payload = torch.load(path, map_location="cpu")
+    for key in ("epoch", "optimizer", "baseline", "best_eval_reward"):
+        if key not in payload:
+            raise ValueError(f"trainer state {path} missing {key}")
+    return payload
+
+
 def greedy_eval_epoch(
     env: AgenticRAGEnv,
     policy: LearnedPolicy,
@@ -175,6 +227,12 @@ def main() -> None:
         help="Learning-curve JSON. Default: train_policy_curve.json for the default "
         "checkpoint, else train_policy_curve_<checkpoint-suffix>.json.",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Load last checkpoint, trainer state (epoch / optimizer / baseline / "
+        "best_eval_reward), and the existing curve, then continue from the next epoch.",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config, reward_preset=args.reward_preset)
@@ -227,6 +285,8 @@ def main() -> None:
     curve: list[dict] = []
     baseline = 0.0
     best_eval_reward = float("-inf")
+    start_epoch = 1
+    trainer_path = _trainer_state_path(ckpt_path)
 
     log_gpu_memory("before model creation")
     generator = build_generator(cfg)
@@ -238,7 +298,46 @@ def main() -> None:
         policy = LearnedPolicy(hidden=hidden, seed=seed, device="cpu")
         opt = torch.optim.Adam(policy.parameters(), lr=lr)
 
-        for epoch in range(1, epochs + 1):
+        if args.resume:
+            if not ckpt_path.exists():
+                raise SystemExit(f"--resume needs checkpoint {ckpt_path}")
+            if not trainer_path.exists():
+                raise SystemExit(
+                    f"--resume needs trainer state {trainer_path} "
+                    "(epoch, optimizer, baseline, best_eval_reward)"
+                )
+            if not curve_path.exists():
+                raise SystemExit(f"--resume needs existing curve {curve_path}")
+            loaded = LearnedPolicy.load(ckpt_path, device="cpu")
+            if loaded.hidden != hidden:
+                raise SystemExit(
+                    f"--resume hidden mismatch: checkpoint={loaded.hidden} requested={hidden}"
+                )
+            policy = loaded
+            opt = torch.optim.Adam(policy.parameters(), lr=lr)
+            state = load_trainer_state(trainer_path)
+            opt.load_state_dict(state["optimizer"])
+            baseline = float(state["baseline"])
+            best_eval_reward = float(state["best_eval_reward"])
+            curve = _load_curve(curve_path)
+            finished = int(state["epoch"])
+            curve_finished = _last_finished_epoch(curve)
+            if curve_finished != finished:
+                print(
+                    f"RESUME warning: trainer epoch={finished} curve last={curve_finished}. "
+                    "Continuing from trainer epoch + 1."
+                )
+            start_epoch = finished + 1
+            print(
+                f"RESUME finished_epoch={finished} next={start_epoch}/{epochs} "
+                f"baseline={baseline:.4f} best_eval_reward={best_eval_reward:.4f} "
+                f"curve_rows={len(curve)}"
+            )
+            if start_epoch > epochs:
+                print(f"Already finished {finished} of {epochs} epochs. Nothing to do.")
+                return
+
+        for epoch in range(start_epoch, epochs + 1):
             order = list(examples)
             random.Random(seed + epoch).shuffle(order)
             epoch_rewards: list[float] = []
@@ -299,14 +398,25 @@ def main() -> None:
                 "epoch": epoch,
                 "mean_reward": row["mean_reward"],
                 "eval_reward": row["eval_reward"],
+                "baseline": baseline,
+                "best_eval_reward": best_eval_reward,
             }
-            policy.save(ckpt_path, extra=extra)
             if row["eval_reward"] > best_eval_reward:
                 best_eval_reward = row["eval_reward"]
+                extra["best_eval_reward"] = best_eval_reward
                 policy.save(best_path, extra=extra)
+            policy.save(ckpt_path, extra=extra)
+            save_trainer_state(
+                trainer_path,
+                epoch=epoch,
+                optimizer=opt,
+                baseline=baseline,
+                best_eval_reward=best_eval_reward,
+            )
 
         print(f"Wrote {curve_path}")
         print(f"Wrote {ckpt_path}")
+        print(f"Wrote {trainer_path}")
         if best_path.exists():
             print(f"Wrote {best_path} (best eval_reward={best_eval_reward:.4f})")
     finally:

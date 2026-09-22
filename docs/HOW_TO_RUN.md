@@ -422,8 +422,9 @@ python scripts/train_policy.py --config configs/extractive.yaml --limit 8 --epoc
 | `--entropy-coef` | 0.01 | Keeps the policy from collapsing to retrieve→stop on epoch 1 |
 | `--limit` | off (full train file) | Stratified cap on **train** only |
 | `--skip-data-check` | off | Skip train-size + corpus-size preflight (synthetic / extractive debug only) |
-| `--checkpoint` | `results/checkpoints/learned_policy.pt` | Last-epoch weights; best **greedy** `eval_reward` copy is `<stem>_best.pt` |
+| `--checkpoint` | `results/checkpoints/learned_policy.pt` | Last-epoch weights; best **greedy** `eval_reward` copy is `<stem>_best.pt`. Resume also writes `<stem>_trainer.pt` (epoch, optimizer, baseline, `best_eval_reward`). |
 | `--curve` | derived from the checkpoint stem | Learning-curve JSON. Default checkpoint keeps `train_policy_curve.json`; a named `.pt` writes `train_policy_curve_<suffix>.json` |
+| `--resume` | off | Load the last `.pt`, `_trainer.pt`, and existing curve, then continue from the next epoch. Use after a Colab disconnect. |
 | `--reward-preset` | from config (`default`) | `default` is the ranking train. `correctness_only` / `lambda_zero` are the 2026-09-13 sanity. Frontier family is `frontier_lambda0` / `frontier_lambda20` / `frontier_act02`. Calibration rule is still the 2026-09-04 fix. |
 
 **What it does:**
@@ -588,6 +589,10 @@ python scripts/run_pilot.py --reward-preset frontier_lambda0 \
   --learned-checkpoint results/checkpoints/learned_policy_frontier_lambda0.pt \
   --no-figures
 # repeat for frontier_lambda20 and frontier_act02
+# after a disconnect, continue the same checkpoint/curve:
+python scripts/train_policy.py --reward-preset frontier_lambda0 --epochs 40 --resume \
+  --checkpoint results/checkpoints/learned_policy_frontier_lambda0.pt \
+  --curve results/metrics/train_policy_curve_frontier_lambda0.json
 python scripts/plot_results.py --frontier
 ```
 
