@@ -28,7 +28,7 @@ Multi-hop questions force the agent to decide when another `retrieve` / `rewrite
 ## Known limitations
 - Slice is 150 eval / 60 train here; still not for claiming SOTA.
 - Global BM25 index mixes passages across examples (realistic open-corpus setup; harder than per-example context). On the current 80k index, Hotpot BM25 R@5 is **0.927** (11 miss@5).
-- Current ranking mix is Hotpot + **NQ** (`d456d26`, reward rescored 2026-09-04). Hotpot EM is 59 / 56 / 61 / **59** (naive / rule / max / learned); reward is 0.631 / 0.570 / 0.569 / 0.631. `default` learned = naive (retrieve→stop). Free-cost `correctness_only` learned is 60/150 at 8 steps (`learned_correctness_only.json`); not the ranking row. The λ=80 frontier family is also 59/150 retrieve→stop on every knob (`.pt` now local); not a ranking row. `frontier_lambda0` / `_lambda20` have not been scored.
+- Current ranking mix is Hotpot + **NQ** (`d456d26`, reward rescored 2026-09-04). Hotpot EM is 59 / 56 / 61 / **59** (naive / rule / max / learned); reward is 0.631 / 0.570 / 0.569 / 0.631. `default` learned = naive (retrieve→stop). Free-cost `correctness_only` learned is 60/150 at 8 steps (`learned_correctness_only.json`); not the ranking row. The λ=80 frontier family is also 59/150 retrieve→stop on every knob (`.pt` now local); not a ranking row. The 2026-09-23 λ=0 / 20 exams are on disk: `frontier_lambda0` is **53/150** (EM 0.353) at 6 steps; `frontier_lambda20` is 59/150 (EM 0.393) at 4 steps / 3 retrieve. Not ranking rows.
 - Synthetic fallback is not Hotpot distribution
 
 ## Ethical / license notes
