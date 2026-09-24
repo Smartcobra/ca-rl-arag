@@ -10,7 +10,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 - Explicit multi-component reward + ablation presets (`src/rewards.py`, `configs/reward_weights.yaml`)
 - Dataset slices for **HotpotQA + single-hop** (NQ preferred; TriviaQA / SQuAD fallbacks — Scope Memo V2 §7)
 - Pilot logs, metrics, data cards, and implementation decision notes
-- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — `default` and λ=80 frontier evals are naive RAG; free-cost `correctness_only` used the step cap; λ=0 used tools (EM 0.347, 104/300); λ=20 is EM-tied at 4 steps / 3 retrieve
+- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — `default` learned eval is naive RAG; free-cost `correctness_only` used the step cap; λ=0 used tools (EM 0.347); λ=20 is EM-tied at 4 steps / 3 retrieve; λ=80 `act02` is retrieve→stop
 
 ## Design locks (review comments)
 
@@ -18,7 +18,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 |---|---|---|
 | Verifier | **NLI** (`lexical_nli` default; optional `neural_nli`) | Consistent across experiments; not LLM-as-judge |
 | Reward weights | Justified defaults + ablation presets | See `docs/REWARD_DESIGN.md` |
-| Complexity order | Frozen baselines first, then tiny REINFORCE | Rule / naive / max ranked; `default` and λ=80 frontier learned evals tied naive. Free-cost sanity used the step cap. λ=0 used tools (EM 0.347); λ=20 EM-tied at 4 steps / 3 retrieve. GRPO/PPO still deferred |
+| Complexity order | Frozen baselines first, then tiny REINFORCE | Rule / naive / max ranked; `default` learned eval tied naive. λ=0 / 20 / 80 40-epoch family: tools / 3-retrieve / retrieve→stop. GRPO/PPO still deferred |
 | Action space | Five actions only | V1 discipline; semantic/keyword/expand deferred |
 
 ## Quick start
@@ -151,20 +151,20 @@ Same 100-train / 300-eval. Separate checkpoints. Notebook: `notebooks/FreeCost_T
 
 `correctness_only` vs naive: Hotpot 60 vs 59, NQ 42 vs 41 (9 recoveries / 7 regressions). The trainer can leave two steps when only \(Q_{\mathrm{ans}}\) pays. `lambda_zero` stays naive because \(P_{\mathrm{act}}=0.02\) is still on. Sources: `train_policy_curve_correctness_only.json`, `learned_correctness_only.json`, `train_policy_curve_lambda_zero.json`, `learned_lambda_zero.json`.
 
-### Learned cost-pressure frontier (2026-09-13 failed; λ=0 / 20 scored 2026-09-23)
+### Learned cost-pressure frontier (2026-09-13 failed; λ=0 / 20 / 80 scored 2026-09-23/24)
 
-Same quality terms as `default`. **2026-09-13 / re-synced 2026-09-15:** \(\lambda=80\), `act_penalty` 0 / 0.005 / 0.02. All three learned evals retrieve→stop 300/300. Extra max_tools $ at λ=80 is ~0.046 vs ~0.028 quality, so even `act_penalty=0` was still high pressure. Source: `frontier_sweep_table.json` (still those labels). Checkpoints: `learned_policy_frontier_act*.pt`.
+Same quality terms as `default`. **2026-09-13 / re-synced 2026-09-15:** \(\lambda=80\), `act_penalty` 0 / 0.005 / 0.02. All three 5-epoch learned evals retrieve→stop 300/300. Extra max_tools $ at λ=80 is ~0.046 vs ~0.028 quality. Historical: `learned_frontier_act0.json` / `_act005.json`.
 
-**2026-09-23 (λ=0 / 20, 40 epochs):** `frontier_lambda0` used tools on the 300. `frontier_lambda20` stayed EM-tied to naive but is not retrieve→stop. `frontier_act02` at 40 epochs is not on disk. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v2.ipynb`.
+**2026-09-23/24 (λ=0 / 20 / 80, 40 epochs):** three different action mixes. Combined table + figure: `frontier_sweep_table.json` / `frontier_em_usd.png` (regenerated 2026-09-24). Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v2.ipynb`.
 
 | Point | Eval EM | $ | steps / retrieve / verify |
 |---|---:|---:|---|
 | naive / rule / max (frozen) | 0.333 / 0.323 / **0.350** | 1.72e-4 / 5.04e-4 / 7.47e-4 | 2 / 4 / 7 |
-| learned act=0 / 0.005 / 0.02 (λ=80, 5-epoch) | 0.333 | 1.72e-4 | **2.0 / 1.0 / 0.0** |
 | learned `frontier_lambda0` | **0.347** (104/300) | 3.41e-4 | **6.0 / 1.0 / 2.0** |
 | learned `frontier_lambda20` | 0.333 (100/300) | 2.72e-4 | **4.0 / 3.0 / 0.0** |
+| learned `frontier_act02` | 0.333 (100/300) | 1.72e-4 | **2.0 / 1.0 / 0.0** |
 
-λ=0 also rewrote twice on every item (300/300). λ=20 used three retrieves and no rewrite/verify (300/300). Split: λ=0 Hotpot 53 / NQ 51; λ=20 stays 59 / 41. Do not cite `frontier_sweep_table.json` as this family.
+λ=0 also rewrote twice on every item (300/300). λ=20 used three retrieves and no rewrite/verify (300/300). λ=80 `act02` is retrieve→stop 300/300. Split: λ=0 Hotpot 53 / NQ 51; λ=20 and `act02` stay 59 / 41.
 
 ### Reward-weight ablation (not a ranking table)
 
@@ -227,7 +227,7 @@ Sparse episode reward is returned on `stop` with a full component breakdown in `
 
 ## Next (Milestone 3)
 
-- `default` and λ=80 frontier learned evals **tied naive** (retrieve→stop). λ=0 / 20 40-epoch exams are on disk: λ=0 used tools (EM 0.347, 104/300); λ=20 is EM-tied at 4 steps / 3 retrieve. Next: 40-epoch `frontier_act02` and regenerate `frontier_sweep_table.json` / `frontier_em_usd.png`.
+- `default` learned eval **tied naive**. The λ=0 / 20 / 80 40-epoch family is on disk: tools (EM 0.347) / 3-retrieve (EM-tied) / retrieve→stop. Combined figure: `results/figs/frontier_em_usd.png`.
 - Compare against Adaptive-RAG as the open-loop baseline
 - λ–μ Pareto sweeps using `configs/reward_weights.yaml` → `pareto_sweep`
 - Optional neural NLI + denser retriever once the extractive/BM25 pipeline is solid

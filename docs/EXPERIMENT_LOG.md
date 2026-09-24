@@ -2,7 +2,7 @@
 
 Append-only notes while running pilots. Prefer short factual entries. **Each dated block names the run it belongs to.** Do not cite a number from this file without that run line.
 
-For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), the λ=80 frontier (all three learned evals retrieve→stop 300/300), the 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`), and the 2026-09-23 λ=0 / 20 exams (`learned_frontier_lambda0.json` EM 0.347 / 6 steps; `_lambda20.json` EM 0.333 / 4 steps / 3 retrieve), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
+For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), the λ=80 frontier (all three learned evals retrieve→stop 300/300), the 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`), the 2026-09-23 λ=0 / 20 exams (`learned_frontier_lambda0.json` EM 0.347 / 6 steps; `_lambda20.json` EM 0.333 / 4 steps / 3 retrieve), and the 2026-09-24 40-epoch `frontier_act02` exam (retrieve→stop, EM 0.333) plus regenerated `frontier_sweep_table.json` / `frontier_em_usd.png`, see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
 
 ## 2026-08-07
 
@@ -333,5 +333,19 @@ Hotpot / NQ (from the JSONL): λ=0 is 53/150 (EM 0.353) / 51/150 (EM 0.340). λ=
 
 - λ=0 used tools and gained +4 exact matches vs naive (104 vs 100), still 1 short of max_tools (105) at 3.41e-4 vs 7.47e-4. Split moved: Hotpot 59→53, NQ 41→51. Abstain 0.14. Eval reward under this preset 0.616.
 - λ=20 is EM-tied to naive, not action-tied. Three retrieves, no verify, $ 2.72e-4. Abstain 0.15. Eval reward under this preset 0.595.
-- First learned-family spread off the naive stack. Not a three-point curve until 40-epoch `act02` + a regenerated sweep table.
+- First learned-family spread off the naive stack. Not a three-point curve until 40-epoch `act02` + a regenerated sweep table (arrived 2026-09-24 below).
 - Full write-up: [`RESULTS.md`](RESULTS.md) §6.
+
+## 2026-09-24 — λ=80 `act02` 40-epoch exam + regenerated frontier figure
+
+**Run:** `frontier_act02` (λ=80, \(P_{\mathrm{act}}=0.02\)), 40 epochs, greedy `eval_reward` each epoch, then frozen argmax on the locked 300. Overwrote the 5-epoch `learned_frontier_act02.json` / curve / `.pt` (5-epoch curve kept in `partial_curve_backup/`). Did not overwrite `learned_policy.pt` or the λ=0 / 20 artifacts. Then `python scripts/plot_results.py --frontier`.
+
+Sources: `learned_frontier_act02.json`, `train_policy_curve_frontier_act02.json`, `learned_frontier_act02.jsonl`, `learned_policy_frontier_act02.pt` / `_best.pt`, `frontier_sweep_table.json`, `results/figs/frontier_em_usd.png`.
+
+**Train** (n=100): ep1 sampled 4.61 steps / 0.47 verify / reward 0.570. Last sampled 2.09 / 0.00 / 0.695. Greedy was retrieve→stop (2 / 1 retrieve / 0 verify / EM 0.43) on **all 40** epochs.
+
+**Eval** (frozen argmax, n=300): EM 0.333 (100/300), F1 0.397, $ 1.72e-4, **2.0 steps / 1.0 retrieve / 0 rewrite / 0 verify** on 300/300. Hotpot 59/150, NQ 41/150. Abstain 0.15. Eval reward under this preset 0.567. Same exam as naive and as the old 5-epoch act02.
+
+`frontier_sweep_table.json` now lists `frontier_lambda0` / `_lambda20` / `_act02` (λ 0 / 20 / 80). Ranking figures were also rewritten from `pilot_summary_default.json` (numbers unchanged).
+
+Three-point action spread is now complete: tools at λ=0, 3-retrieve at λ=20, retrieve→stop at λ=80. Only λ=0 moves EM. Full write-up: [`RESULTS.md`](RESULTS.md) §6.

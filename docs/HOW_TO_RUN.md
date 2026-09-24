@@ -51,7 +51,7 @@ If you point **default.yaml** at a synthetic or 2k-passage corpus, the ranking s
 | 5 | `train_policy.py` | Milestone 3 REINFORCE: tiny MLP on the **100 train examples only**. **40 epochs** by default. Logs sampled mean reward **and** greedy `eval_reward` per epoch. Does **not** open the 300-example eval file. That curve is homework, not the paper table. |
 | 6 | `run_pilot.py --policies learned` | **Why this exists:** freeze `learned_policy.pt` and score the **300 eval** questions training never saw. Same Hotpot/NQ table as naive / rule / max_tools. Without this step you cannot claim a learned-policy result. **This run (2026-09-10):** argmax collapsed to retrieve→stop (identical to naive). |
 | 7 | `train_policy.py --reward-preset correctness_only` then `lambda_zero` + matching `--policies learned` | **Why this exists:** prove the trainer can leave two steps when cost is free. **This run (2026-09-13):** `correctness_only` eval hit the 8-step cap; `lambda_zero` stayed retrieve→stop. Use `--checkpoint` / `--curve` / `--no-figures` so the `default` ranking artifacts stay put. |
-| 8 | `train_policy.py --reward-preset frontier_lambda0` (then `lambda20`, `act02`) + `plot_results.py --frontier` | **Why this exists:** paper headline. One learned policy per (λ, \(P_{\mathrm{act}}\)) that **crosses break-even**. **On disk (2026-09-13):** λ=80 / act 0–0.02 all retrieve→stop 300/300. **On disk (2026-09-23):** λ=0 used tools (EM 0.347, 104/300, 6 steps); λ=20 is EM-tied to naive at 4 steps / 3 retrieve. **Still to run:** 40-epoch `frontier_act02` + `plot_results.py --frontier`. Notebook: `Frontier_Cost_Pressure_CA_RL_ARAG_v2.ipynb`. |
+| 8 | `train_policy.py --reward-preset frontier_lambda0` (then `lambda20`, `act02`) + `plot_results.py --frontier` | **Why this exists:** paper headline. One learned policy per (λ, \(P_{\mathrm{act}}\)) that **crosses break-even**. **On disk (2026-09-23/24, 40 epochs):** λ=0 used tools (EM 0.347, 6 steps); λ=20 is EM-tied at 4 steps / 3 retrieve; λ=80 `act02` is retrieve→stop. Table + `frontier_em_usd.png` regenerated 2026-09-24. Notebook: `Frontier_Cost_Pressure_CA_RL_ARAG_v2.ipynb`. |
 
 They are sequenced so you never debug data/reward issues on a broken pipeline. Train after the frozen ranking exists. Score the learned policy **after** the `.pt` exists; do not mix the train curve into the ranking table.
 
@@ -600,28 +600,31 @@ python scripts/plot_results.py --frontier
 
 **This run (2026-09-13, old family; `.pt` local).** `frontier_act0` / `act005` / `act02` (all λ=80) frozen evals are retrieve→stop **300/300**, EM 0.333, predictions identical to naive. Those artifacts stay on disk as the failed sweep. **Do not re-train them.**
 
-**This run (2026-09-23, λ=0 / 20, 40 epochs).** Frozen argmax on the locked 300:
+**This run (2026-09-23/24, λ=0 / 20 / 80, 40 epochs).** Frozen argmax on the locked 300:
 
 | Preset | EM | n_correct | $ | steps / retrieve / rewrite / verify | vs naive |
 |---|---:|---:|---:|---|---|
 | `frontier_lambda0` | **0.347** | **104/300** | 3.41e-4 | **6.0 / 1.0 / 2.0 / 2.0** (300/300) | +4 exact; Hotpot 53, NQ 51 |
 | `frontier_lambda20` | 0.333 | 100/300 | 2.72e-4 | **4.0 / 3.0 / 0.0 / 0.0** (300/300) | EM-tied (59+41); not retrieve→stop |
+| `frontier_act02` | 0.333 | 100/300 | 1.72e-4 | **2.0 / 1.0 / 0.0 / 0.0** (300/300) | retrieve→stop; Hotpot 59, NQ 41 |
 
-Last-epoch train: λ=0 sampled 4.98 steps / 1.04 verify / reward 0.720, greedy 6 / 2 verify; λ=20 sampled 4.01 / 0.52 / 0.711, greedy 4 / 3 retrieve / 0 verify. `frontier_act02` at 40 epochs is **not** on disk (existing act02 exam is the 5-epoch λ=80 retrieve→stop).
+Last-epoch train: λ=0 sampled 4.98 steps / 1.04 verify / reward 0.720, greedy 6 / 2 verify; λ=20 sampled 4.01 / 0.52 / 0.711, greedy 4 / 3 retrieve / 0 verify; `act02` sampled 2.09 / 0 verify / 0.695, greedy 2 / 1 retrieve on all 40 epochs.
 
-**Artifacts on disk (old λ=80 family):** `learned_frontier_act*.json` / `train_policy_curve_frontier_act*.json` / `learned_policy_frontier_act*.pt`. Combined table: `frontier_sweep_table.json` (still the 09-13 λ=80 labels). Re-run `plot_results.py --frontier` after the 40-epoch `act02` exam to refresh `frontier_em_usd.png`.
+**Artifacts on disk (old λ=80 `act0` / `act005`, 5 epochs):** `learned_frontier_act0.json` / `_act005.json` and matching curves / `.pt`. Do not re-train those two. The 5-epoch `act02` curve is in `results/metrics/partial_curve_backup/`.
 
-**Artifacts on disk (new family, λ=0 / 20):**
+**Artifacts on disk (new family, λ=0 / 20 / 80):**
 
 | Path | Contents |
 |---|---|
-| `results/checkpoints/learned_policy_frontier_lambda0.pt` / `_lambda20.pt` (+ `_best.pt` / `_trainer.pt`) | 40-epoch MLP per pressure |
-| `results/metrics/learned_frontier_lambda0.json` / `_lambda20.json` | 300-eval per pressure |
-| `results/metrics/train_policy_curve_frontier_lambda0.json` / `_lambda20.json` | 40-epoch sampled + greedy columns |
-| `results/metrics/pilot_summary_frontier_lambda0.json` / `_lambda20.json` | Learned-only summaries under each preset |
-| `results/trajectories/learned_frontier_lambda0.jsonl` / `_lambda20.jsonl` | 300 rows each |
+| `results/checkpoints/learned_policy_frontier_lambda0.pt` / `_lambda20.pt` / `_act02.pt` (+ `_best.pt`) | 40-epoch MLP per pressure |
+| `results/metrics/learned_frontier_lambda0.json` / `_lambda20.json` / `_act02.json` | 300-eval per pressure |
+| `results/metrics/train_policy_curve_frontier_lambda0.json` / `_lambda20.json` / `_act02.json` | 40-epoch sampled + greedy columns |
+| `results/metrics/pilot_summary_frontier_*.json` | Learned-only summaries under each preset |
+| `results/metrics/frontier_sweep_table.json` | Combined EM / $ / steps (regenerated 2026-09-24) |
+| `results/figs/frontier_em_usd.png` | Headline scatter (regenerated 2026-09-24) |
+| `results/trajectories/learned_frontier_lambda0.jsonl` / `_lambda20.jsonl` / `_act02.jsonl` | 300 rows each |
 
-Does not overwrite `learned_policy.pt` or the ranking plots.
+Does not overwrite `learned_policy.pt`. Ranking plots were refreshed from `pilot_summary_default.json` at the same time.
 
 ---
 
@@ -635,7 +638,7 @@ Does not overwrite `learned_policy.pt` or the ranking plots.
 6. `train_policy.py` printed `TRAIN ONLY` on the 100-example train file and wrote `train_policy_curve.json` (historical: 5 epochs, reward 0.649 → 0.564 → 0.643; **new trains are 40 epochs** with a greedy `eval_reward` column). It never reads `eval_slice.jsonl`.
 7. `run_pilot.py --policies learned` wrote `learned_default.json` + `learned_default.jsonl`. **Ranking row:** EM 0.333 / 59+41 correct, retrieve→stop 300/300, identical to naive. Do not treat the train curve (step 6) as this row.
 8. Free-cost sanity (2026-09-13) wrote `learned_correctness_only.json` (8 steps / 102 correct) and `learned_lambda_zero.json` (2 steps / 100 correct). Trainer is not stuck; \(P_{\mathrm{act}}\) is.
-9. Frontier sweep (2026-09-13) wrote `learned_frontier_act0/005/02.json`: all retrieve→stop 300/300, EM 0.333, stacked on naive. Combined table: `frontier_sweep_table.json` (still those labels). **2026-09-23:** `frontier_lambda0` / `frontier_lambda20` wrote 40-epoch curves + 300-evals (`learned_frontier_lambda0.json` EM 0.347 / 6 steps; `_lambda20.json` EM 0.333 / 4 steps / 3 retrieve). **Still to run:** 40-epoch `frontier_act02` + `plot_results.py --frontier`. Do not overwrite `learned_policy.pt`.
+9. Frontier family (2026-09-23/24, 40 epochs) wrote `learned_frontier_lambda0.json` (EM 0.347 / 6 steps), `_lambda20.json` (EM 0.333 / 4 steps / 3 retrieve), and `_act02.json` (retrieve→stop, EM 0.333). Combined table + figure: `frontier_sweep_table.json` / `frontier_em_usd.png` (regenerated 2026-09-24). Historical 5-epoch `act0` / `act005` stay on disk. Do not overwrite `learned_policy.pt`.
 
 If anything fails, start from smoke test, then re-prepare data, then re-run pilot. Do not debug the trainer against the 300-eval until `correctness_only` has also collapsed.
 
@@ -646,10 +649,10 @@ If anything fails, start from smoke test, then re-prepare data, then re-run pilo
 | Doc | Topic |
 |---|---|
 | `README.md` | Project overview |
-| `docs/RESULTS.md` | **Detailed results:** 80k ranking slice `d456d26` (150 Hotpot + 150 NQ), reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04. §6 `default` train + 300-eval (collapsed to naive), 2026-09-13 free-cost sanity, λ=80 frontier (all three stacked on naive), and 2026-09-23 λ=0 / 20 40-epoch exams (λ=0 used tools, EM 0.347; λ=20 EM-tied at 4 steps / 3 retrieve). SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
+| `docs/RESULTS.md` | **Detailed results:** 80k ranking slice `d456d26` (150 Hotpot + 150 NQ), reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04. §6 `default` train + 300-eval (collapsed to naive), 2026-09-13 free-cost sanity, failed λ=80 `act_penalty` sweep, and 2026-09-23/24 λ=0 / 20 / 80 40-epoch family (tools / 3-retrieve / retrieve→stop). SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
 | `docs/NQ_MAX_TOOLS_ANALYSIS.md` | Leaked-NQ max-tools mechanism; tiny-corpus run `34e6585` (NQ 148/150), not the current Tevatron-NQ snapshot |
 | `docs/REWARD_DESIGN.md` | Why reward weights were chosen |
-| `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, tiny REINFORCE trainer (2026-09-05); train 2026-09-09; learned eval 2026-09-10; free-cost sanity and λ=80 frontier 2026-09-13; frontier retarget 2026-09-15; `.pt` sync 2026-09-16 |
+| `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, tiny REINFORCE trainer (2026-09-05); train 2026-09-09; learned eval 2026-09-10; free-cost sanity and λ=80 frontier 2026-09-13; frontier retarget 2026-09-15; λ=0 / 20 / 80 40-epoch family 2026-09-23/24 |
 | `docs/WHY_SMALL_MLP.md` | Why the policy is 261 parameters; `default` and λ=80 frontier evals were naive; `correctness_only` used the step cap |
 | `docs/EXPERIMENT_LOG.md` | Recorded pilot numbers (each dated block names its run) |
 | `docs/data_cards/*.md` | Dataset cards |
