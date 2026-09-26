@@ -32,6 +32,19 @@ from src.retrieval import BM25Retriever
 from src.utils import ensure_dir, read_jsonl, set_seed, write_jsonl
 
 
+def _clean_suffix(suffix: str | None) -> str:
+    return (suffix or "").strip().strip("_")
+
+
+def _artifact_stem(policy_name: str, preset: str, suffix: str | None) -> str:
+    """Last-epoch files stay `learned_<preset>`. A _best.pt exam uses a suffix."""
+    stem = f"{policy_name}_{preset}"
+    cleaned = _clean_suffix(suffix)
+    if cleaned and policy_name == "learned":
+        return f"{stem}_{cleaned}"
+    return stem
+
+
 def _write_result_figures(summary_path: Path, figs_dir: Path, ablation_path: Path) -> None:
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -64,6 +77,14 @@ def main() -> None:
         "--learned-checkpoint",
         default=None,
         help="Override policy.learned.checkpoint (eval scoring only; does not train).",
+    )
+    parser.add_argument(
+        "--artifact-suffix",
+        default=None,
+        help=(
+            "Append to learned metric, trajectory, and summary filenames (example: best). "
+            "Use when scoring <stem>_best.pt so the last-epoch exam is not overwritten."
+        ),
     )
     parser.add_argument("--run-env-check", action="store_true", help="Roll a few Gymnasium episodes")
     parser.add_argument(
@@ -157,11 +178,16 @@ def main() -> None:
                 continue
             policy_fn, policy_name = get_policy(name, cfg=cfg, checkpoint=args.learned_checkpoint)
             log_gpu_memory(f"before {policy_name}")
-            out_path = traj_dir / f"{policy_name}_{cfg['reward_preset_name']}.jsonl"
+            artifact = _artifact_stem(policy_name, cfg["reward_preset_name"], args.artifact_suffix)
+            out_path = traj_dir / f"{artifact}.jsonl"
             if out_path.exists():
                 out_path.unlink()
             out = evaluate_agent(agent, examples, policy_fn, policy_name, out_path=out_path)
-            save_metrics(metrics_dir / f"{policy_name}_{cfg['reward_preset_name']}.json", out["summary"], {"policy": policy_name})
+            save_metrics(
+                metrics_dir / f"{artifact}.json",
+                out["summary"],
+                {"policy": policy_name, "artifact": artifact},
+            )
             results[policy_name] = out["summary"]
             print(format_eval_summary(policy_name, out["summary"]))
             del out
@@ -202,9 +228,16 @@ def main() -> None:
             log_gpu_memory("after env_check")
 
         n_by_dataset = counts_by_dataset(examples)
-        summary_path = metrics_dir / f"pilot_summary_{cfg['reward_preset_name']}.json"
+        suffix = _clean_suffix(args.artifact_suffix)
+        summary_name = f"pilot_summary_{cfg['reward_preset_name']}"
+        if suffix:
+            summary_name = f"{summary_name}_{suffix}"
+        summary_path = metrics_dir / f"{summary_name}.json"
         existing_summary = None
-        if summary_path.exists():
+        # A suffixed exam (the _best.pt row) must not replace the last-epoch summary.
+        if suffix:
+            existing_summary = None
+        elif summary_path.exists():
             try:
                 loaded = json.loads(summary_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError) as exc:

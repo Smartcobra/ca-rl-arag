@@ -56,9 +56,35 @@
       "n_correct": 104.0,
       "n_examples": 300.0,
       "kind": "learned",
+      "checkpoint": "last",
       "reward_preset": "frontier_lambda0",
       "lambda_cost": 0.0,
-      "act_penalty": 0.0
+      "act_penalty": 0.0,
+      "epoch": null,
+      "n_action_sequences": 1,
+      "after_contradiction": "stop",
+      "n_contradiction": 28,
+      "contradiction_next": {
+        "verify": 14,
+        "stop": 14
+      }
+    },
+    "frontier_lambda0_best": {
+      "mean_em": 0.3333333333333333,
+      "mean_total_usd": 0.0001715225,
+      "mean_n_steps": 2.0,
+      "mean_n_retrieve": 1.0,
+      "mean_n_verify": 0.0,
+      "n_correct": 100.0,
+      "n_examples": 300.0,
+      "kind": "learned",
+      "checkpoint": "best",
+      "reward_preset": "frontier_lambda0",
+      "lambda_cost": 0.0,
+      "act_penalty": 0.0,
+      "epoch": 25,
+      "n_action_sequences": 1,
+      "after_contradiction": "no verify"
     },
     "frontier_lambda20": {
       "mean_em": 0.3333333333333333,
@@ -69,9 +95,32 @@
       "n_correct": 100.0,
       "n_examples": 300.0,
       "kind": "learned",
+      "checkpoint": "last",
       "reward_preset": "frontier_lambda20",
       "lambda_cost": 20.0,
-      "act_penalty": 0.0
+      "act_penalty": 0.0,
+      "epoch": null,
+      "n_action_sequences": 1,
+      "after_contradiction": "no verify",
+      "n_contradiction": 0,
+      "contradiction_next": {}
+    },
+    "frontier_lambda20_best": {
+      "mean_em": 0.3333333333333333,
+      "mean_total_usd": 0.0001715225,
+      "mean_n_steps": 2.0,
+      "mean_n_retrieve": 1.0,
+      "mean_n_verify": 0.0,
+      "n_correct": 100.0,
+      "n_examples": 300.0,
+      "kind": "learned",
+      "checkpoint": "best",
+      "reward_preset": "frontier_lambda20",
+      "lambda_cost": 20.0,
+      "act_penalty": 0.0,
+      "epoch": 15,
+      "n_action_sequences": 1,
+      "after_contradiction": "no verify"
     },
     "frontier_act02": {
       "mean_em": 0.3333333333333333,
@@ -82,9 +131,45 @@
       "n_correct": 100.0,
       "n_examples": 300.0,
       "kind": "learned",
+      "checkpoint": "last",
       "reward_preset": "frontier_act02",
       "lambda_cost": 80.0,
-      "act_penalty": 0.02
+      "act_penalty": 0.02,
+      "epoch": null,
+      "n_action_sequences": 1,
+      "after_contradiction": "no verify",
+      "n_contradiction": 0,
+      "contradiction_next": {}
     }
-  }
+  },
+  "ceilings": [
+    {
+      "name": "naive_hotpot_lambda0_nq",
+      "label": "110",
+      "n_correct": 110,
+      "n_examples": 300,
+      "mean_em": 0.36666666666666664,
+      "mean_total_usd": 0.00026024949999999984,
+      "kind": "ceiling"
+    },
+    {
+      "name": "best_of_naive_or_lambda0",
+      "label": "124",
+      "n_correct": 124,
+      "n_examples": 300,
+      "mean_em": 0.41333333333333333,
+      "mean_total_usd": 0.000185278,
+      "kind": "ceiling"
+    },
+    {
+      "name": "best_of_naive_lambda0_max_tools",
+      "label": "127",
+      "n_correct": 127,
+      "n_examples": 300,
+      "mean_em": 0.42333333333333334,
+      "mean_total_usd": 0.00019126983333333334,
+      "kind": "ceiling"
+    }
+  ],
+  "selection_rule": "Score <stem>_best.pt, the max train-greedy eval_reward. Choose it before opening the 300. The last epoch is a second row, not the selected point."
 }

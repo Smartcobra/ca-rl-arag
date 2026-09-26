@@ -185,9 +185,154 @@ def _summary_block(blob: dict) -> dict:
     return blob
 
 
+def _action_sequence(row: dict) -> tuple:
+    return tuple(step.get("action") for step in (row.get("trajectory") or []))
+
+
+def behavior_from_rows(rows: list[dict]) -> dict:
+    """How many action recipes a policy used, and what followed a contradiction."""
+    sequences: dict[tuple, int] = {}
+    next_actions: dict[str, int] = {}
+    n_contradiction = 0
+    saw_verify = False
+    for row in rows:
+        seq = _action_sequence(row)
+        sequences[seq] = sequences.get(seq, 0) + 1
+        traj = row.get("trajectory") or []
+        for i, step in enumerate(traj):
+            if step.get("action") == "verify" or step.get("verify"):
+                saw_verify = True
+            label = (step.get("verify") or {}).get("label")
+            if label != "contradiction":
+                continue
+            n_contradiction += 1
+            nxt = traj[i + 1]["action"] if i + 1 < len(traj) else "end"
+            next_actions[nxt] = next_actions.get(nxt, 0) + 1
+    if not saw_verify:
+        after = "no verify"
+    elif n_contradiction == 0:
+        after = "no contradiction"
+    elif set(next_actions) <= {"stop"}:
+        after = "stop"
+    elif set(next_actions) <= {"verify", "stop"}:
+        # Scripted extra verify, then stop. Never retrieve or rewrite.
+        after = "stop"
+    else:
+        after = ",".join(f"{name}:{count}" for name, count in sorted(next_actions.items()))
+    return {
+        "n_action_sequences": len(sequences),
+        "after_contradiction": after,
+        "n_contradiction": n_contradiction,
+        "contradiction_next": next_actions,
+    }
+
+
+def _row_em(row: dict) -> int:
+    return int(row.get("em") or 0)
+
+
+def _row_usd(row: dict) -> float:
+    return float(row.get("total_usd") or 0.0)
+
+
+def _ceiling_point(name: str, label: str, n_correct: int, mean_usd: float, n_examples: int) -> dict:
+    return {
+        "name": name,
+        "label": label,
+        "n_correct": n_correct,
+        "n_examples": n_examples,
+        "mean_em": (n_correct / n_examples) if n_examples else 0.0,
+        "mean_total_usd": mean_usd,
+        "kind": "ceiling",
+    }
+
+
+def controller_ceilings(naive_rows: list[dict], lambda0_rows: list[dict], max_rows: list[dict]) -> list[dict]:
+    """Headroom if a controller could pick among fixed recipes per question.
+
+    Dollar coordinate: pay the cheapest policy that got the question right.
+    If none did, pay the cheapest policy. The 110 point is the dataset switch
+    (naive on Hotpot, the λ=0 recipe on NQ), not that per-question pick.
+    """
+    naive = {row["id"]: row for row in naive_rows}
+    lambda0 = {row["id"]: row for row in lambda0_rows}
+    max_tools = {row["id"]: row for row in max_rows}
+    ids = [row["id"] for row in naive_rows]
+    n = len(ids)
+
+    switch_usd = 0.0
+    switch_correct = 0
+    for qid in ids:
+        src = naive[qid] if naive[qid].get("dataset") == "hotpot_qa" else lambda0[qid]
+        switch_usd += _row_usd(src)
+        switch_correct += _row_em(src)
+
+    def oracle(pools: list[dict[str, dict]]) -> tuple[int, float]:
+        correct = 0
+        usd = 0.0
+        for qid in ids:
+            cands = [pool[qid] for pool in pools]
+            good = [cand for cand in cands if _row_em(cand)]
+            chosen = min(good or cands, key=_row_usd)
+            usd += _row_usd(chosen)
+            correct += _row_em(chosen)
+        return correct, (usd / n if n else 0.0)
+
+    pair_correct, pair_usd = oracle([naive, lambda0])
+    triple_correct, triple_usd = oracle([naive, lambda0, max_tools])
+    return [
+        _ceiling_point(
+            "naive_hotpot_lambda0_nq",
+            str(switch_correct),
+            switch_correct,
+            switch_usd / n if n else 0.0,
+            n,
+        ),
+        _ceiling_point("best_of_naive_or_lambda0", str(pair_correct), pair_correct, pair_usd, n),
+        _ceiling_point(
+            "best_of_naive_lambda0_max_tools",
+            str(triple_correct),
+            triple_correct,
+            triple_usd,
+            n,
+        ),
+    ]
+
+
+def _learned_row(stats: dict, preset: str, *, checkpoint: str, extra: dict | None = None) -> dict:
+    base_preset = preset.removesuffix("_best")
+    row = {
+        "mean_em": float(stats.get("mean_em") or 0.0),
+        "mean_total_usd": float(stats.get("mean_total_usd") or 0.0),
+        "mean_n_steps": float(stats.get("mean_n_steps") or 0.0),
+        "mean_n_retrieve": float(stats.get("mean_n_retrieve") or 0.0),
+        "mean_n_verify": float(stats.get("mean_n_verify") or 0.0),
+        "n_correct": float(stats.get("n_correct") or 0.0),
+        "n_examples": float(stats.get("n_examples") or 0.0),
+        "kind": "learned",
+        "checkpoint": checkpoint,
+        "reward_preset": base_preset,
+        **dict(FRONTIER_PRESET_META.get(base_preset) or {}),
+    }
+    if extra:
+        row.update(extra)
+    return row
+
+
+def _load_jsonl(path: Path) -> list[dict]:
+    rows = []
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
+
+
 def collect_frontier_table(metrics_dir: Path) -> dict:
     """Build the EM-vs-$ table from frozen ranking JSON + per-preset learned evals."""
     metrics_dir = Path(metrics_dir)
+    traj_dir = metrics_dir.parent / "trajectories"
     frozen: dict[str, dict] = {}
     for name, fname in FRONTIER_FROZEN_FILES.items():
         path = metrics_dir / fname
@@ -206,35 +351,62 @@ def collect_frontier_table(metrics_dir: Path) -> dict:
         }
     learned: dict[str, dict] = {}
     for preset, _label in FRONTIER_LEARNED:
-        path = metrics_dir / f"learned_{preset}.json"
-        if not path.exists():
-            continue
-        stats = _summary_block(_load_json(path))
-        learned[preset] = {
-            "mean_em": float(stats.get("mean_em") or 0.0),
-            "mean_total_usd": float(stats.get("mean_total_usd") or 0.0),
-            "mean_n_steps": float(stats.get("mean_n_steps") or 0.0),
-            "mean_n_retrieve": float(stats.get("mean_n_retrieve") or 0.0),
-            "mean_n_verify": float(stats.get("mean_n_verify") or 0.0),
-            "n_correct": float(stats.get("n_correct") or 0.0),
-            "n_examples": float(stats.get("n_examples") or 0.0),
-            "kind": "learned",
-            "reward_preset": preset,
-            **dict(FRONTIER_PRESET_META.get(preset) or {}),
-        }
+        for suffix, checkpoint in (("", "last"), ("_best", "best")):
+            key = f"{preset}{suffix}"
+            path = metrics_dir / f"learned_{key}.json"
+            if not path.exists():
+                continue
+            blob = _load_json(path)
+            stats = _summary_block(blob)
+            meta = blob.get("meta") if isinstance(blob, dict) else {}
+            meta = meta if isinstance(meta, dict) else {}
+            extra = {
+                "epoch": meta.get("epoch"),
+                "n_action_sequences": meta.get("n_action_sequences"),
+                "after_contradiction": meta.get("after_contradiction"),
+            }
+            traj_path = traj_dir / f"learned_{key}.jsonl"
+            if traj_path.exists():
+                extra.update(behavior_from_rows(_load_jsonl(traj_path)))
+            learned[key] = _learned_row(stats, key, checkpoint=checkpoint, extra=extra)
+    ceilings: list[dict] = []
+    naive_path = traj_dir / "learned_frontier_act02.jsonl"
+    lambda0_path = traj_dir / "learned_frontier_lambda0.jsonl"
+    max_path = traj_dir / "max_tools_default.jsonl"
+    if naive_path.exists() and lambda0_path.exists() and max_path.exists():
+        ceilings = controller_ceilings(
+            _load_jsonl(naive_path),
+            _load_jsonl(lambda0_path),
+            _load_jsonl(max_path),
+        )
     return {
         "lambda_cost": [FRONTIER_PRESET_META[p]["lambda_cost"] for p, _ in FRONTIER_LEARNED],
         "act_penalty": [FRONTIER_PRESET_META[p]["act_penalty"] for p, _ in FRONTIER_LEARNED],
         "presets": [p for p, _ in FRONTIER_LEARNED],
         "frozen": frozen,
         "learned": learned,
+        "ceilings": ceilings,
+        "selection_rule": (
+            "Score <stem>_best.pt, the max train-greedy eval_reward. "
+            "Choose it before opening the 300. The last epoch is a second row, not the selected point."
+        ),
     }
 
 
+def _selected_learned_key(learned: dict, preset: str) -> str | None:
+    """The point we are allowed to claim: _best.pt if that exam exists, else last epoch."""
+    if f"{preset}_best" in learned:
+        return f"{preset}_best"
+    if preset in learned:
+        return preset
+    return None
+
+
 def plot_frontier_em_usd(table: dict, out_dir: Path) -> None:
-    """Headline figure: frozen naive/rule/max + learned family on the EM-vs-$ plane."""
-    fig, ax = plt.subplots(figsize=(6.6, 4.6))
+    """Headline figure: frozen anchors, selected checkpoints, last-epoch rows, ceilings."""
+    fig, ax = plt.subplots(figsize=(7.4, 5.2))
     frozen = table.get("frozen") or {}
+    learned = table.get("learned") or {}
     for name in FRONTIER_FROZEN:
         if name not in frozen:
             continue
@@ -256,35 +428,80 @@ def plot_frontier_em_usd(table: dict, out_dir: Path) -> None:
             fontsize=9,
         )
     xs, ys = [], []
+    selected_labels_at: dict[tuple[float, float], list[str]] = {}
     for preset, label in FRONTIER_LEARNED:
-        learned = (table.get("learned") or {}).get(preset)
-        if not learned:
+        key = _selected_learned_key(learned, preset)
+        if key is None:
             continue
-        xs.append(learned["mean_total_usd"])
-        ys.append(learned["mean_em"])
+        row = learned[key]
+        selected_label = f"{label} best" if key.endswith("_best") else label
+        xs.append(row["mean_total_usd"])
+        ys.append(row["mean_em"])
         ax.scatter(
-            learned["mean_total_usd"],
-            learned["mean_em"],
+            row["mean_total_usd"],
+            row["mean_em"],
             s=100,
             marker="o",
             color=COLORS.get(preset, "#7B2D8E"),
-            label=label,
+            label=selected_label,
             zorder=4,
         )
+        spot = (round(row["mean_total_usd"], 8), round(row["mean_em"], 6))
+        selected_labels_at.setdefault(spot, []).append(selected_label)
+        last = learned.get(preset)
+        if key.endswith("_best") and last is not None:
+            ax.scatter(
+                last["mean_total_usd"],
+                last["mean_em"],
+                s=70,
+                marker="x",
+                color=COLORS.get(preset, "#7B2D8E"),
+                label=f"{label} last",
+                zorder=4,
+            )
+            ax.annotate(
+                f"{label} last",
+                (last["mean_total_usd"], last["mean_em"]),
+                textcoords="offset points",
+                xytext=(6, 8),
+                fontsize=8,
+            )
+    for (x, y), labels in selected_labels_at.items():
         ax.annotate(
-            label,
-            (learned["mean_total_usd"], learned["mean_em"]),
+            " / ".join(labels),
+            (x, y),
             textcoords="offset points",
-            xytext=(6, -12),
+            xytext=(6, -14),
             fontsize=8,
         )
     if len(xs) >= 2:
-        ax.plot(xs, ys, color="#7B2D8E", linewidth=1.2, alpha=0.7, zorder=2)
+        ax.plot(xs, ys, color="#7B2D8E", linewidth=1.2, alpha=0.7, zorder=2, label="selected checkpoints")
+    ceiling_labeled = False
+    for row in table.get("ceilings") or []:
+        ax.scatter(
+            row["mean_total_usd"],
+            row["mean_em"],
+            s=160,
+            marker="o",
+            facecolors="none",
+            edgecolors="#111111",
+            linewidths=1.6,
+            label="controller ceiling" if not ceiling_labeled else None,
+            zorder=5,
+        )
+        ceiling_labeled = True
+        ax.annotate(
+            str(row.get("label") or row.get("n_correct")),
+            (row["mean_total_usd"], row["mean_em"]),
+            textcoords="offset points",
+            xytext=(6, 4),
+            fontsize=8,
+        )
     ax.set_xlabel("Mean USD / example")
     ax.set_ylabel("Mean EM")
-    ax.set_title("Learned cost-pressure frontier (λ=0 / 20 / 80, locked 300-eval)")
+    ax.set_title("Selected checkpoint vs last epoch (hollow = controller ceiling)")
     ax.grid(True, alpha=0.3)
-    ax.legend(frameon=False, fontsize=8)
+    ax.legend(frameon=False, fontsize=7)
     fig.tight_layout()
     _save(fig, Path(out_dir) / "frontier_em_usd.png")
 

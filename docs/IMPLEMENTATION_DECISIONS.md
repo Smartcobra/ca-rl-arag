@@ -242,13 +242,44 @@ Trained and scored `frontier_lambda0` and `frontier_lambda20` for 40 epochs on t
 
 `frontier_act02` at 40 epochs is now on disk (2026-09-24): retrieve→stop 300/300, same exam as naive. `frontier_sweep_table.json` and `frontier_em_usd.png` were regenerated the same day.
 
+The EM numbers in this block are the **last** epoch. They are not the best-greedy checkpoints. Read with 2026-09-26.
+
 ## 2026-09-24 — λ=80 `act02` 40-epoch exam
 
 Trained and scored `frontier_act02` for 40 epochs on the same 100 / 300 split. Overwrote the 5-epoch act02 `.pt` / JSON / curve (backup curve in `partial_curve_backup/`).
 
 Last sampled 2.09 steps / 0 verify / reward 0.695. Greedy retrieve→stop on all 40 epochs. Frozen 300-eval is **2.0 steps / 1.0 retrieve / 0 verify on 300/300**, EM 0.333 (100/300), $ 1.72e-4, Hotpot 59 / NQ 41. Sources: `learned_frontier_act02.json`, `train_policy_curve_frontier_act02.json`, `learned_policy_frontier_act02.pt`.
 
-Then `plot_results.py --frontier` rewrote `frontier_sweep_table.json` and `frontier_em_usd.png` from the λ=0 / 20 / 80 exams.
+Then `plot_results.py --frontier` rewrote `frontier_sweep_table.json` and `frontier_em_usd.png` from the λ=0 / 20 / 80 exams. For λ=80, last epoch and best greedy epoch are the same path. For λ=0 and λ=20 they are not. See 2026-09-26.
+
+## 2026-09-26 — Last checkpoint is a fixed recipe, not a controller
+
+The 40-epoch exams above scored the last `.pt`. `_best.pt` is the best greedy reward on the same 100 training questions. For λ=0 and λ=20 those are different policies. All three frozen 300-evals take one action sequence on every question. They do not use passage count, BM25 score, or the verify label. This run is a flat frontier of fixed recipes. It is not the adaptive-controller figure.
+
+**Checkpoint pick.** `train_policy_curve_frontier_lambda0.json`: best greedy reward is epoch 25, retrieve→stop, `eval_reward` 0.72947, train EM 0.43. The 6-step path (rewrite, rewrite, retrieve, verify, verify, stop) first shows up at epoch 31, reward about 0.712, train EM 0.40. Epochs 34 and 37 flip back to a 4-step path at the same 0.40. The 300-eval used epoch 40: 104/300 versus naive 100/300. On the 100 training questions that recipe is 3 worse (40 vs 43). On the 300 it is 4 better. That is noise.
+
+`train_policy_curve_frontier_lambda20.json`: best greedy reward is epoch 15, retrieve→stop, `eval_reward` 0.72608, train EM 0.43. Epoch 40 is three retrieves then stop, reward 0.72335. Epochs 38–39 had already returned to retrieve→stop. The 300-eval used epoch 40.
+
+**λ=20 spends for the same passages.** `learned_frontier_lambda20.jsonl` is `retrieve, retrieve, retrieve, stop` on 300/300. The three retrieves return the same top passage ids on every question. Predictions match `learned_frontier_act02.jsonl` (naive) on 300/300, so the answers stay 59 Hotpot + 41 NQ. Two wasted retrieves move greedy reward by about 0.0027 (0.72608 → 0.72335). That is smaller than the gap between recipes, so training never treats the repeat as a mistake.
+
+**The observation is ignored.** `learned_frontier_lambda0.jsonl` is the 6-step recipe on 300/300. Final `verify_out` is contradiction 14 / neutral 55 / support 231. After a non-support verify, the next action is never retrieve or rewrite (0 of 138 step events). `learned_frontier_act02.jsonl` is retrieve→stop on 300/300. Greedy keeps flipping because these recipes sit within about 0.02 train reward of each other.
+
+**The per-question gap is the result.** Against naive (`act02`; λ=20 matches it answer for answer), the λ=0 recipe fixes 6 Hotpot answers and breaks 12, and fixes 18 NQ answers and breaks 8. Oracles on the same 300 ids:
+
+| Pick | Correct / 300 |
+|---|---|
+| Naive on Hotpot, λ=0 recipe on NQ | 110 |
+| Better of naive or λ=0, per question | 124 |
+| Better of naive, λ=0, and max_tools | 127 |
+| Better of naive, λ=0, max_tools, rule_based, and `correctness_only` | 130 |
+
+Single policies only span 100 (naive) to 105 (max_tools). The 110 mix costs $2.60e-4 per question, about a third of max_tools ($7.47e-4, 7 steps). Fixed recipes fight over about 5 points. A controller that actually reads the observation has 24 points of headroom (100 → 124) before any new tool.
+
+**Do not cite** epoch-40 λ=0 EM 0.347 or epoch-40 λ=20 as learned frontier points. The selected exam is `_best.pt`: epoch 25 for λ=0 and epoch 15 for λ=20. On the 300, both are retrieve→stop (100/300, same dollars as naive). The last-epoch rows stay in `frontier_sweep_table.json` beside them. Hollow markers are the ceilings 110, 124, and 127.
+
+**Verify softmax (the 2026-09-10 check).** `learned_policy_frontier_lambda0.pt` (epoch 40), one real post-verify observation, support=1 versus contradiction=1. Raw probabilities: support 0.106 / 0.280 / 0.032 / 0.374 / 0.209 and contradiction 0.099 / 0.274 / 0.036 / 0.379 / 0.212 (retrieve, rewrite, rerank, verify, stop). Max gap 0.0068. They are not identical at two decimals. Argmax is verify either way, so the bit does not change the action. Source: `results/metrics/verify_sensitivity_lambda0.json`.
+
+Sources: `train_policy_curve_frontier_lambda0.json`, `train_policy_curve_frontier_lambda20.json`, `learned_frontier_lambda0.jsonl`, `learned_frontier_lambda20.jsonl`, `learned_frontier_act02.jsonl`, `learned_frontier_lambda0_best.json`, `learned_frontier_lambda20_best.json`, `max_tools_default.jsonl`, `rule_based_default.jsonl`, `learned_correctness_only.jsonl`.
 
 ## Observations template
 
@@ -266,5 +297,6 @@ Then `plot_results.py --frontier` rewrote `frontier_sweep_table.json` and `front
 | 2026-09-13 | λ=80 `act_penalty` sweep | All three learned evals retrieve→stop 300/300, identical to naive. Train shrank toward 2 steps. | Extra $ at λ=80 is still −EV even at \(P_{\mathrm{act}}=0\). Next: lower λ. |
 | 2026-09-15 | Frontier retarget (config + trainer) | Presets λ=0 / 20 / 80; 40 epochs; greedy `eval_reward` per epoch. | Sweep now crosses break-even; sample-vs-greedy gap is logged. |
 | 2026-09-16 | Colab `.pt` sync | λ=80 family checkpoints now local. Still retrieve→stop 300/300. No `lambda0` / `lambda20` JSON yet. | Do not cite the 09-15/16 v2 notebook outputs as the new family. |
-| 2026-09-23 | λ=0 / 20 40-epoch train + 300-eval | λ=0: 6 steps / 2 rewrite / 2 verify, EM 0.347 (104/300). λ=20: 4 steps / 3 retrieve / 0 verify, EM 0.333 (100/300). Neither is retrieve→stop. | First learned-family spread off naive. |
-| 2026-09-24 | λ=80 `act02` 40-epoch exam + `--frontier` | Retrieve→stop 300/300, EM 0.333. Greedy was 2-step all 40 epochs. Sweep table + `frontier_em_usd.png` regenerated. | Three-point action spread is complete. Only λ=0 moves EM. |
+| 2026-09-23 | λ=0 / 20 40-epoch train + 300-eval | λ=0: 6 steps / 2 rewrite / 2 verify, EM 0.347 (104/300). λ=20: 4 steps / 3 retrieve / 0 verify, EM 0.333 (100/300). Neither is retrieve→stop. | Last-epoch paths only. Revised 2026-09-26: best greedy epoch is naive for both. |
+| 2026-09-24 | λ=80 `act02` 40-epoch exam + `--frontier` | Retrieve→stop 300/300, EM 0.333. Greedy was 2-step all 40 epochs. Sweep table + `frontier_em_usd.png` regenerated. | λ=80 matches naive on every epoch. The λ=0 / λ=20 points on that figure are last checkpoints. See 2026-09-26. |
+| 2026-09-26 | Re-read of the λ=0 / 20 / 80 curves and 300 trajectories | Best greedy: λ=0 epoch 25 and λ=20 epoch 15, both retrieve→stop. Last epoch: 6-step recipe (train EM 0.40, eval 104/300) and 3 identical retrieves (answers = naive, reward gap ~0.0027). Each policy is one action sequence on 300/300. Verify contradiction 14 and neutral 55 never change the next action. Per-question oracle: naive∪λ=0 = 124; +max_tools = 127; +rule + `correctness_only` = 130. Naive-on-Hotpot + λ=0-on-NQ = 110 at ~1/3 of max_tools cost. | Fixed recipes are a flat frontier (~5 points). An observation-reading controller has 24 points of headroom (100 → 124). Do not plot last-epoch λ=0 / λ=20 as learned points. |

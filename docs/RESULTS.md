@@ -110,7 +110,7 @@ results/
 | Generator | **Qwen2.5-3B-Instruct** |
 | Verifier | Lexical NLI |
 | Policies (ranking table) | `naive_rag`, `rule_based`, `max_tools`, `learned` |
-| Learned policy | Ranking row: `learned_default.json` (2026-09-10), frozen argmax = naive. Free-cost: `correctness_only` used the step cap. λ=0 / 20 / 80 family (40 epochs): λ=0 used tools (EM 0.347); λ=20 EM-tied at 4 steps / 3 retrieve; λ=80 `act02` retrieve→stop. |
+| Learned policy | Ranking row: `learned_default.json` (2026-09-10), frozen argmax = naive. Free-cost: `correctness_only` used the step cap. λ=0 / 20 / 80 family: the **selected** checkpoint is `_best.pt` (best train-greedy reward, chosen before the 300). Those exams are retrieve→stop. The last-epoch λ=0 row (EM 0.347) is not the selected point. |
 
 These runs validate the **pipeline, costs, and frozen-policy reward ranking**, not SOTA Hotpot/NQ accuracy. NQ golds are real DPR Wikipedia 100-word passages (not `{question} The answer is {gold}`). 847 distinct eval gold articles sit in an 80k Hotpot-heavy index, so first-shot BM25 can fail. Hotpot retrieval is also no longer near-perfect.
 
@@ -398,34 +398,39 @@ Trainer changes that were missing on the 09-13 run and are now in `train_policy.
 | `frontier_lambda20` | 4.75 / 0.45 / 0.717 | 4.01 / 0.52 / 0.711 | **4.0 / 3.0 / 0.0 / 0.43** |
 | `frontier_act02` | 4.61 / 0.47 / 0.570 | 2.09 / 0.00 / 0.695 | **2.0 / 1.0 / 0.0 / 0.43** |
 
-Greedy on λ=0 flipped between 2-step and 6-step+verify across the 40 epochs and finished at 6 / 2 verify. Greedy on λ=20 was 2-step on most epochs and finished at 4 / 3 retrieve / 0 verify. Greedy on λ=80 `act02` was retrieve→stop on **all 40** epochs.
+Greedy on λ=0 flipped between 2-step and 6-step+verify across the 40 epochs and finished at 6 / 2 verify. The **best** greedy reward is epoch 25 (0.72947, train EM 0.43, retrieve→stop), not epoch 40 (0.712, train EM 0.40). Greedy on λ=20 was 2-step on most epochs; the best reward is epoch 15 (0.72608, train EM 0.43, retrieve→stop) and the last epoch is 4 / 3 retrieve. Greedy on λ=80 `act02` was retrieve→stop on **all 40** epochs.
+
+**Checkpoint rule.** Score `<stem>_best.pt`. That epoch is the max greedy reward on the 100 training questions, and it is chosen before the 300 is opened. The last `.pt` is a second row.
 
 **Eval** (frozen argmax, n=300):
 
-| Point | EM | n_correct | F1 | $ | steps | retrieve | rewrite | verify |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| naive_rag (frozen) | 0.333 | 100/300 | 0.397 | 1.72e-4 | 2.0 | 1.0 | 0.0 | 0.0 |
-| rule_based (frozen) | 0.323 | 97/300 | 0.395 | 5.04e-4 | 4.0 | 1.0 | 0.0 | 1.0 |
-| max_tools (frozen) | **0.350** | **105/300** | 0.422 | 7.47e-4 | 7.0 | 3.0 | 1.0 | 1.0 |
-| learned `frontier_lambda0` | **0.347** | **104/300** | 0.418 | 3.41e-4 | **6.0** | **1.0** | **2.0** | **2.0** |
-| learned `frontier_lambda20` | 0.333 | 100/300 | 0.397 | 2.72e-4 | **4.0** | **3.0** | **0.0** | **0.0** |
-| learned `frontier_act02` | 0.333 | 100/300 | 0.397 | 1.72e-4 | **2.0** | **1.0** | **0.0** | **0.0** |
+| Point | Which checkpoint | EM | n_correct | F1 | $ | steps | retrieve | rewrite | verify | sequences | after contradiction |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| naive_rag (frozen) | — | 0.333 | 100/300 | 0.397 | 1.72e-4 | 2.0 | 1.0 | 0.0 | 0.0 | — | — |
+| rule_based (frozen) | — | 0.323 | 97/300 | 0.395 | 5.04e-4 | 4.0 | 1.0 | 0.0 | 1.0 | — | — |
+| max_tools (frozen) | — | **0.350** | **105/300** | 0.422 | 7.47e-4 | 7.0 | 3.0 | 1.0 | 1.0 | — | — |
+| learned `frontier_lambda0` | **best, epoch 25** | 0.333 | 100/300 | 0.397 | 1.72e-4 | **2.0** | **1.0** | **0.0** | **0.0** | **1** | **no verify** |
+| learned `frontier_lambda0` | last, epoch 40 | 0.347 | 104/300 | 0.418 | 3.41e-4 | **6.0** | **1.0** | **2.0** | **2.0** | **1** | **stop** |
+| learned `frontier_lambda20` | **best, epoch 15** | 0.333 | 100/300 | 0.397 | 1.72e-4 | **2.0** | **1.0** | **0.0** | **0.0** | **1** | **no verify** |
+| learned `frontier_lambda20` | last, epoch 40 | 0.333 | 100/300 | 0.397 | 2.72e-4 | **4.0** | **3.0** | **0.0** | **0.0** | **1** | **no verify** |
+| learned `frontier_act02` | best = last | 0.333 | 100/300 | 0.397 | 1.72e-4 | **2.0** | **1.0** | **0.0** | **0.0** | **1** | **no verify** |
 
-Action mix is uniform on every exam: λ=0 is **300/300** at 6 steps (1 retrieve, 2 rewrite, 2 verify); λ=20 is **300/300** at 4 steps (3 retrieve, 0 rewrite / rerank / verify); λ=80 `act02` is **300/300** retrieve→stop.
+The selected λ=0 and λ=20 checkpoints are retrieve→stop on **300/300** post-retrieve observations, so the exam matches naive (same query, same BM25). Last-epoch action mix is one recipe each: λ=0 is **300/300** at 6 steps; λ=20 is **300/300** at 3 retrieves of the same passages; λ=80 is **300/300** retrieve→stop. After verify said contradiction (14 questions on the λ=0 last epoch), the next action is never retrieve or rewrite: the script does a second verify, then stop. λ=20 and λ=80 never call verify.
 
-Hotpot / NQ (from the JSONL; the exam JSON has no `by_dataset` block):
+Hotpot / NQ for the **last-epoch** exams (from the JSONL). The selected λ=0 and λ=20 checkpoints match the naive row (59 and 41).
 
 | Point | Hotpot EM (n_correct) | NQ EM (n_correct) |
 |---|---|---|
 | naive (ranking) | 0.393 (59/150) | 0.273 (41/150) |
-| learned `frontier_lambda0` | 0.353 (53/150) | **0.340 (51/150)** |
-| learned `frontier_lambda20` | 0.393 (59/150) | 0.273 (41/150) |
+| learned `frontier_lambda0` last | 0.353 (53/150) | 0.340 (51/150) |
+| learned `frontier_lambda20` last | 0.393 (59/150) | 0.273 (41/150) |
 | learned `frontier_act02` | 0.393 (59/150) | 0.273 (41/150) |
 
-- **λ=0 left the naive stack.** Tools were free, and the frozen policy used them (rewrite ×2 + verify ×2). Overall EM 0.347 (104/300) vs naive 0.333 (100/300) and max_tools 0.350 (105/300). Spend is ~2.0× naive (3.41e-4 vs 1.72e-4) and less than half of max_tools (7.47e-4). Split moved: Hotpot 59→53, NQ 41→51. Abstain 0.14 (42/300). Eval reward under this preset is 0.616 (not comparable to the `default` 0.580 ranking scalar).
-- **λ=20 is EM-tied to naive, not action-tied.** Same 100/300, same 59+41 split, same F1 0.397, but three retrieves and no verify at 4 steps / 2.72e-4. Abstain 0.15 (45/300). Eval reward under this preset is 0.595.
-- **λ=80 `act02` collapsed to naive**, as the −EV arithmetic predicted. Frozen exam is retrieve→stop **300/300**, EM 0.333, $ 1.72e-4, Hotpot 59 / NQ 41. Train sampling shrank 4.61 → 2.09 steps; greedy was already 2-step on every epoch. Eval reward under this preset is 0.567.
-- This is a three-point **action** spread (6-step tools / 3-retrieve / retrieve→stop), not a three-point **EM** curve. Only λ=0 moves EM (0.347). λ=20 spends more for the same 100/300. λ=80 sits on the naive square. Combined table: `frontier_sweep_table.json`. Figure: `results/figs/frontier_em_usd.png`.
+- **The λ=0 number 0.347 is the last-epoch checkpoint, not the selected one.** Epoch 40 is the 6-step recipe (104/300). The best-greedy epoch is epoch 25, and that epoch is naive. On the 100 training questions the 6-step recipe scores EM 0.40 against 0.43 for naive. On the 300, the selected checkpoint matches naive (100/300). The last-epoch Hotpot/NQ split (53/51) is the table above, not the selected exam.
+- **λ=20 last epoch spends for the same answers.** Three retrieves, identical passages, 100/300, same 59+41 split as naive, $ 2.72e-4. The selected checkpoint (epoch 15) is retrieve→stop at the naive dollar cost.
+- **λ=80 `act02` is retrieve→stop on every greedy epoch**, as the −EV arithmetic predicted. Frozen exam is retrieve→stop **300/300**, EM 0.333, $ 1.72e-4, Hotpot 59 / NQ 41.
+- Selected checkpoints sit on the naive square. Last-epoch λ=0 and λ=20 are extra rows, not the frontier line. Hollow markers on `frontier_em_usd.png` are the controller ceilings: 110 (naive on Hotpot, λ=0 recipe on NQ), 124 (better of naive or λ=0 per question), 127 (those two plus max_tools). Combined table: `frontier_sweep_table.json`.
+- **Verify inputs move the λ=0 softmax by about one point, and the action does not change.** On a real post-verify observation, raw P(action) for support=1 is retrieve 0.106 / rewrite 0.280 / rerank 0.032 / verify 0.374 / stop 0.209. For contradiction=1 it is 0.099 / 0.274 / 0.036 / 0.379 / 0.212. Max gap 0.0068. Rounded to two decimals they differ (verify 0.37 vs 0.38). Argmax is verify either way. Source: `results/metrics/verify_sensitivity_lambda0.json`.
 - Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v2.ipynb`. Commands: [`HOW_TO_RUN.md`](HOW_TO_RUN.md) §4.8.
 
 ---
@@ -511,7 +516,7 @@ That gap is precisely where a learned policy should win: see `contradiction` / l
 7. **REINFORCE under `default` sampled tools; eval argmax is naive.** Five train epochs: reward 0.649 → 0.564 → 0.643, verify 0.39–0.55, steps ~4. Frozen 300-eval: retrieve→stop **300/300**, predictions identical to naive, reward 0.580. Entropy hid the mode. The verify-on-contradiction win condition did not fire (`verify_out` is null).
 8. **Free-cost sanity (2026-09-13) validates the trainer.** `correctness_only` frozen eval is **8 steps / 3 retrieve / 2 verify on 300/300** (step cap), EM 0.340 (102/300, net +2 vs naive). `lambda_zero` frozen eval is still retrieve→stop 300/300. The loop can learn tools; \(P_{\mathrm{act}}\) is what keeps the ranking row naive.
 9. **λ=80 `act_penalty` sweep did not draw a frontier.** `frontier_act0` / `act005` / `act02` frozen evals are all retrieve→stop 300/300, EM 0.333, identical to naive. Extra max_tools $ at λ=80 is ~0.046 vs ~0.028 quality, so even \(P_{\mathrm{act}}=0\) is still high pressure on average.
-10. **λ=0 / 20 / 80 40-epoch family is on disk (2026-09-23/24).** `frontier_lambda0` used tools (6 steps / 2 rewrite / 2 verify, EM 0.347, 104/300). `frontier_lambda20` stayed EM-tied (100/300) at 4 steps / 3 retrieve. `frontier_act02` is retrieve→stop 300/300, EM 0.333. Combined table and figure regenerated 2026-09-24. The ranking `learned` row stays the `default` checkpoint. Do not cite a train curve as a policy win.
+10. **λ=0 / 20 / 80 selected checkpoints are naive; the 0.347 row is the last epoch.** `_best.pt` is epoch 25 (λ=0) and epoch 15 (λ=20), both retrieve→stop, train EM 0.43. The last-epoch λ=0 recipe scores train EM 0.40 and 104/300 on the exam we are not selecting. Each learned policy uses 1 action sequence. Ceilings on the figure: 110, 124, 127. The ranking `learned` row stays the `default` checkpoint.
 
 ---
 
