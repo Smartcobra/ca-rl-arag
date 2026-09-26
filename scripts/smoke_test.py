@@ -15,7 +15,7 @@ from src.data.loaders import build_synthetic_pilot, save_processed, stratified_l
 from src.metrics import aggregate_metrics, counts_by_dataset
 from src.policies import get_policy
 from src.rag_baseline import RAGBaseline
-from src.rag_env import ACTION_TO_IDX, AgenticRAGEnv
+from src.rag_env import ACTION_TO_IDX, OBS_DIM, AgenticRAGEnv
 from src.retrieval import BM25Retriever
 from src.utils import read_jsonl, set_seed
 
@@ -86,7 +86,7 @@ def main() -> None:
 
     env = AgenticRAGEnv(cfg, retriever, examples, seed=0)
     obs, info = env.reset(options={"example": examples[0]})
-    assert obs.shape == (10,)
+    assert obs.shape == (OBS_DIM,)
     obs, reward, term, trunc, info = env.step(ACTION_TO_IDX["retrieve"])
     assert not term
     obs, reward, term, trunc, info = env.step(ACTION_TO_IDX["stop"])
