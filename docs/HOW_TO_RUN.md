@@ -51,7 +51,7 @@ If you point **default.yaml** at a synthetic or 2k-passage corpus, the ranking s
 | 5 | `train_policy.py` | Milestone 3 REINFORCE: tiny MLP on the **100 train examples only**. **40 epochs** by default. Logs sampled mean reward **and** greedy `eval_reward` per epoch. Does **not** open the 300-example eval file. That curve is homework, not the paper table. |
 | 6 | `run_pilot.py --policies learned` | **Why this exists:** freeze `learned_policy.pt` and score the **300 eval** questions training never saw. Same Hotpot/NQ table as naive / rule / max_tools. Without this step you cannot claim a learned-policy result. **This run (2026-09-10):** argmax collapsed to retrieve→stop (identical to naive). |
 | 7 | `train_policy.py --reward-preset correctness_only` then `lambda_zero` + matching `--policies learned` | **Why this exists:** prove the trainer can leave two steps when cost is free. **This run (2026-09-13):** `correctness_only` eval hit the 8-step cap; `lambda_zero` stayed retrieve→stop. Use `--checkpoint` / `--curve` / `--no-figures` so the `default` ranking artifacts stay put. |
-| 8 | `train_policy.py --reward-preset frontier_lambda0` (then `lambda20`, `act02`) + `plot_results.py --frontier` | **Why this exists:** paper headline. One learned policy per (λ, \(P_{\mathrm{act}}\)) that **crosses break-even**. **Score `<stem>_best.pt`**, chosen by train-greedy reward before the 300. On this run those selected exams are retrieve→stop. The last-epoch λ=0 file (EM 0.347) is a second row, not the selected point. Notebook: `Frontier_Cost_Pressure_CA_RL_ARAG_v2.ipynb`. |
+| 8 | `train_policy.py --reward-preset frontier_lambda0` (then `lambda20`, `act02`) + `plot_results.py --frontier` | **Why this exists:** paper headline. One learned policy per (λ, \(P_{\mathrm{act}}\)) that **crosses break-even**. **Score `<stem>_best.pt`**, chosen by train-greedy reward before the 300. On this run those selected exams are retrieve→stop. The last-epoch λ=0 file (EM 0.347) is a second row, not the selected point. Notebook: `Frontier_Cost_Pressure_CA_RL_ARAG_v2.ipynb`. The next sweep is §4.9 / `Frontier_Cost_Pressure_CA_RL_ARAG_v3.ipynb`. |
 
 They are sequenced so you never debug data/reward issues on a broken pipeline. Train after the frozen ranking exists. Score the learned policy **after** the `.pt` exists; do not mix the train curve into the ranking table.
 
@@ -634,6 +634,33 @@ Last-epoch train: λ=0 sampled 4.98 steps / 1.04 verify / reward 0.720, greedy 6
 | `results/trajectories/learned_frontier_lambda0.jsonl` / `_lambda20.jsonl` / `_act02.jsonl` | 300 rows each |
 
 Does not overwrite `learned_policy.pt`. Ranking plots were refreshed from `pilot_summary_default.json` at the same time.
+
+### 4.9 Frontier v3 (validation pick)
+
+**Why:** the v2 `_best.pt` was the best greedy reward on the same 100 training questions, and every frozen exam was one action sequence. v3 trains on 500 questions, picks the checkpoint on a 180-question validation slice taken from the next prefix of the HuggingFace train split, and uses `advantage = sampled reward − naive reward` on that question. The observation adds the BM25 top-1 score, the top-1 − top-2 gap, and a verify one-hot (support / contradiction / neutral). It does not add a dataset id.
+
+The locked 300 is unchanged. `tests/fixtures/locked_eval_ids.json` is the id list. Do not run `prepare_data.py --hf` for this sweep: that rewrites `eval_slice.jsonl`. Build only the new slices:
+
+```bash
+python scripts/build_train_valid.py --config configs/frontier_v3.yaml
+python scripts/train_policy.py --config configs/frontier_v3.yaml \
+  --reward-preset frontier_lambda0 --epochs 20 \
+  --checkpoint results/checkpoints/learned_policy_frontier_v3_lambda0.pt \
+  --curve results/metrics/train_policy_curve_frontier_v3_lambda0.json
+python scripts/run_pilot.py --config configs/frontier_v3.yaml \
+  --reward-preset frontier_lambda0 --policies learned \
+  --learned-checkpoint results/checkpoints/learned_policy_frontier_v3_lambda0_best.pt \
+  --artifact-suffix v3 --no-figures
+python scripts/run_pilot.py --config configs/frontier_v3.yaml \
+  --reward-preset frontier_lambda0 --policies learned \
+  --learned-checkpoint results/checkpoints/learned_policy_frontier_v3_lambda0.pt \
+  --artifact-suffix v3last --no-figures
+python scripts/plot_results.py --frontier-tag v3
+```
+
+Repeat the train and both exams for `frontier_lambda20` and `frontier_act02` with `v3_lambda20` / `v3_act02` checkpoint names. `--frontier-tag v3` writes `frontier_sweep_table_v3.json` and `frontier_em_usd_v3.png`. It leaves `frontier_em_usd.png` and the v2 JSON in place. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v3.ipynb`.
+
+`_best.pt` is the max greedy reward on `valid_slice.jsonl` (`eval_split: valid_greedy` in the curve). Read that epoch before opening the 300. The `v3` exam is that checkpoint. The `v3last` exam is the last epoch.
 
 ---
 

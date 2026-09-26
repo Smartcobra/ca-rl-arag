@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """REINFORCE trainer for the tiny learned policy.
 
-Train split only: reads ``train_slice.jsonl`` (100 examples). Never opens
-``eval_slice.jsonl``. The 300-example ranking file is a later, separate eval.
+Reads the train file in the config. Never opens ``eval_slice.jsonl``.
+The 300-example ranking file is a later, separate eval.
 
-Each epoch logs sampled ``mean_reward`` and a deterministic (argmax)
-``eval_reward`` on the same train examples. Frozen ``run_pilot`` scoring
-also uses argmax; without this pass the sample-vs-greedy gap is invisible.
+Advantage is the sampled trajectory reward minus the naive reward on that
+same question (cached per reward preset). A group of K samples plus this
+anchor is Milestone 4. This trainer uses one sample.
+
+When ``data.valid_file`` exists, ``_best.pt`` is the epoch with the highest
+greedy reward on that validation slice. Otherwise greedy stays on the train
+file (smoke runs and the older 100-example config).
 """
 
 from __future__ import annotations
@@ -28,11 +32,13 @@ sys.path.insert(0, str(ROOT))
 
 from src.agentic_rag import AgenticRAG
 from src.config import load_config, resolve_path
+from src.data.id_lock import assert_disjoint, load_locked_eval_ids
 from src.data.loaders import stratified_limit
 from src.data.preflight import assert_ranking_data
 from src.generation import build_generator
 from src.gpu import cleanup_gpu_resources, log_gpu_memory
 from src.metrics import counts_by_dataset
+from src.policies import naive_stop_policy
 from src.policies.learned import MAX_HIDDEN, LearnedPolicy, assert_train_only_path
 from src.rag_env import ACTION_TO_IDX, AgenticRAGEnv
 from src.retrieval import BM25Retriever
@@ -49,6 +55,76 @@ def _load_train_examples(cfg: dict, limit: int | None) -> tuple[list[dict], Path
     examples = read_jsonl(train_path)
     examples = stratified_limit(examples, limit, seed=int(cfg["experiment"]["seed"]))
     return examples, train_path
+
+
+def advantage_vs_naive(sampled_reward: float, naive_reward: float) -> float:
+    """One sampled trajectory minus the naive reward on the same question.
+
+    K sampled trajectories plus this anchor is Milestone 4 (GRPO). K=1 here.
+    """
+    return float(sampled_reward) - float(naive_reward)
+
+
+def _naive_reward(env: AgenticRAGEnv, cfg: dict, example: dict) -> float:
+    """Deterministic retrieve-then-stop reward. Cached because λ changes the scalar."""
+    _obs, info = env.reset(options={"example": example})
+    state = env._state
+    done = False
+    reward = 0.0
+    while not done and state is not None:
+        structured = info.get("structured_obs") or state.observation(env._tracker, cfg)
+        action_name = naive_stop_policy(structured, state)
+        _obs, reward, term, trunc, info = env.step(ACTION_TO_IDX[action_name])
+        state = env._state
+        done = bool(term or trunc)
+    return float(reward)
+
+
+def _naive_cache_path(metrics_dir: Path, preset: str) -> Path:
+    return Path(metrics_dir) / f"naive_reward_cache_{preset}.json"
+
+
+def ensure_naive_reward_cache(
+    env: AgenticRAGEnv,
+    cfg: dict,
+    examples: list[dict],
+    path: Path,
+) -> dict[str, float]:
+    preset = str(cfg["reward_preset_name"])
+    stored: dict[str, float] = {}
+    if path.exists():
+        blob = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(blob, dict) and blob.get("reward_preset") == preset:
+            stored = {str(k): float(v) for k, v in (blob.get("rewards") or {}).items()}
+    missing = [ex for ex in examples if str(ex.get("id")) not in stored]
+    if missing:
+        print(f"Caching naive reward for {len(missing)} questions (preset={preset})")
+    for i, ex in enumerate(missing, start=1):
+        stored[str(ex.get("id"))] = _naive_reward(env, cfg, ex)
+        if i % 25 == 0 or i == len(missing):
+            print(f"  naive cache {i}/{len(missing)}")
+            _write_naive_cache(path, preset, stored)
+    if missing:
+        _write_naive_cache(path, preset, stored)
+    return stored
+
+
+def _write_naive_cache(path: Path, preset: str, rewards: dict[str, float]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"reward_preset": preset, "n": len(rewards), "rewards": rewards}, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _load_valid_examples(cfg: dict) -> tuple[list[dict], Path] | None:
+    rel = (cfg.get("data") or {}).get("valid_file")
+    if not rel:
+        return None
+    path = assert_train_only_path(resolve_path(cfg, rel))
+    if not path.exists():
+        return None
+    return read_jsonl(path), path
 
 
 def _reinforce_loss(
@@ -243,7 +319,7 @@ def main() -> None:
     entropy_coef = float(args.entropy_coef if args.entropy_coef is not None else learned.get("entropy_coef", 0.01))
     ckpt_rel = args.checkpoint or learned.get("checkpoint", "results/checkpoints/learned_policy.pt")
     if hidden > MAX_HIDDEN:
-        raise SystemExit(f"--hidden {hidden} exceeds cap {MAX_HIDDEN} (100 train examples).")
+        raise SystemExit(f"--hidden {hidden} exceeds cap {MAX_HIDDEN}.")
 
     seed = int(cfg["experiment"]["seed"])
     set_seed(seed)
@@ -260,10 +336,34 @@ def main() -> None:
         print(f"Stratified --limit {args.limit} on TRAIN: {n_file} -> {n_run}")
 
     n_run = counts_by_dataset(examples)
+    valid_pair = _load_valid_examples(cfg)
+    if valid_pair is None and (cfg.get("data") or {}).get("valid_file") and not args.skip_data_check:
+        raise SystemExit(
+            f"Missing validation file {cfg['data']['valid_file']}. "
+            "Run: python scripts/build_train_valid.py --config configs/frontier_v3.yaml"
+        )
+    if valid_pair is None:
+        select_examples = examples
+        eval_split = "train_greedy"
+        valid_path = None
+    else:
+        select_examples, valid_path = valid_pair
+        train_ids = [str(ex.get("id")) for ex in read_jsonl(train_path)]
+        valid_ids = [str(ex.get("id")) for ex in select_examples]
+        locked_ids = load_locked_eval_ids()
+        assert_disjoint(("train", train_ids), ("valid", valid_ids), ("eval", locked_ids))
+        if not args.skip_data_check:
+            assert_ranking_data(cfg, select_examples, corpus, split="valid")
+        eval_split = "valid_greedy"
     print(
         f"TRAIN ONLY path={train_path} n={len(examples)} by_dataset={n_run} "
         f"preset={cfg['reward_preset_name']} hidden={hidden} epochs={epochs} lr={lr}"
     )
+    if valid_path is not None:
+        print(f"SELECT on validation path={valid_path} n={len(select_examples)} split={eval_split}")
+    else:
+        print(f"SELECT on train greedy n={len(select_examples)} (no valid_file)")
+    print("advantage = sampled reward - naive reward on the same question")
 
     retriever = BM25Retriever(corpus)
     metrics_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["metrics_dir"]))
@@ -295,6 +395,12 @@ def main() -> None:
     try:
         agent = AgenticRAG(cfg, retriever, generator=generator)
         env = AgenticRAGEnv(cfg, retriever, examples, seed=seed, agent=agent)
+        naive_cache = ensure_naive_reward_cache(
+            env,
+            cfg,
+            examples,
+            _naive_cache_path(metrics_dir, str(cfg["reward_preset_name"])),
+        )
         policy = LearnedPolicy(hidden=hidden, seed=seed, device="cpu")
         opt = torch.optim.Adam(policy.parameters(), lr=lr)
 
@@ -357,14 +463,18 @@ def main() -> None:
                 epoch_verify.append(stats["n_verify"])
 
                 if log_probs:
-                    advantage = reward - baseline
+                    ex_id = str(ex.get("id"))
+                    if ex_id not in naive_cache:
+                        naive_cache[ex_id] = _naive_reward(env, cfg, ex)
+                    advantage = advantage_vs_naive(reward, naive_cache[ex_id])
                     loss = _reinforce_loss(log_probs, entropies, advantage, entropy_coef)
                     opt.zero_grad()
                     loss.backward()
                     opt.step()
-                baseline = 0.95 * baseline + 0.05 * reward
+                # EMA baseline stays in the trainer file so --resume keeps its schema.
+                # The advantage above does not use it.
 
-            greedy = greedy_eval_epoch(env, policy, cfg, examples)
+            greedy = greedy_eval_epoch(env, policy, cfg, select_examples)
             row = {
                 "epoch": epoch,
                 "n": len(order),
@@ -378,7 +488,8 @@ def main() -> None:
                 "eval_n_steps": greedy["eval_n_steps"],
                 "eval_n_retrieve": greedy["eval_n_retrieve"],
                 "eval_n_verify": greedy["eval_n_verify"],
-                "eval_split": "train_greedy",
+                "eval_split": eval_split,
+                "advantage": "sampled_minus_naive",
                 "split": "train",
                 "hidden": hidden,
                 "lr": lr,
@@ -404,6 +515,7 @@ def main() -> None:
             if row["eval_reward"] > best_eval_reward:
                 best_eval_reward = row["eval_reward"]
                 extra["best_eval_reward"] = best_eval_reward
+                extra["selection_split"] = eval_split
                 policy.save(best_path, extra=extra)
             policy.save(ckpt_path, extra=extra)
             save_trainer_state(

@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from src.policies.learned import LearnedPolicy
+from src.policies.learned import OBS_DIM, LearnedPolicy
 from train_policy import (
     _last_finished_epoch,
     _load_curve,
@@ -41,7 +41,7 @@ def test_resume_saves_and_loads_trainer_state() -> None:
 
         policy = LearnedPolicy(hidden=8, seed=0)
         opt = torch.optim.Adam(policy.parameters(), lr=0.003)
-        dummy = torch.zeros(1, 10)
+        dummy = torch.zeros(1, OBS_DIM)
         loss = policy.mlp(dummy).sum()
         opt.zero_grad()
         loss.backward()

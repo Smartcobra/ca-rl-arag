@@ -526,3 +526,39 @@ def load_single_hop_with_real_passages(
         "Tevatron/wikipedia-squad, rajpurkar/squad. Never falling back to "
         "answer-anchor leakage. Errors:\n- " + "\n- ".join(errors)
     )
+
+
+def load_single_hop_train_prefix(
+    n: int,
+    *,
+    negatives_per_query: int = DEFAULT_NEGATIVES_PER_QUERY,
+    streaming: bool = True,
+    preferred_hf_id: str | None = None,
+    seed: int = 42,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    """First ``n`` examples of the HF train split. Does not open the eval split."""
+    chain = list(_TEVATRON_CHAIN)
+    if preferred_hf_id:
+        preferred = [s for s in chain if s["hf_id"] == preferred_hf_id]
+        rest = [s for s in chain if s["hf_id"] != preferred_hf_id]
+        chain = preferred + rest
+    errors: list[str] = []
+    for spec in chain:
+        try:
+            print(f"Trying single-hop train prefix: {spec['label']} n={n}")
+            examples, passages, stats = _take_hf_source(
+                spec, "train", n, negatives_per_query, streaming, seed
+            )
+            if count_leaky_anchors(passages):
+                raise RuntimeError("refusing answer-anchor passages in the single-hop corpus")
+            stats = dict(stats)
+            stats["label"] = spec["label"]
+            stats["dataset"] = spec["dataset"]
+            return examples, passages, stats
+        except Exception as exc:
+            msg = f"{spec['hf_id']}: {exc}"
+            print(f"  failed ({msg})")
+            errors.append(msg)
+    raise RuntimeError(
+        "Could not load a single-hop train prefix. Errors:\n- " + "\n- ".join(errors)
+    )

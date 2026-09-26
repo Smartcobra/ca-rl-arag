@@ -26,7 +26,7 @@ from src.policies.learned import (
     learned_checkpoint_path,
     parameter_count,
 )
-from src.rag_env import ACTION_TO_IDX
+from src.rag_env import ACTION_TO_IDX, vectorize_structured_obs
 
 _AGENT = {
     "max_steps": 8,
@@ -47,8 +47,12 @@ def _empty_evidence_obs(*, remaining_frac: float = 1.0) -> np.ndarray:
 def test_mlp_shape_and_size() -> None:
     mlp = PolicyMLP(16)
     n = parameter_count(mlp)
-    assert n == 261
+    assert OBS_DIM == 15
+    assert n == 341
     assert n <= MAX_PARAM_COUNT
+    wide = parameter_count(PolicyMLP(32))
+    assert wide == 677
+    assert wide <= MAX_PARAM_COUNT
     out = mlp(torch.randn(4, OBS_DIM))
     assert tuple(out.shape) == (4, len(ACTIONS))
 
@@ -111,9 +115,49 @@ def test_reinforce_step_finite() -> None:
     assert torch.isfinite(loss).item()
 
 
+def test_verify_features_and_no_dataset_id() -> None:
+    cfg = {"agent": {"max_steps": 8}, "budget": {"max_usd": 0.05}}
+    base = {
+        "mean_score": 10.0,
+        "n_evidence": 2,
+        "remaining_steps": 6,
+        "remaining_usd": 0.04,
+        "top_scores": [20.0, 5.0],
+        "counts": {"retrieve": 1, "rewrite": 0, "rerank": 0, "verify": 1},
+        "verification": {"support": 0.2, "contradiction": 0.1, "label": "support"},
+    }
+    support = vectorize_structured_obs(base, cfg)
+    contra = vectorize_structured_obs(
+        {**base, "verification": {"support": 0.2, "contradiction": 0.1, "label": "contradiction"}},
+        cfg,
+    )
+    neutral = vectorize_structured_obs(
+        {**base, "verification": {"support": 0.2, "contradiction": 0.1, "label": "neutral"}},
+        cfg,
+    )
+    before = vectorize_structured_obs({**base, "verification": None, "top_scores": []}, cfg)
+    assert tuple(support.shape) == (OBS_DIM,)
+    assert np.allclose(support[:12], contra[:12])
+    assert list(support[-3:]) == [1.0, 0.0, 0.0]
+    assert list(contra[-3:]) == [0.0, 1.0, 0.0]
+    assert list(neutral[-3:]) == [0.0, 0.0, 1.0]
+    assert list(before[-3:]) == [0.0, 0.0, 0.0]
+    assert before[10] == 0.0 and before[11] == 0.0
+    assert support[10] == np.float32(np.tanh(4.0))
+    assert support[11] == np.float32(np.tanh(3.0))
+    tagged = dict(base)
+    tagged["dataset"] = "hotpot_qa"
+    assert np.allclose(support, vectorize_structured_obs(tagged, cfg))
+    one = vectorize_structured_obs({**base, "top_scores": [8.0]}, cfg)
+    assert one[11] == 0.0
+    assert one[10] == np.float32(np.tanh(8.0 / 5.0))
+
+
 def test_assert_train_only_path() -> None:
     p = assert_train_only_path("data/processed/train_slice.jsonl")
     assert p.name == "train_slice.jsonl"
+    valid = assert_train_only_path("data/processed/valid_slice.jsonl")
+    assert valid.name == "valid_slice.jsonl"
     try:
         assert_train_only_path("data/processed/eval_slice.jsonl")
     except ValueError as exc:
@@ -179,6 +223,7 @@ def main() -> None:
     test_act_respects_mask()
     test_act_deterministic_is_argmax()
     test_reinforce_step_finite()
+    test_verify_features_and_no_dataset_id()
     test_assert_train_only_path()
     test_as_callable_empty_evidence()
     test_get_policy_learned_requires_cfg()

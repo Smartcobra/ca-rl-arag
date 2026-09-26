@@ -299,8 +299,15 @@ def controller_ceilings(naive_rows: list[dict], lambda0_rows: list[dict], max_ro
     ]
 
 
+def _base_preset(key: str) -> str:
+    for name, _label in FRONTIER_LEARNED:
+        if key == name or key.startswith(name + "_"):
+            return name
+    return key.removesuffix("_best")
+
+
 def _learned_row(stats: dict, preset: str, *, checkpoint: str, extra: dict | None = None) -> dict:
-    base_preset = preset.removesuffix("_best")
+    base_preset = _base_preset(preset)
     row = {
         "mean_em": float(stats.get("mean_em") or 0.0),
         "mean_total_usd": float(stats.get("mean_total_usd") or 0.0),
@@ -311,6 +318,7 @@ def _learned_row(stats: dict, preset: str, *, checkpoint: str, extra: dict | Non
         "n_examples": float(stats.get("n_examples") or 0.0),
         "kind": "learned",
         "checkpoint": checkpoint,
+        "preset": base_preset,
         "reward_preset": base_preset,
         **dict(FRONTIER_PRESET_META.get(base_preset) or {}),
     }
@@ -329,10 +337,16 @@ def _load_jsonl(path: Path) -> list[dict]:
     return rows
 
 
-def collect_frontier_table(metrics_dir: Path) -> dict:
-    """Build the EM-vs-$ table from frozen ranking JSON + per-preset learned evals."""
+def collect_frontier_table(metrics_dir: Path, tag: str | None = None) -> dict:
+    """Build the EM-vs-$ table from frozen ranking JSON + per-preset learned evals.
+
+    ``tag`` reads ``learned_{preset}_{tag}.json`` as the selected row and
+    ``learned_{preset}_{tag}last.json`` as the last-epoch row. The unsuffixed
+    v2 files stay in place.
+    """
     metrics_dir = Path(metrics_dir)
     traj_dir = metrics_dir.parent / "trajectories"
+    tag = (tag or "").strip().strip("_")
     frozen: dict[str, dict] = {}
     for name, fname in FRONTIER_FROZEN_FILES.items():
         path = metrics_dir / fname
@@ -350,8 +364,12 @@ def collect_frontier_table(metrics_dir: Path) -> dict:
             "kind": "frozen",
         }
     learned: dict[str, dict] = {}
+    if tag:
+        pairs = ((f"_{tag}", "best"), (f"_{tag}last", "last"))
+    else:
+        pairs = (("", "last"), ("_best", "best"))
     for preset, _label in FRONTIER_LEARNED:
-        for suffix, checkpoint in (("", "last"), ("_best", "best")):
+        for suffix, checkpoint in pairs:
             key = f"{preset}{suffix}"
             path = metrics_dir / f"learned_{key}.json"
             if not path.exists():
@@ -387,22 +405,35 @@ def collect_frontier_table(metrics_dir: Path) -> dict:
         "learned": learned,
         "ceilings": ceilings,
         "selection_rule": (
+            f"Score the {tag} exam from _best.pt, chosen by greedy reward on the validation slice "
+            "before opening the 300. The last epoch is a second row."
+            if tag
+            else
             "Score <stem>_best.pt, the max train-greedy eval_reward. "
             "Choose it before opening the 300. The last epoch is a second row, not the selected point."
         ),
+        "tag": tag or None,
     }
 
 
 def _selected_learned_key(learned: dict, preset: str) -> str | None:
-    """The point we are allowed to claim: _best.pt if that exam exists, else last epoch."""
+    """The point we are allowed to claim: best exam if it exists, else last epoch."""
+    for key, row in learned.items():
+        if str(row.get("preset")) == preset and row.get("checkpoint") == "best":
+            return key
     if f"{preset}_best" in learned:
         return f"{preset}_best"
+    if preset in learned and learned[preset].get("checkpoint") != "last":
+        return preset
+    for key, row in learned.items():
+        if str(row.get("preset")) == preset and row.get("checkpoint") == "last":
+            return key
     if preset in learned:
         return preset
     return None
 
 
-def plot_frontier_em_usd(table: dict, out_dir: Path) -> None:
+def plot_frontier_em_usd(table: dict, out_dir: Path, filename: str = "frontier_em_usd.png") -> None:
     """Headline figure: frozen anchors, selected checkpoints, last-epoch rows, ceilings."""
     fig, ax = plt.subplots(figsize=(7.4, 5.2))
     frozen = table.get("frozen") or {}
@@ -434,7 +465,8 @@ def plot_frontier_em_usd(table: dict, out_dir: Path) -> None:
         if key is None:
             continue
         row = learned[key]
-        selected_label = f"{label} best" if key.endswith("_best") else label
+        is_best = row.get("checkpoint") == "best" or key.endswith("_best")
+        selected_label = f"{label} best" if is_best else label
         xs.append(row["mean_total_usd"])
         ys.append(row["mean_em"])
         ax.scatter(
@@ -448,8 +480,16 @@ def plot_frontier_em_usd(table: dict, out_dir: Path) -> None:
         )
         spot = (round(row["mean_total_usd"], 8), round(row["mean_em"], 6))
         selected_labels_at.setdefault(spot, []).append(selected_label)
-        last = learned.get(preset)
-        if key.endswith("_best") and last is not None:
+        last_key = preset if preset in learned and preset != key else None
+        if last_key is None:
+            for candidate, cand_row in learned.items():
+                if candidate == key:
+                    continue
+                if cand_row.get("preset") == preset and cand_row.get("checkpoint") == "last":
+                    last_key = candidate
+                    break
+        last = learned.get(last_key) if last_key else None
+        if is_best and last is not None:
             ax.scatter(
                 last["mean_total_usd"],
                 last["mean_em"],
@@ -503,7 +543,7 @@ def plot_frontier_em_usd(table: dict, out_dir: Path) -> None:
     ax.grid(True, alpha=0.3)
     ax.legend(frameon=False, fontsize=7)
     fig.tight_layout()
-    _save(fig, Path(out_dir) / "frontier_em_usd.png")
+    _save(fig, Path(out_dir) / filename)
 
 
 def plot_pareto(results: dict, out_dir: Path) -> None:
@@ -685,6 +725,13 @@ def main() -> None:
         action="store_true",
         help="Also write frontier_sweep_table.json + frontier_em_usd.png from learned_frontier_*.json.",
     )
+    parser.add_argument(
+        "--frontier-tag",
+        default=None,
+        help="Read learned_{preset}_{tag}.json as the selected exam and "
+        "{tag}last as the last epoch. Writes frontier_sweep_table_{tag}.json "
+        "and frontier_em_usd_{tag}.png so the unsuffixed v2 figure stays.",
+    )
     args = parser.parse_args()
 
     metrics_dir = (ROOT / args.metrics_dir).resolve() if not Path(args.metrics_dir).is_absolute() else Path(args.metrics_dir)
@@ -704,15 +751,18 @@ def main() -> None:
     except (FileNotFoundError, ValueError) as e:
         raise SystemExit(str(e)) from e
 
-    if args.frontier:
-        table = collect_frontier_table(metrics_dir)
-        table_path = metrics_dir / "frontier_sweep_table.json"
+    if args.frontier or args.frontier_tag:
+        tag = (args.frontier_tag or "").strip().strip("_")
+        table = collect_frontier_table(metrics_dir, tag or None)
+        table_name = f"frontier_sweep_table_{tag}.json" if tag else "frontier_sweep_table.json"
+        table_path = metrics_dir / table_name
         table_path.write_text(json.dumps(table, indent=2), encoding="utf-8")
         print(f"Wrote {table_path}")
         if table.get("learned"):
-            plot_frontier_em_usd(table, out_dir)
+            fig_name = f"frontier_em_usd_{tag}.png" if tag else "frontier_em_usd.png"
+            plot_frontier_em_usd(table, out_dir, fig_name)
         else:
-            print("Skip frontier figure (no learned_frontier_*.json yet)")
+            print("Skip frontier figure (no learned frontier JSON yet)")
 
 
 if __name__ == "__main__":

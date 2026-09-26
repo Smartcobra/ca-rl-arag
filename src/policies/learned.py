@@ -1,8 +1,8 @@
 """Tiny MLP action head for Milestone-3 REINFORCE (train-only).
 
-Input is the 10-d vector from ``AgenticRAGEnv._vector_obs``. Output is 5
-logits in ``ACTIONS`` order. Hidden width is capped: 100 train examples
-cannot support a wide net.
+Input is the 15-d vector from ``AgenticRAGEnv._vector_obs``. Output is 5
+logits in ``ACTIONS`` order. Hidden width is capped: the train slice is
+too small for a wide net.
 """
 
 from __future__ import annotations
@@ -16,17 +16,17 @@ import torch.nn as nn
 from torch.distributions import Categorical
 
 from ..agentic_rag import ACTIONS, AgentState
-from ..rag_env import IDX_TO_ACTION, vectorize_structured_obs
+from ..rag_env import IDX_TO_ACTION, OBS_DIM, vectorize_structured_obs
 
-OBS_DIM = 10
 N_ACTIONS = len(ACTIONS)
 MAX_HIDDEN = 32
-# 10→32→5 = 517 params. Tests refuse anything larger.
-MAX_PARAM_COUNT = 600
+# 15→16→5 = 341. 15→32→5 = 677. Tests refuse anything larger.
+MAX_PARAM_COUNT = 700
 
-# Vector layout must match AgenticRAGEnv._vector_obs:
+# Vector layout must match AgenticRAGEnv._vector_obs. Append-only:
 # [mean_score, n_evidence/10, remaining_steps/max, remaining_usd/max_usd,
-#  verify_support, verify_contra, retrieve/3, rewrite/2, rerank/2, verify/2]
+#  verify_support, verify_contra, retrieve/3, rewrite/2, rerank/2, verify/2,
+#  top1_bm25, top1_top2_gap, verify_one_hot × 3]
 _IDX_N_EVIDENCE = 1
 _IDX_REMAINING_STEPS = 2
 _IDX_RETRIEVE = 6
@@ -41,7 +41,7 @@ def assert_train_only_path(path: str | Path) -> Path:
     if "eval" in p.name.lower():
         raise ValueError(
             f"Refusing to load eval data for training: {p}. "
-            "Use data/processed/train_slice.jsonl only (100 examples)."
+            "Use train_slice.jsonl or valid_slice.jsonl. Never eval_slice.jsonl."
         )
     return p
 
@@ -103,13 +103,13 @@ def legal_mask(obs_vec: np.ndarray, cfg: dict[str, Any] | None = None) -> np.nda
 
 
 class PolicyMLP(nn.Module):
-    """10 → hidden → 5. Default hidden=16 is 261 parameters."""
+    """15 → hidden → 5. Default hidden=16 is 341 parameters."""
 
     def __init__(self, hidden: int = 16):
         super().__init__()
         hidden = int(hidden)
         if hidden < 1 or hidden > MAX_HIDDEN:
-            raise ValueError(f"hidden must be in 1..{MAX_HIDDEN} (got {hidden}); 100 examples is not much data")
+            raise ValueError(f"hidden must be in 1..{MAX_HIDDEN} (got {hidden}); the train slice is not much data")
         self.hidden = hidden
         self.net = nn.Sequential(
             nn.Linear(OBS_DIM, hidden),
@@ -179,6 +179,7 @@ class LearnedPolicy:
             "state_dict": self.mlp.state_dict(),
             "hidden": self.hidden,
             "seed": self.seed,
+            "obs_dim": OBS_DIM,
         }
         if extra:
             payload.update(extra)
@@ -192,8 +193,20 @@ class LearnedPolicy:
             payload = torch.load(path, map_location=device, weights_only=True)
         except TypeError:
             payload = torch.load(path, map_location=device)
+        saved_dim = payload.get("obs_dim")
+        if saved_dim is not None and int(saved_dim) != OBS_DIM:
+            raise ValueError(
+                f"{path} was trained with obs_dim={saved_dim}; this code expects {OBS_DIM}. "
+                "v2 checkpoints stay on disk. Train a v3 checkpoint."
+            )
         pol = cls(hidden=int(payload["hidden"]), seed=int(payload.get("seed") or 0), device=device)
-        pol.mlp.load_state_dict(payload["state_dict"])
+        try:
+            pol.mlp.load_state_dict(payload["state_dict"])
+        except RuntimeError as exc:
+            raise ValueError(
+                f"{path} does not match OBS_DIM={OBS_DIM}. "
+                "A 10-d v2 checkpoint cannot load into the 15-d head."
+            ) from exc
         return pol
 
     def as_callable(self, cfg: dict[str, Any], *, deterministic: bool = True):

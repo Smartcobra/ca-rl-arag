@@ -281,6 +281,16 @@ Single policies only span 100 (naive) to 105 (max_tools). The 110 mix costs $2.6
 
 Sources: `train_policy_curve_frontier_lambda0.json`, `train_policy_curve_frontier_lambda20.json`, `learned_frontier_lambda0.jsonl`, `learned_frontier_lambda20.jsonl`, `learned_frontier_act02.jsonl`, `learned_frontier_lambda0_best.json`, `learned_frontier_lambda20_best.json`, `max_tools_default.jsonl`, `rule_based_default.jsonl`, `learned_correctness_only.jsonl`.
 
+## 2026-09-26 — v3 train: validation pick, naive anchor, richer observation
+
+The next λ sweep is `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v3.ipynb` and `configs/frontier_v3.yaml`. It does not replace the v2 checkpoints, curves, or `frontier_em_usd.png`.
+
+**Validation slice.** Train is 300 Hotpot + 200 NQ. Validation is the next 110 Hotpot + 70 NQ from the same HuggingFace train split (180 questions). `_best.pt` is the highest greedy reward on that slice (`eval_split: valid_greedy`). The 300 eval ids are locked in `tests/fixtures/locked_eval_ids.json`. `scripts/build_train_valid.py` checks them and does not rewrite `eval_slice.jsonl`.
+
+**Advantage.** `advantage = sampled reward − naive reward` on the same question. The naive retrieve-then-stop reward is cached per preset at `results/metrics/naive_reward_cache_<preset>.json`, because λ changes the scalar. The EMA baseline is still written into the trainer file so `--resume` keeps its schema. It is not the advantage. A group of K samples plus this anchor is Milestone 4. This trainer uses one sample.
+
+**Observation.** The vector is 15-d (341 parameters at hidden 16). Appended to the old 10 dims: tanh(top-1 BM25), tanh(top-1 − top-2), and a verify one-hot for support, contradiction, and neutral (all zero before verify). There is no dataset id. Old 10-d `.pt` files do not load into this head.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
@@ -300,3 +310,4 @@ Sources: `train_policy_curve_frontier_lambda0.json`, `train_policy_curve_frontie
 | 2026-09-23 | λ=0 / 20 40-epoch train + 300-eval | λ=0: 6 steps / 2 rewrite / 2 verify, EM 0.347 (104/300). λ=20: 4 steps / 3 retrieve / 0 verify, EM 0.333 (100/300). Neither is retrieve→stop. | Last-epoch paths only. Revised 2026-09-26: best greedy epoch is naive for both. |
 | 2026-09-24 | λ=80 `act02` 40-epoch exam + `--frontier` | Retrieve→stop 300/300, EM 0.333. Greedy was 2-step all 40 epochs. Sweep table + `frontier_em_usd.png` regenerated. | λ=80 matches naive on every epoch. The λ=0 / λ=20 points on that figure are last checkpoints. See 2026-09-26. |
 | 2026-09-26 | Re-read of the λ=0 / 20 / 80 curves and 300 trajectories | Best greedy: λ=0 epoch 25 and λ=20 epoch 15, both retrieve→stop. Last epoch: 6-step recipe (train EM 0.40, eval 104/300) and 3 identical retrieves (answers = naive, reward gap ~0.0027). Each policy is one action sequence on 300/300. Verify contradiction 14 and neutral 55 never change the next action. Per-question oracle: naive∪λ=0 = 124; +max_tools = 127; +rule + `correctness_only` = 130. Naive-on-Hotpot + λ=0-on-NQ = 110 at ~1/3 of max_tools cost. | Fixed recipes are a flat frontier (~5 points). An observation-reading controller has 24 points of headroom (100 → 124). Do not plot last-epoch λ=0 / λ=20 as learned points. |
+| 2026-09-26 | v3 trainer (`frontier_v3.yaml`, notebook `_v3`) | 500 train / 180 valid from the HF train split. Advantage is sampled minus cached naive. Observation is 15-d (BM25 gap + verify one-hot, no dataset id). 20 epochs. Artifacts use a `v3` suffix. | The next figure is this sweep. The v2 last-epoch files stay the record of the fixed recipes. |
