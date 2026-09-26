@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,12 +29,12 @@ def main() -> None:
     train, eval_set, passages = build_synthetic_pilot(
         n_train_hotpot=12, n_train_nq=8, n_eval_hotpot=8, n_eval_nq=6
     )
-    out_dir = ROOT / "data" / "processed"
-    save_processed(train, eval_set, passages, str(out_dir))
-
-    # Refresh cfg paths relative to package
-    corpus = read_jsonl(out_dir / "corpus.jsonl")
-    examples = read_jsonl(out_dir / "eval_slice.jsonl")[:10]
+    # Synthetic rows stay in a temp dir. data/processed holds the locked 300 and the 80k corpus.
+    with tempfile.TemporaryDirectory(prefix="ca_rl_arag_smoke_") as tmp:
+        out_dir = Path(tmp)
+        save_processed(train, eval_set, passages, str(out_dir))
+        corpus = read_jsonl(out_dir / "corpus.jsonl")
+        examples = read_jsonl(out_dir / "eval_slice.jsonl")[:10]
     if not examples:
         examples = train[:10]
 
