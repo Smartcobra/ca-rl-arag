@@ -1,5 +1,5 @@
 # Offline / fast baseline — same as default except extractive generator.
-# Usage: python scripts/run_pilot.py --config configs/extractive.yaml --limit 40
+# Usage: python scripts/run_pilot.py --config configs/extractive.yaml
 
 experiment:
   name: ca_rl_arag_m2_extractive
@@ -14,8 +14,8 @@ data:
   corpus_file: data/processed/corpus.jsonl
   train_nq: 40
   train_hotpot: 60
-  eval_nq: 25
-  eval_hotpot: 25
+  eval_nq: 150
+  eval_hotpot: 150
   hotpot_config: distractor
 
 retrieval:
@@ -42,6 +42,8 @@ generation:
   model_name: null
   max_answer_tokens: 64
   temperature: 0.0
+  allow_abstain: true
+  force_yes_no: true
 
 verification:
   backend: lexical_nli
@@ -61,6 +63,14 @@ reward:
 
 policy:
   name: rule_based
+  learned:
+    hidden: 16
+    lr: 0.003
+    # Laptop / extractive debug only. Ranking and frontier trains use
+    # configs/default.yaml (40 epochs) plus a greedy eval_reward pass.
+    epochs: 5
+    entropy_coef: 0.01
+    checkpoint: results/checkpoints/learned_policy.pt
 
 logging:
   save_trajectories: true

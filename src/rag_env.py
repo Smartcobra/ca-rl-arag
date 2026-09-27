@@ -22,6 +22,72 @@ from .rewards import RewardComputer
 ACTION_TO_IDX = {a: i for i, a in enumerate(ACTIONS)}
 IDX_TO_ACTION = {i: a for a, i in ACTION_TO_IDX.items()}
 
+# Layout is append-only. legal_mask reads indices 1, 2, 6–9. New features go at the end.
+# No dataset id: that would let the policy copy a Hotpot/NQ switch without reading the situation.
+OBS_DIM = 15
+
+
+def _bm25_top_features(obs: dict[str, Any]) -> tuple[float, float]:
+    scores = [float(s) for s in (obs.get("top_scores") or [])]
+    if not scores:
+        return 0.0, 0.0
+    top1_norm = float(np.tanh(scores[0] / 5.0))
+    if len(scores) < 2:
+        return top1_norm, 0.0
+    gap = max(scores[0] - scores[1], 0.0)
+    return top1_norm, float(np.tanh(gap / 5.0))
+
+
+def _verify_one_hot(verify: dict[str, Any] | None) -> tuple[float, float, float]:
+    """support / contradiction / neutral. All zero before verify has run."""
+    label = str((verify or {}).get("label") or "").strip().lower()
+    if label == "support":
+        return 1.0, 0.0, 0.0
+    if label == "contradiction":
+        return 0.0, 1.0, 0.0
+    if label == "neutral":
+        return 0.0, 0.0, 1.0
+    return 0.0, 0.0, 0.0
+
+
+def vectorize_structured_obs(obs: dict[str, Any], cfg: dict[str, Any]) -> np.ndarray:
+    """15-d vector used by the env and the learned policy head.
+
+    The first 10 dims are the original snapshot. Appended: tanh(top-1 BM25),
+    tanh(top-1 − top-2), then a verify one-hot (support, contradiction, neutral).
+    """
+    max_steps = float(cfg.get("agent", {}).get("max_steps", 6))
+    max_usd = float(cfg.get("budget", {}).get("max_usd", 0.05)) or 0.05
+    verify = obs.get("verification") or {}
+    mean_score = float(obs.get("mean_score") or 0.0)
+    mean_norm = float(np.tanh(mean_score / 5.0))
+    counts = obs.get("counts") or {}
+    top1_norm, gap_norm = _bm25_top_features(obs)
+    oh_support, oh_contra, oh_neutral = _verify_one_hot(verify if obs.get("verification") else None)
+    vec = np.array(
+        [
+            mean_norm,
+            min(float(obs.get("n_evidence") or 0) / 10.0, 1.0),
+            max(float(obs.get("remaining_steps") or 0) / max_steps, 0.0),
+            min(max(float(obs.get("remaining_usd") or 0) / max_usd, 0.0), 1.0),
+            float(verify.get("support") or 0.0),
+            float(verify.get("contradiction") or 0.0),
+            min(float(counts.get("retrieve", 0)) / 3.0, 1.0),
+            min(float(counts.get("rewrite", 0)) / 2.0, 1.0),
+            min(float(counts.get("rerank", 0)) / 2.0, 1.0),
+            min(float(counts.get("verify", 0)) / 2.0, 1.0),
+            top1_norm,
+            gap_norm,
+            oh_support,
+            oh_contra,
+            oh_neutral,
+        ],
+        dtype=np.float32,
+    )
+    if vec.size != OBS_DIM:
+        raise ValueError(f"expected obs dim {OBS_DIM}, got {vec.size}")
+    return vec
+
 
 class AgenticRAGEnv(gym.Env):
     metadata = {"render_modes": []}
@@ -43,9 +109,10 @@ class AgenticRAGEnv(gym.Env):
         self.reward_computer = self.agent.reward_computer
         self.action_space = spaces.Discrete(len(ACTIONS))
         # Compact vector observation for bandit/RL heads (Milestone 3+)
-        # [mean_score, n_evidence/10, remaining_steps/max, remaining_usd/max_usd,
-        #  verify_support, verify_contra, retrieve_count/3, rewrite/2, rerank/2, verify/2]
-        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(10,), dtype=np.float32)
+        # First 10: mean_score, n_evidence/10, remaining_steps/max, remaining_usd/max_usd,
+        # verify_support, verify_contra, retrieve/3, rewrite/2, rerank/2, verify/2.
+        # Then top-1 BM25, top-1−top-2 gap, and verify one-hot (support, contradiction, neutral).
+        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(OBS_DIM,), dtype=np.float32)
 
         self._rng = np.random.default_rng(seed)
         self._example: dict[str, Any] | None = None
@@ -56,29 +123,7 @@ class AgenticRAGEnv(gym.Env):
 
     def _vector_obs(self) -> np.ndarray:
         assert self._state is not None and self._tracker is not None
-        obs = self._state.observation(self._tracker, self.cfg)
-        max_steps = float(self.cfg.get("agent", {}).get("max_steps", 6))
-        max_usd = float(self.cfg.get("budget", {}).get("max_usd", 0.05)) or 0.05
-        verify = obs.get("verification") or {}
-        # Normalize mean_score roughly (BM25 scores vary); squash with tanh-like
-        mean_score = float(obs.get("mean_score") or 0.0)
-        mean_norm = float(np.tanh(mean_score / 5.0))
-        vec = np.array(
-            [
-                mean_norm,
-                min(float(obs.get("n_evidence") or 0) / 10.0, 1.0),
-                max(float(obs.get("remaining_steps") or 0) / max_steps, 0.0),
-                min(max(float(obs.get("remaining_usd") or 0) / max_usd, 0.0), 1.0),
-                float(verify.get("support") or 0.0),
-                float(verify.get("contradiction") or 0.0),
-                min(float(obs.get("counts", {}).get("retrieve", 0)) / 3.0, 1.0),
-                min(float(obs.get("counts", {}).get("rewrite", 0)) / 2.0, 1.0),
-                min(float(obs.get("counts", {}).get("rerank", 0)) / 2.0, 1.0),
-                min(float(obs.get("counts", {}).get("verify", 0)) / 2.0, 1.0),
-            ],
-            dtype=np.float32,
-        )
-        return vec
+        return vectorize_structured_obs(self._state.observation(self._tracker, self.cfg), self.cfg)
 
     def reset(
         self,
@@ -130,7 +175,7 @@ class AgenticRAGEnv(gym.Env):
         info: dict[str, Any] = {"action": action_name, "step_info": step_info}
 
         if terminated:
-            abstained = self._state.stop_mode == "abstain" or self._state.draft_answer.upper() == "ABSTAIN"
+            abstained = self._state.stop_mode == "abstain"
             budget = {
                 "max_usd": float(self.cfg.get("budget", {}).get("max_usd", 0.05)),
                 "violated": self.agent.budget_exhausted(self._tracker),

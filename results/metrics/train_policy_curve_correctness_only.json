@@ -1,0 +1,67 @@
+[
+  {
+    "epoch": 1,
+    "n": 100,
+    "mean_reward": 0.45040909090909087,
+    "mean_em": 0.42,
+    "mean_n_steps": 4.66,
+    "mean_n_retrieve": 1.62,
+    "mean_n_verify": 0.5,
+    "split": "train",
+    "hidden": 16,
+    "lr": 0.003,
+    "reward_preset": "correctness_only"
+  },
+  {
+    "epoch": 2,
+    "n": 100,
+    "mean_reward": 0.38317099567099566,
+    "mean_em": 0.36,
+    "mean_n_steps": 4.14,
+    "mean_n_retrieve": 1.55,
+    "mean_n_verify": 0.41,
+    "split": "train",
+    "hidden": 16,
+    "lr": 0.003,
+    "reward_preset": "correctness_only"
+  },
+  {
+    "epoch": 3,
+    "n": 100,
+    "mean_reward": 0.4025757575757576,
+    "mean_em": 0.38,
+    "mean_n_steps": 4.26,
+    "mean_n_retrieve": 1.61,
+    "mean_n_verify": 0.53,
+    "split": "train",
+    "hidden": 16,
+    "lr": 0.003,
+    "reward_preset": "correctness_only"
+  },
+  {
+    "epoch": 4,
+    "n": 100,
+    "mean_reward": 0.4638225108225108,
+    "mean_em": 0.43,
+    "mean_n_steps": 5.49,
+    "mean_n_retrieve": 1.8,
+    "mean_n_verify": 1.06,
+    "split": "train",
+    "hidden": 16,
+    "lr": 0.003,
+    "reward_preset": "correctness_only"
+  },
+  {
+    "epoch": 5,
+    "n": 100,
+    "mean_reward": 0.4018452380952381,
+    "mean_em": 0.37,
+    "mean_n_steps": 5.84,
+    "mean_n_retrieve": 1.84,
+    "mean_n_verify": 1.2,
+    "split": "train",
+    "hidden": 16,
+    "lr": 0.003,
+    "reward_preset": "correctness_only"
+  }
+]

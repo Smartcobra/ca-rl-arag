@@ -40,7 +40,7 @@ class RAGBaseline:
         tracker.price_retrieve(ms_since(t0), method=self.cfg.get("retrieval", {}).get("method", "bm25"))
 
         t1 = timed()
-        answer, mode, usage = self.generator.generate(question, docs, allow_abstain=True)
+        answer, mode, usage = self.generator.generate(question, docs)
         tracker.price_generate(
             ms_since(t1),
             usage.get("prompt_tokens", 200),
@@ -48,7 +48,7 @@ class RAGBaseline:
             action="stop",
         )
 
-        abstained = mode == "abstain" or answer.upper() == "ABSTAIN"
+        abstained = mode == "abstain"
         budget = {
             "max_usd": float(self.cfg.get("budget", {}).get("max_usd", 0.05)),
             "violated": tracker.total_usd > float(self.cfg.get("budget", {}).get("max_usd", 0.05)),

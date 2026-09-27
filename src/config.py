@@ -37,6 +37,7 @@ def load_config(
     cfg["reward_preset_name"] = preset_name
     cfg["reward_ablation_presets"] = list(presets.keys())
     cfg["pareto_sweep"] = rewards.get("pareto_sweep", {})
+    cfg["frontier_sweep"] = rewards.get("frontier_sweep", {})
     cfg["price_card"] = prices
     cfg["root"] = str(ROOT)
     return cfg

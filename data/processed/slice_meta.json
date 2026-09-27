@@ -1,19 +1,118 @@
 {
   "source": "huggingface_nq_hotpot",
+  "seed": 42,
   "n_train": 100,
-  "n_eval": 50,
-  "n_passages": 911,
+  "n_eval": 300,
+  "n_passages": 80000,
+  "n_gold_support": 1869,
+  "n_hotpot_slice": 2086,
+  "n_hotpot_distractor": 74955,
+  "n_nq_wiki": 1450,
+  "n_nq_wiki_neg": 1509,
+  "n_nq_anchor": 0,
+  "distractor_pool_target": 80000,
+  "distractor_pool": {
+    "n_passages": 80000,
+    "n_slice_passages": 5045,
+    "n_distractors_added": 74955,
+    "n_distractor_rows_scanned": 8491,
+    "n_distractor_dups_skipped": 9490,
+    "target": 80000,
+    "hit_target": true,
+    "note": "unused Hotpot contexts plus DPR Wikipedia golds/negatives",
+    "single_hop": {
+      "dataset": "natural_questions",
+      "hf_id": "Tevatron/wikipedia-nq",
+      "label": "DPR Wikipedia 100-word passages (Tevatron/wikipedia-nq)",
+      "kind": "tevatron",
+      "nq_corpus": "dpr_wikipedia_w100",
+      "train": {
+        "n_requested": 40,
+        "n_kept": 40,
+        "n_scanned": 40,
+        "n_skipped": 0,
+        "n_passages": 626,
+        "n_gold_articles": 253,
+        "hit_quota": true,
+        "diversify_by_title": false,
+        "hf_id": "Tevatron/wikipedia-nq",
+        "hf_split": "train",
+        "dataset": "natural_questions",
+        "label": "DPR Wikipedia 100-word passages (Tevatron/wikipedia-nq)",
+        "kind": "tevatron"
+      },
+      "eval": {
+        "n_requested": 150,
+        "n_kept": 150,
+        "n_scanned": 150,
+        "n_skipped": 0,
+        "n_passages": 2349,
+        "n_gold_articles": 847,
+        "hit_quota": true,
+        "diversify_by_title": false,
+        "hf_id": "Tevatron/wikipedia-nq",
+        "hf_split": "dev",
+        "dataset": "natural_questions",
+        "label": "DPR Wikipedia 100-word passages (Tevatron/wikipedia-nq)",
+        "kind": "tevatron"
+      },
+      "n_passages": 2959,
+      "n_gold": 1450,
+      "n_eval_gold_articles": 847
+    }
+  },
+  "train_target": {
+    "hotpot_qa": 60,
+    "natural_questions": 40
+  },
+  "eval_target": {
+    "hotpot_qa": 150,
+    "natural_questions": 150
+  },
   "train_by_dataset": {
     "hotpot_qa": 60,
     "natural_questions": 40
   },
   "eval_by_dataset": {
-    "hotpot_qa": 25,
-    "natural_questions": 25
+    "hotpot_qa": 150,
+    "natural_questions": 150
+  },
+  "single_hop_dataset": "natural_questions",
+  "nq_corpus": "dpr_wikipedia_w100",
+  "nq_hf_dataset": "Tevatron/wikipedia-nq",
+  "nq_passage_note": "DPR Wikipedia 100-word passages (Tevatron/wikipedia-nq)",
+  "ranking": "hotpot_and_nq_after_real_wiki_passages",
+  "retrieval_diag": {
+    "overall": {
+      "recall@1": 0.52,
+      "recall@5": 0.7566666666666667,
+      "recall@20": 0.9666666666666667,
+      "n_examples": 300,
+      "n_miss_at_5": 73,
+      "n_corpus": 80000
+    },
+    "by_dataset": {
+      "hotpot_qa": {
+        "recall@1": 0.76,
+        "recall@5": 0.9266666666666666,
+        "recall@20": 0.9866666666666667,
+        "n_examples": 150,
+        "n_miss_at_5": 11,
+        "n_corpus": 80000
+      },
+      "natural_questions": {
+        "recall@1": 0.28,
+        "recall@5": 0.5866666666666667,
+        "recall@20": 0.9466666666666667,
+        "n_examples": 150,
+        "n_miss_at_5": 62,
+        "n_corpus": 80000
+      }
+    }
   },
   "paths": {
-    "train": "/Users/parsuram/Desktop/research/cursor/agentic_rag_rl/data/processed/train_slice.jsonl",
-    "eval": "/Users/parsuram/Desktop/research/cursor/agentic_rag_rl/data/processed/eval_slice.jsonl",
-    "corpus": "/Users/parsuram/Desktop/research/cursor/agentic_rag_rl/data/processed/corpus.jsonl"
+    "train": "/content/drive/MyDrive/carlarag/ca-rl-arag/data/processed/train_slice.jsonl",
+    "eval": "/content/drive/MyDrive/carlarag/ca-rl-arag/data/processed/eval_slice.jsonl",
+    "corpus": "/content/drive/MyDrive/carlarag/ca-rl-arag/data/processed/corpus.jsonl"
   }
 }

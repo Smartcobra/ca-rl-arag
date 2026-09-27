@@ -1,0 +1,113 @@
+# CA-RL-ARAG frontier v3. Same env and reward family as default.yaml.
+# Train 500 and validate 180 from the HF train split. The locked 300 is unchanged.
+# Checkpoint selection uses greedy reward on valid_slice.jsonl.
+# Scope: five actions {retrieve, rewrite, rerank, verify, stop}
+# Datasets: Natural Questions + HotpotQA
+
+experiment:
+  name: ca_rl_arag_m2_baseline
+  seed: 42
+  output_dir: results
+
+data:
+  processed_dir: data/processed
+  index_dir: data/indexes
+  train_file: data/processed/train_slice_v3.jsonl
+  valid_file: data/processed/valid_slice.jsonl
+  eval_file: data/processed/eval_slice.jsonl
+  corpus_file: data/processed/corpus.jsonl
+  # Locked ranking slice stays 150 Hotpot + 150 NQ. Do not rewrite those ids.
+  # Train and valid are the next prefixes of the HF train split, not the eval split.
+  train_nq: 200
+  train_hotpot: 300
+  valid_nq: 70
+  valid_hotpot: 110
+  eval_nq: 150
+  eval_hotpot: 150
+  # Synthetic corpus is smaller; prepare_data caps splits automatically.
+  # For HuggingFace downloads these counts are used as-is.
+  hotpot_config: distractor
+  # Unused Hotpot contexts only (not extra questions). 0 disables.
+  # 50k–100k so first-shot BM25 is no longer near-perfect.
+  distractor_pool_target: 80000
+  # Pilot / ablation refuse to load the GPU model below this corpus size.
+  min_corpus_passages: 50000
+  require_ranking_slice: true
+  # DPR NQ evidence (not nq_open). TriviaQA / SQuAD are automatic fallbacks
+  # if this download is too heavy. Never writes {{question}} The answer is {{gold}}.
+  nq_passage_dataset: Tevatron/wikipedia-nq
+  nq_negatives_per_query: 8
+
+retrieval:
+  top_k: 5
+  candidate_pool_size: 20
+  rerank_top_n: 5
+  method: bm25  # V1: fixed hybrid/single retriever; semantic/keyword split is V1.1
+
+agent:
+  max_steps: 8
+  max_retrieve: 3
+  max_rewrite: 2
+  max_rerank: 2
+  max_verify: 2
+  actions:
+    - retrieve
+    - rewrite
+    - rerank
+    - verify
+    - stop
+
+generation:
+  # Baseline default: local Qwen instruct (downloads to ~/.cache/huggingface).
+  # Use extractive for fast offline smoke tests.
+  backend: huggingface  # extractive | huggingface | openai(not wired)
+  model_name: Qwen/Qwen2.5-3B-Instruct
+  max_answer_tokens: 64
+  temperature: 0.0
+  device: auto          # auto | cuda | mps | cpu
+  max_input_tokens: 2048
+  torch_dtype: auto     # auto | float16 | bfloat16 | float32
+  # allow_abstain: true keeps ABSTAIN for span questions when evidence cannot support any answer.
+  # Set false (or run_pilot.py --no-abstain) for the refusal ablation.
+  allow_abstain: true
+  # Comparison questions (Are/Were/Do …?) must emit yes or no — never ABSTAIN.
+  force_yes_no: true
+
+verification:
+  # LOCKED DECISION (V1): NLI-style claim support, not LLM-as-judge.
+  # Default backend is lexical NLI (reproducible, no GPU). Optional neural NLI
+  # via transformers once installed — same API, same scores interface.
+  backend: lexical_nli  # lexical_nli | neural_nli
+  neural_model: cross-encoder/nli-deberta-v3-base
+  support_threshold: 0.45
+  contradiction_threshold: 0.55
+
+budget:
+  max_usd: 0.05
+  max_tokens: 8000
+  # Higher default for local 3B decode (esp. CPU/MPS); GPU pilots finish well under this.
+  max_latency_ms: 180000
+  force_stop_on_exhaustion: true
+
+reward:
+  preset: default  # see configs/reward_weights.yaml
+  quality_gate: 0.5  # GRASP-style: no efficiency credit unless Q_ans clears this
+
+policy:
+  # Milestone 2: stable baselines before RL algorithm optimization
+  name: rule_based  # naive_rag | rule_based | max_tools | random | learned
+  # Milestone 3: tiny REINFORCE head. v3 trains 500 and selects on 180 valid.
+  # Hidden > 32 is rejected.
+  learned:
+    hidden: 16
+    lr: 0.003
+    # 20 epochs on 500 questions. Greedy selection is the validation slice.
+    epochs: 20
+    entropy_coef: 0.01
+    checkpoint: results/checkpoints/learned_policy_frontier_v3.pt
+
+logging:
+  save_trajectories: true
+  trajectory_dir: results/trajectories
+  metrics_dir: results/metrics
+  figs_dir: results/figs

@@ -19,14 +19,30 @@ sys.path.insert(0, str(ROOT))
 
 from src.agentic_rag import AgenticRAG
 from src.config import load_config, resolve_path
+from src.data.loaders import stratified_limit
+from src.data.preflight import assert_ranking_data
 from src.evaluate import evaluate_agent, evaluate_baseline, save_metrics
 from src.generation import build_generator
 from src.gpu import cleanup_gpu_resources, log_gpu_memory
+from src.metrics import counts_by_dataset, format_eval_summary, merge_pilot_summary_results
 from src.policies import get_policy
 from src.rag_baseline import RAGBaseline
 from src.rag_env import ACTION_TO_IDX, AgenticRAGEnv
 from src.retrieval import BM25Retriever
 from src.utils import ensure_dir, read_jsonl, set_seed, write_jsonl
+
+
+def _clean_suffix(suffix: str | None) -> str:
+    return (suffix or "").strip().strip("_")
+
+
+def _artifact_stem(policy_name: str, preset: str, suffix: str | None) -> str:
+    """Last-epoch files stay `learned_<preset>`. A _best.pt exam uses a suffix."""
+    stem = f"{policy_name}_{preset}"
+    cleaned = _clean_suffix(suffix)
+    if cleaned and policy_name == "learned":
+        return f"{stem}_{cleaned}"
+    return stem
 
 
 def _write_result_figures(summary_path: Path, figs_dir: Path, ablation_path: Path) -> None:
@@ -43,21 +59,71 @@ def main() -> None:
     parser.add_argument("--config", default="configs/default.yaml")
     parser.add_argument("--reward-preset", default=None)
     parser.add_argument("--split", choices=["eval", "train"], default="eval")
-    parser.add_argument("--limit", type=int, default=50)
-    parser.add_argument("--policies", default="naive_rag,rule_based,max_tools")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Optional stratified cap (preserves Hotpot/NQ mix). Default: full eval file.",
+    )
+    parser.add_argument(
+        "--policies",
+        default="naive_rag,rule_based,max_tools,learned",
+        help=(
+            "Comma-separated policies. learned is skipped if the checkpoint is missing. "
+            "This run's rows merge into an existing pilot_summary_*.json; they do not drop other policies."
+        ),
+    )
+    parser.add_argument(
+        "--learned-checkpoint",
+        default=None,
+        help="Override policy.learned.checkpoint (eval scoring only; does not train).",
+    )
+    parser.add_argument(
+        "--artifact-suffix",
+        default=None,
+        help=(
+            "Append to learned metric, trajectory, and summary filenames (example: best). "
+            "Use when scoring <stem>_best.pt so the last-epoch exam is not overwritten."
+        ),
+    )
     parser.add_argument("--run-env-check", action="store_true", help="Roll a few Gymnasium episodes")
+    parser.add_argument(
+        "--skip-data-check",
+        action="store_true",
+        help="Skip eval-size + corpus-size preflight (synthetic / extractive debug only).",
+    )
+    parser.add_argument(
+        "--no-abstain",
+        action="store_true",
+        help="Refusal ablation: never emit ABSTAIN (generation.allow_abstain=false).",
+    )
+    parser.add_argument(
+        "--no-figures",
+        action="store_true",
+        help="Skip rewriting results/figs (use when scoring a non-ranking preset).",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config, reward_preset=args.reward_preset)
+    if args.no_abstain:
+        cfg.setdefault("generation", {})["allow_abstain"] = False
     set_seed(int(cfg["experiment"]["seed"]))
 
     corpus = read_jsonl(resolve_path(cfg, cfg["data"]["corpus_file"]))
     examples = read_jsonl(resolve_path(cfg, cfg["data"][f"{args.split}_file"]))
+    n_file = counts_by_dataset(examples)
+    if not args.skip_data_check:
+        assert_ranking_data(cfg, examples, corpus, split=args.split)
+    examples = stratified_limit(examples, args.limit, seed=int(cfg["experiment"]["seed"]))
+    n_run = counts_by_dataset(examples)
     if args.limit:
-        examples = examples[: args.limit]
+        print(f"Stratified --limit {args.limit}: {n_file} -> {n_run}")
 
     retriever = BM25Retriever(corpus)
-    print(f"Corpus={len(retriever)} examples={len(examples)} preset={cfg['reward_preset_name']}")
+    print(
+        f"Corpus={len(retriever)} examples={len(examples)} by_dataset={n_run} "
+        f"preset={cfg['reward_preset_name']}"
+    )
 
     traj_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["trajectory_dir"]))
     metrics_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["metrics_dir"]))
@@ -67,6 +133,8 @@ def main() -> None:
     baseline = None
     agent = None
     env = None
+    policy_names = [p.strip() for p in args.policies.split(",") if p.strip()]
+    run_naive = any(p == "naive_rag" for p in policy_names)
 
     # Strategy B: one immutable inference model shared across policies.
     # Isolation is at the policy/reward layer, not by loading a new Qwen copy.
@@ -75,33 +143,53 @@ def main() -> None:
     log_gpu_memory("after model creation")
 
     try:
-        # 1) Standard RAG baseline
-        log_gpu_memory("before naive_rag")
-        baseline = RAGBaseline(cfg, retriever, generator=generator)
-        base_path = traj_dir / f"baseline_{cfg['reward_preset_name']}.jsonl"
-        if base_path.exists():
-            base_path.unlink()
-        base_out = evaluate_baseline(baseline, examples, out_path=base_path)
-        save_metrics(metrics_dir / f"baseline_{cfg['reward_preset_name']}.json", base_out["summary"], {"policy": "naive_rag"})
-        results["naive_rag"] = base_out["summary"]
-        print("naive_rag:", json.dumps(base_out["summary"], indent=2))
-        del base_out
-        log_gpu_memory("after naive_rag")
+        # 1) Standard RAG baseline (only if requested — skip on --policies learned)
+        if run_naive:
+            log_gpu_memory("before naive_rag")
+            baseline = RAGBaseline(cfg, retriever, generator=generator)
+            base_path = traj_dir / f"baseline_{cfg['reward_preset_name']}.jsonl"
+            if base_path.exists():
+                base_path.unlink()
+            base_out = evaluate_baseline(baseline, examples, out_path=base_path)
+            save_metrics(metrics_dir / f"baseline_{cfg['reward_preset_name']}.json", base_out["summary"], {"policy": "naive_rag"})
+            results["naive_rag"] = base_out["summary"]
+            print(format_eval_summary("naive_rag", base_out["summary"]))
+            del base_out
+            log_gpu_memory("after naive_rag")
 
         # 2) Agentic policies — same generator, different action policies
         agent = AgenticRAG(cfg, retriever, generator=generator)
-        for name in [p.strip() for p in args.policies.split(",") if p.strip()]:
+        if any(p.lower() in {"learned", "reinforce"} for p in policy_names):
+            from src.policies.learned import learned_checkpoint_path
+
+            ckpt = learned_checkpoint_path(cfg, args.learned_checkpoint)
+            learned_only = all(p.lower() in {"learned", "reinforce"} for p in policy_names)
+            if not ckpt.exists():
+                msg = (
+                    f"learned checkpoint missing: {ckpt}. "
+                    "Train first: python scripts/train_policy.py"
+                )
+                if learned_only:
+                    raise SystemExit(msg)
+                print(f"Skipping learned: {msg}")
+                policy_names = [p for p in policy_names if p.lower() not in {"learned", "reinforce"}]
+        for name in policy_names:
             if name == "naive_rag":
                 continue
-            policy_fn, policy_name = get_policy(name)
+            policy_fn, policy_name = get_policy(name, cfg=cfg, checkpoint=args.learned_checkpoint)
             log_gpu_memory(f"before {policy_name}")
-            out_path = traj_dir / f"{policy_name}_{cfg['reward_preset_name']}.jsonl"
+            artifact = _artifact_stem(policy_name, cfg["reward_preset_name"], args.artifact_suffix)
+            out_path = traj_dir / f"{artifact}.jsonl"
             if out_path.exists():
                 out_path.unlink()
             out = evaluate_agent(agent, examples, policy_fn, policy_name, out_path=out_path)
-            save_metrics(metrics_dir / f"{policy_name}_{cfg['reward_preset_name']}.json", out["summary"], {"policy": policy_name})
+            save_metrics(
+                metrics_dir / f"{artifact}.json",
+                out["summary"],
+                {"policy": policy_name, "artifact": artifact},
+            )
             results[policy_name] = out["summary"]
-            print(f"{policy_name}:", json.dumps(out["summary"], indent=2))
+            print(format_eval_summary(policy_name, out["summary"]))
             del out
             log_gpu_memory(f"after {policy_name}")
 
@@ -139,14 +227,46 @@ def main() -> None:
             print("env_rollouts:", json.dumps(env_rows, indent=2))
             log_gpu_memory("after env_check")
 
-        summary_path = metrics_dir / f"pilot_summary_{cfg['reward_preset_name']}.json"
+        n_by_dataset = counts_by_dataset(examples)
+        suffix = _clean_suffix(args.artifact_suffix)
+        summary_name = f"pilot_summary_{cfg['reward_preset_name']}"
+        if suffix:
+            summary_name = f"{summary_name}_{suffix}"
+        summary_path = metrics_dir / f"{summary_name}.json"
+        existing_summary = None
+        # A suffixed exam (the _best.pt row) must not replace the last-epoch summary.
+        if suffix:
+            existing_summary = None
+        elif summary_path.exists():
+            try:
+                loaded = json.loads(summary_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                print(f"Could not read existing {summary_path.name} ({exc}); writing this run only")
+            else:
+                if isinstance(loaded, dict):
+                    existing_summary = loaded
+        merged_results = merge_pilot_summary_results(existing_summary, results)
+        kept = [k for k in merged_results if k not in results]
+        if existing_summary is None:
+            print(f"Wrote new {summary_path.name} (no prior file)")
+        elif kept:
+            print(
+                f"Merged into existing {summary_path.name} "
+                f"(kept {', '.join(kept)}; wrote {', '.join(results) or 'nothing'})"
+            )
+        else:
+            print(f"Merged into existing {summary_path.name} (wrote {', '.join(results) or 'nothing'})")
         summary_path.write_text(
             json.dumps(
                 {
                     "reward_preset": cfg["reward_preset_name"],
                     "n_examples": len(examples),
+                    "n_examples_by_dataset": n_by_dataset,
+                    "n_examples_in_file": sum(n_file.values()),
+                    "n_examples_by_dataset_in_file": n_file,
+                    "limit": args.limit,
                     "split": args.split,
-                    "results": results,
+                    "results": merged_results,
                     "ablation_presets_available": cfg["reward_ablation_presets"],
                 },
                 indent=2,
@@ -154,8 +274,9 @@ def main() -> None:
             encoding="utf-8",
         )
         print(f"Wrote {summary_path}")
-        figs_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["figs_dir"]))
-        _write_result_figures(summary_path, figs_dir, metrics_dir / "reward_ablation_table.json")
+        if not args.no_figures:
+            figs_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["figs_dir"]))
+            _write_result_figures(summary_path, figs_dir, metrics_dir / "reward_ablation_table.json")
     finally:
         log_gpu_memory("before cleanup")
         cleanup_gpu_resources(env, agent, baseline, generator)

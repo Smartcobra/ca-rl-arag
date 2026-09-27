@@ -9,7 +9,7 @@ from typing import Any, Callable
 from tqdm import tqdm
 
 from .agentic_rag import AgenticRAG
-from .metrics import aggregate_metrics
+from .metrics import aggregate_metrics, counts_by_dataset
 from .rag_baseline import RAGBaseline
 from .utils import append_jsonl, ensure_dir, write_jsonl
 
@@ -22,7 +22,7 @@ def evaluate_baseline(baseline: RAGBaseline, examples: list[dict[str, Any]], out
         if out_path:
             append_jsonl(out_path, _serializable(row))
     summary = aggregate_metrics(rows)
-    return {"summary": summary, "rows": rows}
+    return {"summary": summary, "rows": rows, "n_examples_by_dataset": counts_by_dataset(rows)}
 
 
 def evaluate_agent(
@@ -39,7 +39,7 @@ def evaluate_agent(
         if out_path:
             append_jsonl(out_path, _serializable(row))
     summary = aggregate_metrics(rows)
-    return {"summary": summary, "rows": rows}
+    return {"summary": summary, "rows": rows, "n_examples_by_dataset": counts_by_dataset(rows)}
 
 
 def save_metrics(path: str | Path, summary: dict[str, Any], meta: dict[str, Any] | None = None) -> None:

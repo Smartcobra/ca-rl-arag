@@ -105,7 +105,7 @@ def random_policy(obs: dict[str, Any], state: AgentState, rng: random.Random | N
     return rng.choices(actions, weights=probs, k=1)[0]
 
 
-def get_policy(name: str):
+def get_policy(name: str, cfg: dict[str, Any] | None = None, checkpoint: str | None = None):
     name = name.lower()
     if name in {"naive_rag", "naive"}:
         return naive_stop_policy, "naive_rag"
@@ -115,4 +115,8 @@ def get_policy(name: str):
         return max_tools_policy, "max_tools"
     if name == "random":
         return random_policy, "random"
+    if name in {"learned", "reinforce"}:
+        from .learned import load_learned_policy_fn
+
+        return load_learned_policy_fn(cfg, checkpoint, deterministic=True), "learned"
     raise ValueError(f"Unknown policy: {name}")

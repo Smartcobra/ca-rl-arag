@@ -8,6 +8,129 @@ from typing import Any
 
 from ..utils import tokenize, truncate
 
+_ANSWER_PREFIXES = ("Answer:", "Final answer:", "A:")
+_PURE_ABSTAIN = re.compile(r"^ABSTAIN[.:!?]*$", re.IGNORECASE)
+_TRAILING_ABSTAIN = re.compile(r"(?:\s+)ABSTAIN[.:!?]*\s*$", re.IGNORECASE)
+_LEADING_ABSTAIN = re.compile(r"^ABSTAIN\b", re.IGNORECASE)
+_WH_QUESTION = re.compile(r"^(what|which|who|whom|whose|when|where|why|how)\b", re.IGNORECASE)
+_YES_NO_AUX = re.compile(
+    r"^(are|is|was|were|do|does|did|can|could|has|have|had)\b",
+    re.IGNORECASE,
+)
+_YES_WORD = re.compile(r"^yes\b", re.IGNORECASE)
+_NO_WORD = re.compile(r"^no\b", re.IGNORECASE)
+# "is there a name for X" asks for a noun, not yes/no.
+_NAME_SEEKING = re.compile(
+    r"^(is|are|was|were)\s+there\s+(a|an|any)\s+(name|word|term|title|called)\b",
+    re.IGNORECASE,
+)
+_EXISTENTIAL_THERE = re.compile(r"^(is|are|was|were)\s+there\b", re.IGNORECASE)
+_COMPARISON_CUE = re.compile(r"\b(and|both|same)\b", re.IGNORECASE)
+
+
+def is_yes_no_question(question: str) -> bool:
+    """Polar / Hotpot comparison questions only — not name-seeking existentials.
+
+    ``is there a name for the at symbol`` is a span question. ``Are X and Y
+    both plants?`` is yes/no.
+    """
+    q = (question or "").strip()
+    if not q or _WH_QUESTION.match(q):
+        return False
+    if _NAME_SEEKING.match(q):
+        return False
+    if _EXISTENTIAL_THERE.match(q) and not _COMPARISON_CUE.search(q):
+        return False
+    return bool(_YES_NO_AUX.match(q))
+
+
+def parse_yes_no(text: str, allow_abstain: bool = False) -> tuple[str, str]:
+    """Normalize a yes/no decode to ``yes`` or ``no``. Never ``Norway`` → ``no``."""
+    raw = _strip_answer_prefixes((text or "").strip())
+    first = ""
+    for line in raw.splitlines():
+        stripped = line.strip().strip("\"'")
+        if stripped:
+            first = stripped
+            break
+    if first:
+        first, _ = _strip_trailing_abstain(first)
+        first = first.rstrip(".:!,")
+    if first and _YES_WORD.match(first):
+        return "yes", "answer"
+    if first and _NO_WORD.match(first):
+        return "no", "answer"
+    if allow_abstain:
+        return "ABSTAIN", "abstain"
+    return "", "answer"
+
+
+def should_allow_abstain(question: str, allow_abstain: bool, force_yes_no: bool) -> bool:
+    if force_yes_no and is_yes_no_question(question):
+        return False
+    return bool(allow_abstain)
+
+
+def parse_answer_or_abstain(
+    text: str,
+    allow_abstain: bool = True,
+    max_chars: int = 200,
+) -> tuple[str, str]:
+    """Parse generator output as exclusive XOR: a clean span or ABSTAIN, never both.
+
+    Trailing ``ABSTAIN`` is stripped and the remainder is kept as an answer
+    (the model answered, then hedged). A leading ``ABSTAIN`` is a refuse.
+    The old ``answer.upper()[:20]`` substring check is intentionally gone:
+    it missed trailing leaks and kept mixed strings when evidence existed.
+    """
+    def _abstain() -> tuple[str, str]:
+        return ("ABSTAIN", "abstain") if allow_abstain else ("", "answer")
+
+    raw = (text or "").strip()
+    if not raw:
+        return _abstain()
+
+    raw, _ = _strip_trailing_abstain(raw)
+    answer = ""
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if stripped:
+            answer = stripped
+            break
+    answer = _strip_answer_prefixes(answer)
+    if not answer:
+        return _abstain()
+    if _PURE_ABSTAIN.match(answer):
+        return _abstain()
+
+    answer, had_trailing = _strip_trailing_abstain(answer)
+    if had_trailing:
+        if not answer:
+            return _abstain()
+        return truncate(answer, max_chars), "answer"
+    if _LEADING_ABSTAIN.match(answer):
+        return _abstain()
+    return truncate(answer, max_chars), "answer"
+
+
+def _strip_answer_prefixes(answer: str) -> str:
+    changed = True
+    while changed and answer:
+        changed = False
+        for prefix in _ANSWER_PREFIXES:
+            if answer.lower().startswith(prefix.lower()):
+                answer = answer[len(prefix) :].strip()
+                changed = True
+                break
+    return answer
+
+
+def _strip_trailing_abstain(text: str) -> tuple[str, bool]:
+    match = _TRAILING_ABSTAIN.search(text)
+    if not match:
+        return text, False
+    return text[: match.start()].rstrip(), True
+
 
 class ExtractiveGenerator:
     """Deterministic extractive QA for stable Milestone-2 baselines.
@@ -16,8 +139,15 @@ class ExtractiveGenerator:
     without changing the agent API.
     """
 
-    def __init__(self, max_answer_tokens: int = 64):
+    def __init__(
+        self,
+        max_answer_tokens: int = 64,
+        allow_abstain: bool = True,
+        force_yes_no: bool = True,
+    ):
         self.max_answer_tokens = max_answer_tokens
+        self.allow_abstain = bool(allow_abstain)
+        self.force_yes_no = bool(force_yes_no)
 
     def rewrite(self, question: str, evidence: list[dict[str, Any]] | None = None) -> tuple[str, dict[str, int]]:
         extra = []
@@ -43,11 +173,13 @@ class ExtractiveGenerator:
         self,
         question: str,
         evidence: list[dict[str, Any]],
-        allow_abstain: bool = True,
+        allow_abstain: bool | None = None,
     ) -> tuple[str, str, dict[str, int]]:
+        allow = self.allow_abstain if allow_abstain is None else allow_abstain
+        allow = should_allow_abstain(question, allow, self.force_yes_no)
         prompt_tokens = 200 + sum(len(tokenize(e.get("text", ""))) for e in evidence[:5]) // 4
         if not evidence:
-            if allow_abstain:
+            if allow:
                 return "ABSTAIN", "abstain", {"prompt_tokens": 50, "completion_tokens": 2}
             return "", "answer", {"prompt_tokens": 50, "completion_tokens": 2}
 
@@ -78,7 +210,7 @@ class ExtractiveGenerator:
                 "completion_tokens": max(len(tokenize(span)), 1),
             }
 
-        if allow_abstain:
+        if allow:
             return "ABSTAIN", "abstain", {"prompt_tokens": prompt_tokens, "completion_tokens": 2}
         return "", "answer", {"prompt_tokens": prompt_tokens, "completion_tokens": 2}
 
@@ -223,6 +355,8 @@ class HuggingFaceGenerator:
         device: str = "auto",
         max_input_tokens: int = 2048,
         torch_dtype: str = "auto",
+        allow_abstain: bool = True,
+        force_yes_no: bool = True,
     ):
         try:
             import torch
@@ -237,6 +371,8 @@ class HuggingFaceGenerator:
         self.max_answer_tokens = max_answer_tokens
         self.temperature = float(temperature)
         self.max_input_tokens = int(max_input_tokens)
+        self.allow_abstain = bool(allow_abstain)
+        self.force_yes_no = bool(force_yes_no)
         self._torch = torch
 
         self.device = self._resolve_device(device)
@@ -400,14 +536,41 @@ class HuggingFaceGenerator:
         self,
         question: str,
         evidence: list[dict[str, Any]],
-        allow_abstain: bool = True,
+        allow_abstain: bool | None = None,
     ) -> tuple[str, str, dict[str, int]]:
+        allow = self.allow_abstain if allow_abstain is None else allow_abstain
+        allow = should_allow_abstain(question, allow, self.force_yes_no)
         ev = self._format_evidence(evidence)
-        abstain_rule = (
-            'If evidence is insufficient, reply with exactly "ABSTAIN".'
-            if allow_abstain
-            else "Always give your best short answer from the evidence."
-        )
+        yes_no = self.force_yes_no and is_yes_no_question(question)
+        if yes_no:
+            system = (
+                "You are a concise open-domain QA assistant. "
+                "This is a yes/no question. Reply with exactly yes or no. "
+                "Do not reply ABSTAIN. Do not explain or quote. "
+                "Use only the evidence. If the passages name the entities in the question, compare them and answer."
+            )
+            user = f"Evidence:\n{ev}\n\nQuestion: {question}\n\nAnswer (yes or no):"
+            messages = [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ]
+            text, usage = self._chat(messages, max_new_tokens=min(8, self.max_answer_tokens))
+            answer, mode = parse_yes_no(text, allow_abstain=False)
+            return answer, mode, usage
+        if allow:
+            abstain_rule = (
+                "Reply with a short answer span. Never append ABSTAIN after an answer. "
+                "Use the single token ABSTAIN only if none of the passages could support any answer "
+                "(empty evidence, or passages about clearly unrelated entities). "
+                "If a passage title or span could be the answer, you must answer it. "
+                "Do not use ABSTAIN as a hedge when you are unsure. "
+                "No explanation and no quotes."
+            )
+        else:
+            abstain_rule = (
+                "Always give your best short answer from the evidence. "
+                "Do not reply with ABSTAIN."
+            )
         messages = [
             {
                 "role": "system",
@@ -424,25 +587,22 @@ class HuggingFaceGenerator:
             },
         ]
         text, usage = self._chat(messages, max_new_tokens=self.max_answer_tokens)
-        answer = text.splitlines()[0].strip() if text else ""
-        # Strip common prefixes
-        for prefix in ("Answer:", "Final answer:", "A:"):
-            if answer.lower().startswith(prefix.lower()):
-                answer = answer[len(prefix) :].strip()
-        if allow_abstain and (not answer or answer.upper() == "ABSTAIN" or "ABSTAIN" in answer.upper()[:20]):
-            if not evidence or answer.upper().startswith("ABSTAIN") or not answer:
-                return "ABSTAIN", "abstain", usage
-        if not answer:
-            return ("ABSTAIN", "abstain", usage) if allow_abstain else ("", "answer", usage)
-        return truncate(answer, 200), "answer", usage
+        answer, mode = parse_answer_or_abstain(text, allow_abstain=allow)
+        return answer, mode, usage
 
 
 def build_generator(cfg: dict[str, Any]):
     gcfg = cfg.get("generation", {})
     backend = gcfg.get("backend", "extractive")
     max_tok = int(gcfg.get("max_answer_tokens", 64))
+    allow_abstain = bool(gcfg.get("allow_abstain", True))
+    force_yes_no = bool(gcfg.get("force_yes_no", True))
     if backend == "extractive":
-        return ExtractiveGenerator(max_answer_tokens=max_tok)
+        return ExtractiveGenerator(
+            max_answer_tokens=max_tok,
+            allow_abstain=allow_abstain,
+            force_yes_no=force_yes_no,
+        )
     if backend in {"huggingface", "hf", "qwen"}:
         model_name = gcfg.get("model_name") or "Qwen/Qwen2.5-3B-Instruct"
         return HuggingFaceGenerator(
@@ -452,6 +612,8 @@ def build_generator(cfg: dict[str, Any]):
             device=str(gcfg.get("device", "auto")),
             max_input_tokens=int(gcfg.get("max_input_tokens", 2048)),
             torch_dtype=str(gcfg.get("torch_dtype", "auto")),
+            allow_abstain=allow_abstain,
+            force_yes_no=force_yes_no,
         )
     if backend == "openai":
         raise NotImplementedError(
