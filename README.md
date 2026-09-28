@@ -10,7 +10,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 - Explicit multi-component reward + ablation presets (`src/rewards.py`, `configs/reward_weights.yaml`)
 - Dataset slices for **HotpotQA + single-hop** (NQ preferred; TriviaQA / SQuAD fallbacks — Scope Memo V2 §7)
 - Pilot logs, metrics, data cards, and implementation decision notes
-- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — `default` learned eval is naive RAG; free-cost `correctness_only` used the step cap; λ=0 used tools (EM 0.347); λ=20 is EM-tied at 4 steps / 3 retrieve; λ=80 `act02` is retrieve→stop
+- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — `default` learned eval is naive RAG; free-cost `correctness_only` used the step cap; λ=0 used tools (EM 0.347); λ=20 is EM-tied at 4 steps / 3 retrieve; λ=80 `act02` is retrieve→stop. v3 (2026-09-28, validation pick): selected λ=0 is one 6-step recipe (EM 0.343, 103/300); λ=20 and λ=80 are retrieve→stop
 
 ## Design locks (review comments)
 
@@ -18,7 +18,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 |---|---|---|
 | Verifier | **NLI** (`lexical_nli` default; optional `neural_nli`) | Consistent across experiments; not LLM-as-judge |
 | Reward weights | Justified defaults + ablation presets | See `docs/REWARD_DESIGN.md` |
-| Complexity order | Frozen baselines first, then tiny REINFORCE | Rule / naive / max ranked; `default` learned eval tied naive. λ=0 / 20 / 80 40-epoch family: tools / 3-retrieve / retrieve→stop. GRPO/PPO still deferred |
+| Complexity order | Frozen baselines first, then tiny REINFORCE | Rule / naive / max ranked; `default` learned eval tied naive. λ=0 / 20 / 80 40-epoch family: tools / 3-retrieve / retrieve→stop. v3 selected λ=0 is a 6-step recipe (EM 0.343); λ=20 and λ=80 stay retrieve→stop. GRPO/PPO still deferred |
 | Action space | Five actions only | V1 discipline; semantic/keyword/expand deferred |
 
 ## Quick start
@@ -166,6 +166,19 @@ Same quality terms as `default`. **2026-09-13 / re-synced 2026-09-15:** \(\lambd
 
 λ=0 also rewrote twice on every item (300/300). λ=20 used three retrieves and no rewrite/verify (300/300). λ=80 `act02` is retrieve→stop 300/300. Split: λ=0 Hotpot 53 / NQ 51; λ=20 and `act02` stay 59 / 41.
 
+### Frontier v3 (2026-09-28; validation pick)
+
+500 train / 180 valid, 20 epochs, advantage = sampled reward − naive reward, 15-d observation. `_best.pt` is the max greedy reward on the 180 (`eval_split: valid_greedy`). The `v3` files are that checkpoint. The `v3last` files are epoch 20. Same locked 300. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v3.ipynb`.
+
+| Point | Which | Eval EM | $ | steps / retrieve / rewrite / verify |
+|---|---|---:|---:|---|
+| learned `frontier_lambda0` | **best, epoch 11** | **0.343** (103/300) | 4.21e-4 | **6.0 / 3.0 / 2.0 / 0.0** |
+| learned `frontier_lambda0` | last, epoch 20 | 0.333 (100/300) | 3.21e-4 | **4.0 / 1.0 / 2.0 / 0.0** |
+| learned `frontier_lambda20` | best = last | 0.333 (100/300) | 1.72e-4 | **2.0 / 1.0 / 0.0 / 0.0** |
+| learned `frontier_act02` | best = last | 0.333 (100/300) | 1.72e-4 | **2.0 / 1.0 / 0.0 / 0.0** |
+
+Selected λ=0 is `retrieve → rewrite → rewrite → retrieve → retrieve → stop` on 300/300. Hotpot 60 / NQ 43. Against this run's retrieve→stop (λ=20 and λ=80, same 300 answers): Hotpot 1 recovery / 1 regression, NQ 8 / 5, net +3. The third retrieve copies the second on 300/300; the second changes the top-5 on 106/300. λ=0 last rewrites twice and never retrieves again, so its answers match retrieve→stop. λ=20 and λ=80 greedy are retrieve→stop (Hotpot 60 / NQ 40). Sources: `learned_frontier_lambda0_v3.json` / `_v3last.json`, `_lambda20_v3.json`, `_act02_v3.json`.
+
 ### Reward-weight ablation (not a ranking table)
 
 Fixed `rule_based` policy, **stratified 100** from the **same Tevatron-NQ** 300-file (50 Hotpot + 50 NQ). EM/F1/$ stay flat (EM 0.34); only the scalar reward changes. Source: `results/metrics/reward_ablation_table.json` (rescored 2026-09-04). Presets with γ \(Q_{\mathrm{cal}}\) dropped vs the pre-fix table.
@@ -227,7 +240,7 @@ Sparse episode reward is returned on `stop` with a full component breakdown in `
 
 ## Next (Milestone 3)
 
-- `default` learned eval **tied naive**. The λ=0 / 20 / 80 40-epoch family is on disk: tools (EM 0.347) / 3-retrieve (EM-tied) / retrieve→stop. Combined figure: `results/figs/frontier_em_usd.png`.
+- `default` learned eval **tied naive**. The λ=0 / 20 / 80 40-epoch family is on disk: tools (EM 0.347) / 3-retrieve (EM-tied) / retrieve→stop. Combined figure: `results/figs/frontier_em_usd.png`. v3 (2026-09-28) selected λ=0 is one 6-step recipe (EM 0.343, 103/300); λ=20 and λ=80 are retrieve→stop.
 - Compare against Adaptive-RAG as the open-loop baseline
 - λ–μ Pareto sweeps using `configs/reward_weights.yaml` → `pareto_sweep`
 - Optional neural NLI + denser retriever once the extractive/BM25 pipeline is solid

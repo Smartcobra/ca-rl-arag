@@ -2,7 +2,7 @@
 
 Append-only notes while running pilots. Prefer short factual entries. **Each dated block names the run it belongs to.** Do not cite a number from this file without that run line.
 
-For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), the λ=80 frontier (all three learned evals retrieve→stop 300/300), the 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`), the 2026-09-23 λ=0 / 20 exams (`learned_frontier_lambda0.json` EM 0.347 / 6 steps; `_lambda20.json` EM 0.333 / 4 steps / 3 retrieve), and the 2026-09-24 40-epoch `frontier_act02` exam (retrieve→stop, EM 0.333) plus regenerated `frontier_sweep_table.json` / `frontier_em_usd.png`, see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
+For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), the λ=80 frontier (all three learned evals retrieve→stop 300/300), the 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`), the 2026-09-23 λ=0 / 20 exams (`learned_frontier_lambda0.json` EM 0.347 / 6 steps; `_lambda20.json` EM 0.333 / 4 steps / 3 retrieve), the 2026-09-24 40-epoch `frontier_act02` exam (retrieve→stop, EM 0.333) plus regenerated `frontier_sweep_table.json` / `frontier_em_usd.png`, and the 2026-09-28 frontier v3 exams (selected λ=0 EM 0.343 / 6 steps / 3 retrieve; λ=20 and λ=80 retrieve→stop), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
 
 ## 2026-08-07
 
@@ -349,3 +349,28 @@ Sources: `learned_frontier_act02.json`, `train_policy_curve_frontier_act02.json`
 `frontier_sweep_table.json` now lists `frontier_lambda0` / `_lambda20` / `_act02` (λ 0 / 20 / 80). Ranking figures were also rewritten from `pilot_summary_default.json` (numbers unchanged).
 
 Three-point action spread is now complete: tools at λ=0, 3-retrieve at λ=20, retrieve→stop at λ=80. Only λ=0 moves EM. Full write-up: [`RESULTS.md`](RESULTS.md) §6.
+
+## 2026-09-28 — Frontier v3 exams (validation pick)
+
+**Run:** `configs/frontier_v3.yaml`. 500 train / 180 valid, 20 epochs, advantage = sampled reward − cached naive reward, 15-d observation (341 parameters). Presets `frontier_lambda0`, `frontier_lambda20`, `frontier_act02`. Frozen argmax on the locked 300 for `_best.pt` (`v3`) and for epoch 20 (`v3last`). Did not overwrite v2 checkpoints, `frontier_sweep_table.json`, or `frontier_em_usd.png`. `frontier_sweep_table_v3.json` / `frontier_em_usd_v3.png` are not in this checkout.
+
+Sources: `learned_frontier_lambda0_v3.json` / `_v3last.json`, `learned_frontier_lambda20_v3.json` / `_v3last.json`, `learned_frontier_act02_v3.json` / `_v3last.json`, `train_policy_curve_frontier_v3_lambda0.json` / `_lambda20.json` / `_act02.json`, and the matching JSONL.
+
+**Valid greedy** (n=180):
+
+| Preset | Selected epoch | Reward / EM / steps / retrieve |
+|---|---:|---|
+| `frontier_lambda0` | 11 | 0.61941 / 0.333 (60/180) / 6.0 / 3.0 |
+| `frontier_lambda20` | 7 | 0.59043 / 0.322 (58/180) / 2.0 / 1.0 |
+| `frontier_act02` | 11 | 0.56024 / 0.322 (58/180) / 2.0 / 1.0 |
+
+**Eval** (frozen argmax, n=300):
+
+| Point | EM | n_correct | F1 | $ | steps | retrieve | rewrite | verify |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `frontier_lambda0` best | **0.343** | **103/300** | 0.421 | 4.21e-4 | **6.0** | **3.0** | **2.0** | 0.0 |
+| `frontier_lambda0` last | 0.333 | 100/300 | 0.399 | 3.21e-4 | **4.0** | 1.0 | **2.0** | 0.0 |
+| `frontier_lambda20` best = last | 0.333 | 100/300 | 0.399 | 1.72e-4 | 2.0 | 1.0 | 0.0 | 0.0 |
+| `frontier_act02` best = last | 0.333 | 100/300 | 0.399 | 1.72e-4 | 2.0 | 1.0 | 0.0 | 0.0 |
+
+Selected λ=0 is one sequence on 300/300: `retrieve, rewrite, rewrite, retrieve, retrieve, stop`. Hotpot 60/150, NQ 43/150. λ=20, λ=80, and λ=0 last share one prediction file: Hotpot 60/150, NQ 40/150. Against that retrieve→stop, selected λ=0 is Hotpot 1 recovery / 1 regression and NQ 8 / 5. The second retrieve changes the top-5 on 106/300. The third retrieve copies the second on 300/300. Union of the two answer sets is 109/300. Greedy verify is 0 on every exam. Full write-up: [`RESULTS.md`](RESULTS.md) §6.
