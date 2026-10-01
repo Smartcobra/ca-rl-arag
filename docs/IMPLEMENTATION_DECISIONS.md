@@ -303,6 +303,75 @@ All three presets finished 20 epochs. `_best.pt` is the max greedy reward on the
 
 Sampled train still calls verify (λ=0 last epoch 0.38, λ=20 0.63, λ=80 0.04). Every frozen exam has verify 0, so the new verify one-hot is zero on the 300. These retrieve→stop predictions match the v2 naive exam (`learned_frontier_act02.jsonl`) on 291/300; 20 questions have different BM25 top ids, and the split is 60/40 against the ranking row 59/41. Overall EM stays 100. The +3 is against this run's retrieve→stop. The union of selected λ=0 and that retrieve→stop is 109/300.
 
+## 2026-10-01 — BM25 score channels were a constant; z-score them
+
+**Bug.** The observation squashed BM25 with `tanh(score / 5)`. On the v3 λ=0 exam (`learned_frontier_lambda0_v3.jsonl`, 300 questions, raw BM25, no rerank) the top-1 score runs from **26.2 to 122.3**, median **49.3**. `tanh(49.3 / 5)` is 1.0000. `tanh(26.2 / 5)` is 0.9999. In float32, 192 of the 300 top-1 features are exactly 1, and the rest are 0.9999. The mean of the top-5 bottoms out at 22.4, so that channel is 0.9997 or 1.0. A network cannot branch on a feature that does not change. The paper sentence “the policy does not branch on the retrieval score” is true, and the honest version is “it could not, the feature was a constant.”
+
+The gap was the only score input that moved. `tanh(gap / 5)` runs from 0 to 1, median 0.57, standard deviation 0.36. In v2 the mean score was the only score input, so after the first retrieve the v2 policy saw almost the same vector on every question.
+
+**Fix.** Replace `tanh(score / 5)` with a z-score from the training slice, then clip to [−3, +3]. The same transform is applied to four numbers: the mean of the top-5, the top-1, the top-1 − top-2 gap, and the minimum of the top-5. The minimum is a new last dimension. The vector is now **16-d** (357 parameters at hidden 16; 709 at hidden 32). Empty retrieval still writes 0 in those channels, so “we have not searched” is not coded as a very negative score. A real gap of 0 (a tie) is standardized; a missing second passage is left at 0.
+
+Constants are frozen in `data/processed/bm25_score_norm.json`. They are the first BM25 top-5 on `train_slice.jsonl` (60 Hotpot + 40 NQ) against the 80k corpus. Population standard deviation. This is the 100-question slice on disk, not the 500-question v3 train prefix (that file is not in this checkout).
+
+| Channel | Train mean | Train std | Train min…max |
+|---|---:|---:|---|
+| mean of top-5 | 50.95 | 26.85 | 22.7 … 186.7 |
+| top-1 | 61.47 | 38.59 | 24.0 … 294.7 |
+| gap | 9.54 | 15.13 | 0 … 98.8 |
+| top-5 minimum | 46.04 | 23.06 | 20.0 … 142.9 |
+
+Two training questions have a top-1 more than 3 standard deviations up. The largest z is 6.04 (`hotpot_train_5a8a2ebc5542996c9b8d5e33`, passage “Royal Commission into Drug Trafficking”) and the clip pulls it back to 3. On the 300, nothing hits the clip. After the fix the four channels have standard deviation about **0.56 / 0.49 / 0.50 / 0.61** (mean, top-1, gap, top-5 min). `tests/test_score_features.py` vectorizes those 300 trajectories and fails if any of the four is below 0.05.
+
+The other channels (step counters, budget fraction, verify one-hot) are not in that check. This exam is one action sequence, so those channels are constant for a different reason. The budget fraction only moves in the fourth decimal.
+
+**What this does not do.** The 2026-09-28 exams stay the record of the 15-d tanh head. A 10-d or 15-d checkpoint does not load. The next train has to be a new checkpoint. The branching claim is fair only after that train.
+
+### Calibration `+0.6` when the mean score is below 3
+
+`calibration_score` pays +0.6 for an abstain when evidence is empty, **or** the mean retrieval score is `< 3.0`, **or** verify says contradiction. The `3.0` cutoff is the same number `rule_based` uses for “strong enough to rerank and verify.”
+
+On the logged 300 it never sees a mean below 3:
+
+| File | What the score is | Lowest mean with evidence |
+|---|---|---:|
+| `learned_frontier_lambda0_v3.jsonl` | raw BM25 | 20.42 |
+| `learned_frontier_act02.jsonl` | raw BM25, first retrieve | 20.38 |
+| `rule_based_default.jsonl` | includes the lexical rerank | 7.27 |
+| `max_tools_default.jsonl` | includes the lexical rerank | 7.27 |
+
+So the “mean score < 3” branch is dead on this corpus. It was written for a different scale: a score that lives near 0–3, not Okapi BM25 on 80k passages (top-1 around 25–120) and not the reranker, whose means still bottom out near 7. The unit test that passes `score: 1.0` still describes the rule. A real mean does not take that path: abstaining on the weakest raw mean in the v3 exam (20.42) scores **−0.2**, the lazy-refuse penalty.
+
+The other two ways to earn +0.6 still work. No passages is +0.6. A contradiction label is +0.6, and Hotpot does produce contradictions. Those are not dead.
+
+The threshold is left at 3.0. Moving it would rescore every old trajectory and would also change `rule_based`, which takes the “strong” branch on every question for the same reason (that is why rule-based rewrite count is 0). A later experiment can retarget the cutoff onto the z-score scale. That is a reward change, not part of this observation fix.
+
+## 2026-10-01 — One index per table; frozen baselines must be re-scored on v3
+
+**Bug.** Building the v3 train (500) and validation (180) slices merged their gold passages into `corpus.jsonl`. BM25 scores against the whole corpus, so adding passages changes the ranking for **every** question, including the locked 300. The v3 exams therefore ran on a different index from the frozen rows.
+
+The evidence was already in the 2026-09-28 block: the v3 retrieve→stop predictions match the v2 naive exam on **291/300**, 20 questions have different BM25 top ids, and that run's retrieve→stop splits Hotpot 60 / NQ 40 against the v2 ranking row 59 / 41. Overall EM is 100 either way, which is why this was easy to miss.
+
+Comparing selected λ=0 against *this run's* retrieve→stop was correct and stays correct. What was wrong is everything that put a v3 row next to an old-index row:
+
+- `frontier_sweep_table*.json` / `frontier_em_usd*.png` drew the frozen squares from `baseline_default.json`, `rule_based_default.json`, `max_tools_default.json`. Those are the old index, and `--frontier-tag v3` did not change them.
+- The controller ceilings (110 / 124 / 127) were built from `learned_frontier_act02.jsonl`, `learned_frontier_lambda0.jsonl`, and `max_tools_default.jsonl` — all old index — and were then quoted beside v3 points. A per-question oracle across two indexes is comparing answers to two different retrievals.
+- The README pilot tables put the v3 learned rows in the same table as old-index naive / rule / max.
+
+**Rule.** Every number in one table or figure comes from one index.
+
+**Enforcement, not convention.**
+
+1. `run_pilot.py --artifact-suffix` now forks **every** policy, not just `learned`. It previously ignored the suffix for naive / rule / max, so a v3 baseline run would have silently overwritten the old-index files that the committed figures were built from. `baseline_default_v3.jsonl`, `rule_based_default_v3.jsonl`, and `max_tools_default_v3.jsonl` now sit beside the originals.
+2. `plot_results.py --frontier-tag v3` reads `*_v3.json` frozen anchors and `*_v3.jsonl` ceiling pools. If any is missing it **exits** with the command that produces them instead of falling back to the untagged files. That fallback was the bug.
+3. Every pilot artifact records a corpus fingerprint (`n_passages` plus a sha1 over the sorted passage ids, `corpus_fingerprint` in `src/data/preflight.py`). Two runs are comparable only when it matches. It is in each policy's metric `meta` and in the pilot summary.
+4. `scripts/check_index.py` re-runs the first retrieve for the locked 300 and compares the step-0 top ids with a trajectory file. Step 0 is used because it is raw BM25; the `retrieved` field on `rule_based` / `max_tools` has been through the lexical reranker. No GPU. Run it before spending GPU time.
+
+**What has to be re-run.** One pilot on the v3 index, no training: `naive_rag`, `rule_based`, `max_tools` with `--artifact-suffix v3`. Then rebuild the sweep table and figure with `--frontier-tag v3`. The learned v3 exams on disk do not need to be re-scored; they are already on that index.
+
+**Which preset.** Frozen policies ignore the reward scalar, so EM, F1, dollars, and the predictions are preset-independent; only the reward column moves. One pilot under `default` is enough for the EM-vs-$ frontier and the ceilings. A reward column next to λ=0 / 20 / 80 needs those trajectories rescored under each preset, which is a CPU rescore, not another Qwen pass.
+
+**v2 stays as it is.** The untagged files, `frontier_sweep_table.json`, and `frontier_em_usd.png` remain the record of the v2 index. Ceilings 110 / 124 / 127 are v2-index numbers and keep that label until the v3 pilot lands.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
@@ -324,3 +393,5 @@ Sampled train still calls verify (λ=0 last epoch 0.38, λ=20 0.63, λ=80 0.04).
 | 2026-09-26 | Re-read of the λ=0 / 20 / 80 curves and 300 trajectories | Best greedy: λ=0 epoch 25 and λ=20 epoch 15, both retrieve→stop. Last epoch: 6-step recipe (train EM 0.40, eval 104/300) and 3 identical retrieves (answers = naive, reward gap ~0.0027). Each policy is one action sequence on 300/300. Verify contradiction 14 and neutral 55 never change the next action. Per-question oracle: naive∪λ=0 = 124; +max_tools = 127; +rule + `correctness_only` = 130. Naive-on-Hotpot + λ=0-on-NQ = 110 at ~1/3 of max_tools cost. | Fixed recipes are a flat frontier (~5 points). An observation-reading controller has 24 points of headroom (100 → 124). Do not plot last-epoch λ=0 / λ=20 as learned points. |
 | 2026-09-26 | v3 trainer (`frontier_v3.yaml`, notebook `_v3`) | 500 train / 180 valid from the HF train split. Advantage is sampled minus cached naive. Observation is 15-d (BM25 gap + verify one-hot, no dataset id). 20 epochs. Artifacts use a `v3` suffix. | Design lock for the next sweep. Scored 2026-09-28. The v2 last-epoch files stay the record of the earlier recipes. |
 | 2026-09-28 | v3 λ=0 / 20 / 80 exams, 20 epochs, valid-greedy `_best.pt` | Selected λ=0 is epoch 11: one 6-step recipe, EM 0.343 (103/300, Hotpot 60 / NQ 43), $ 4.21e-4. Second retrieve changes top-5 on 106/300; third retrieve copies it on 300/300. λ=0 last matches retrieve→stop answers after two rewrites ($ 3.21e-4). λ=20 epoch 7 and λ=80 all 20 greedy epochs are retrieve→stop, EM 0.333 (100/300). Within-run union of the recipe and retrieve→stop is 109/300. Greedy verify is 0. | Validation pick moved λ=0 off retrieve→stop by +3 EM. The policy is still one sequence. The verify one-hot is unused on the exam. |
+| 2026-10-01 | Index audit of the v3 exams vs the frozen rows | v3 train/valid golds were merged into `corpus.jsonl`, so BM25 changed for the locked 300: 20/300 different top ids, retrieve→stop is Hotpot 60 / NQ 40 against the ranking row 59 / 41. The frontier figure, the sweep table, and the 110 / 124 / 127 ceilings were still built from old-index files even under `--frontier-tag v3`. | One index per table. `--artifact-suffix` forks every policy; `--frontier-tag` refuses to fall back to untagged files; every artifact carries a corpus fingerprint; `check_index.py` verifies before a GPU run. Re-run naive / rule / max on the v3 index and rebuild the ceilings. |
+| 2026-10-01 | Score-channel scale (`tanh(score/5)` vs train-slice z-score) | v3 λ=0 top-1 is 26.2–122.3 (median 49.3). `tanh(x/5)` is 0.9999 or 1.0 on all 300, and the mean channel is too. Gap was the only score input that moved. Mean `< 3` never fires: raw means stay above 20, reranked means above 7. | Z-score mean, top-1, gap, and top-5 min with the 100-question train slice and clip to [−3, 3]. Vector is 16-d. Old checkpoints do not load. The `< 3` abstain bonus stays in the code and stays dead until a reward change retargets it. |

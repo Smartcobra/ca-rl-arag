@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 from src.agentic_rag import AgenticRAG
 from src.config import load_config, resolve_path
 from src.data.loaders import stratified_limit
-from src.data.preflight import assert_ranking_data
+from src.data.preflight import assert_ranking_data, corpus_fingerprint
 from src.evaluate import evaluate_agent, evaluate_baseline, save_metrics
 from src.generation import build_generator
 from src.gpu import cleanup_gpu_resources, log_gpu_memory
@@ -37,10 +37,15 @@ def _clean_suffix(suffix: str | None) -> str:
 
 
 def _artifact_stem(policy_name: str, preset: str, suffix: str | None) -> str:
-    """Last-epoch files stay `learned_<preset>`. A _best.pt exam uses a suffix."""
+    """Unsuffixed files stay `<policy>_<preset>`. A suffix forks every policy.
+
+    The suffix is how one index is kept apart from another. A frozen baseline
+    re-run on a rebuilt corpus must not overwrite the file that an older
+    figure was built from.
+    """
     stem = f"{policy_name}_{preset}"
     cleaned = _clean_suffix(suffix)
-    if cleaned and policy_name == "learned":
+    if cleaned:
         return f"{stem}_{cleaned}"
     return stem
 
@@ -82,8 +87,9 @@ def main() -> None:
         "--artifact-suffix",
         default=None,
         help=(
-            "Append to learned metric, trajectory, and summary filenames (example: best). "
-            "Use when scoring <stem>_best.pt so the last-epoch exam is not overwritten."
+            "Append to every metric, trajectory, and summary filename (example: best, v3). "
+            "Use when scoring <stem>_best.pt, and when re-running frozen baselines on a "
+            "rebuilt corpus, so the earlier files stay as the record of the earlier index."
         ),
     )
     parser.add_argument("--run-env-check", action="store_true", help="Roll a few Gymnasium episodes")
@@ -120,10 +126,12 @@ def main() -> None:
         print(f"Stratified --limit {args.limit}: {n_file} -> {n_run}")
 
     retriever = BM25Retriever(corpus)
+    fingerprint = corpus_fingerprint(corpus)
     print(
         f"Corpus={len(retriever)} examples={len(examples)} by_dataset={n_run} "
         f"preset={cfg['reward_preset_name']}"
     )
+    print(f"Corpus fingerprint: {fingerprint['n_passages']} passages, id sha1 {fingerprint['sha1']}")
 
     traj_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["trajectory_dir"]))
     metrics_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["metrics_dir"]))
@@ -147,11 +155,16 @@ def main() -> None:
         if run_naive:
             log_gpu_memory("before naive_rag")
             baseline = RAGBaseline(cfg, retriever, generator=generator)
-            base_path = traj_dir / f"baseline_{cfg['reward_preset_name']}.jsonl"
+            base_artifact = _artifact_stem("baseline", cfg["reward_preset_name"], args.artifact_suffix)
+            base_path = traj_dir / f"{base_artifact}.jsonl"
             if base_path.exists():
                 base_path.unlink()
             base_out = evaluate_baseline(baseline, examples, out_path=base_path)
-            save_metrics(metrics_dir / f"baseline_{cfg['reward_preset_name']}.json", base_out["summary"], {"policy": "naive_rag"})
+            save_metrics(
+                metrics_dir / f"{base_artifact}.json",
+                base_out["summary"],
+                {"policy": "naive_rag", "artifact": base_artifact, "corpus": fingerprint},
+            )
             results["naive_rag"] = base_out["summary"]
             print(format_eval_summary("naive_rag", base_out["summary"]))
             del base_out
@@ -186,7 +199,7 @@ def main() -> None:
             save_metrics(
                 metrics_dir / f"{artifact}.json",
                 out["summary"],
-                {"policy": policy_name, "artifact": artifact},
+                {"policy": policy_name, "artifact": artifact, "corpus": fingerprint},
             )
             results[policy_name] = out["summary"]
             print(format_eval_summary(policy_name, out["summary"]))
@@ -266,6 +279,7 @@ def main() -> None:
                     "n_examples_by_dataset_in_file": n_file,
                     "limit": args.limit,
                     "split": args.split,
+                    "corpus": fingerprint,
                     "results": merged_results,
                     "ablation_presets_available": cfg["reward_ablation_presets"],
                 },

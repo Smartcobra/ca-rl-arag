@@ -72,7 +72,11 @@ def claim_support_score(answer: str, evidence: list[dict[str, Any]], verify_out:
     return len(a_toks & e_toks) / len(a_toks)
 
 
-WEAK_MEAN_SCORE = 3.0  # same cutoff the rule policy treats as "not enough to stop"
+# Same cutoff the rule policy treats as "not enough to stop".
+# On this corpus it does not fire: raw top-5 means stay above ~20, and even
+# post-rerank means stay above ~7. Empty evidence and a contradiction label
+# still justify abstain. See IMPLEMENTATION_DECISIONS, 2026-10-01.
+WEAK_MEAN_SCORE = 3.0
 
 
 def _mean_retrieval_score(evidence: list[dict[str, Any]]) -> float:

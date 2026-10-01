@@ -673,6 +673,37 @@ Repeat the train and both exams for `frontier_lambda20` and `frontier_act02` wit
 
 Selected λ=0 is `retrieve → rewrite → rewrite → retrieve → retrieve → stop`. Against this run's retrieve→stop (λ=20 and λ=80 share those 300 answers; λ=0 last matches them too): Hotpot 1 recovery / 1 regression, NQ 8 / 5. The third retrieve copies the second on 300/300. On the 180, that recipe's greedy reward is 0.61941 versus about 0.594 for retrieve→stop. λ=80 greedy is retrieve→stop on all 20 epochs. `frontier_sweep_table_v3.json` and `frontier_em_usd_v3.png` are what `--frontier-tag v3` writes; they are not in this checkout. Sources: `learned_frontier_lambda0_v3.json` / `_v3last.json`, `_lambda20_v3.json` / `_v3last.json`, `_act02_v3.json` / `_v3last.json`, and `train_policy_curve_frontier_v3_*.json`.
 
+### 4.10 Frozen baselines on the v3 index (required before any v3 figure)
+
+**Why:** `build_train_valid.py` merges the new train and validation gold passages into `corpus.jsonl`. BM25 scores against the whole corpus, so that changes retrieval for the locked 300 too (20 of 300 get different top ids, and this run's retrieve→stop is Hotpot 60 / NQ 40 against the ranking row 59 / 41). The frozen `naive_rag` / `rule_based` / `max_tools` rows on disk were scored before that merge. Putting them next to a v3 learned row compares two indexes. So do the 110 / 124 / 127 ceilings, which are built from old-index trajectories. See `IMPLEMENTATION_DECISIONS.md`, 2026-10-01.
+
+Do **not** re-run `prepare_data.py` or `build_train_valid.py`. The corpus is already the one the v3 exams used; rebuilding it would move the index again.
+
+Check first (no GPU, about a minute):
+
+```bash
+python scripts/check_index.py --config configs/frontier_v3.yaml \
+  --against results/trajectories/learned_frontier_act02_v3.jsonl \
+  --against results/trajectories/max_tools_default.jsonl
+```
+
+Expect the `_v3` file to say **same index** and the untagged `max_tools_default.jsonl` to say **DIFFERENT INDEX**. If the `_v3` file does not match, this corpus is not the one the v3 exams ran on — stop before spending GPU time.
+
+Then one pilot, no training:
+
+```bash
+python scripts/run_pilot.py --config configs/frontier_v3.yaml \
+  --policies naive_rag,rule_based,max_tools \
+  --artifact-suffix v3 --no-figures
+python scripts/plot_results.py --frontier-tag v3
+```
+
+`--artifact-suffix v3` writes `baseline_default_v3.*`, `rule_based_default_v3.*`, and `max_tools_default_v3.*`. The untagged files stay as the v2-index record. `--frontier-tag v3` reads only `_v3` frozen anchors and `_v3` ceiling pools; if one is missing it exits instead of quietly using the v2 file.
+
+Preset: frozen policies ignore the reward scalar, so EM, F1, dollars, and the predictions are the same under every preset. One `default` run covers the EM-vs-$ frontier and the ceilings. A reward column beside λ=0 / 20 / 80 is a CPU rescore of these trajectories, not another Qwen pass.
+
+Every pilot artifact records a corpus fingerprint (`n_passages` plus a sha1 over the sorted passage ids) in the metric `meta` and in the pilot summary. Two rows belong in one table only when that matches.
+
 ---
 
 ## 5. Minimal “first successful run” checklist

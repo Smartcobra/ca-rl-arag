@@ -64,6 +64,21 @@ FRONTIER_FROZEN_FILES = {
     "rule_based": "rule_based_default.json",
     "max_tools": "max_tools_default.json",
 }
+# Per-question pools behind the hollow ceiling markers: a retrieve→stop exam,
+# the λ=0 recipe, and max_tools. All three must come from one index.
+FRONTIER_CEILING_FILES = {
+    "naive": "learned_frontier_act02.jsonl",
+    "lambda0": "learned_frontier_lambda0.jsonl",
+    "max_tools": "max_tools_default.jsonl",
+}
+
+
+def _tagged(filename: str, tag: str | None) -> str:
+    """`max_tools_default.json` + tag `v3` -> `max_tools_default_v3.json`."""
+    if not tag:
+        return filename
+    path = Path(filename)
+    return f"{path.stem}_{tag}{path.suffix}"
 
 
 def _load_json(path: Path) -> dict:
@@ -348,7 +363,18 @@ def collect_frontier_table(metrics_dir: Path, tag: str | None = None) -> dict:
     traj_dir = metrics_dir.parent / "trajectories"
     tag = (tag or "").strip().strip("_")
     frozen: dict[str, dict] = {}
-    for name, fname in FRONTIER_FROZEN_FILES.items():
+    frozen_files = {name: _tagged(fname, tag) for name, fname in FRONTIER_FROZEN_FILES.items()}
+    if tag:
+        missing = [fname for fname in frozen_files.values() if not (metrics_dir / fname).exists()]
+        if missing:
+            raise SystemExit(
+                f"Frontier tag '{tag}' needs frozen anchors scored on the same index: "
+                + ", ".join(missing)
+                + ".\nThe untagged files are a different corpus and cannot be mixed in. Run:\n"
+                "  python scripts/run_pilot.py --config configs/frontier_v3.yaml "
+                f"--policies naive_rag,rule_based,max_tools --artifact-suffix {tag} --no-figures"
+            )
+    for name, fname in frozen_files.items():
         path = metrics_dir / fname
         if not path.exists():
             continue
@@ -388,14 +414,21 @@ def collect_frontier_table(metrics_dir: Path, tag: str | None = None) -> dict:
                 extra.update(behavior_from_rows(_load_jsonl(traj_path)))
             learned[key] = _learned_row(stats, key, checkpoint=checkpoint, extra=extra)
     ceilings: list[dict] = []
-    naive_path = traj_dir / "learned_frontier_act02.jsonl"
-    lambda0_path = traj_dir / "learned_frontier_lambda0.jsonl"
-    max_path = traj_dir / "max_tools_default.jsonl"
-    if naive_path.exists() and lambda0_path.exists() and max_path.exists():
+    ceiling_files = {name: _tagged(fname, tag) for name, fname in FRONTIER_CEILING_FILES.items()}
+    ceiling_paths = {name: traj_dir / fname for name, fname in ceiling_files.items()}
+    missing_ceiling = [fname for name, fname in ceiling_files.items() if not ceiling_paths[name].exists()]
+    if tag and missing_ceiling:
+        raise SystemExit(
+            f"Frontier tag '{tag}' needs ceiling pools scored on the same index: "
+            + ", ".join(missing_ceiling)
+            + ".\nCeilings built from another corpus would compare per-question answers "
+            "across two different BM25 indexes."
+        )
+    if not missing_ceiling:
         ceilings = controller_ceilings(
-            _load_jsonl(naive_path),
-            _load_jsonl(lambda0_path),
-            _load_jsonl(max_path),
+            _load_jsonl(ceiling_paths["naive"]),
+            _load_jsonl(ceiling_paths["lambda0"]),
+            _load_jsonl(ceiling_paths["max_tools"]),
         )
     return {
         "lambda_cost": [FRONTIER_PRESET_META[p]["lambda_cost"] for p, _ in FRONTIER_LEARNED],
@@ -404,6 +437,8 @@ def collect_frontier_table(metrics_dir: Path, tag: str | None = None) -> dict:
         "frozen": frozen,
         "learned": learned,
         "ceilings": ceilings,
+        "frozen_files": frozen_files,
+        "ceiling_files": ceiling_files if ceilings else {},
         "selection_rule": (
             f"Score the {tag} exam from _best.pt, chosen by greedy reward on the validation slice "
             "before opening the 300. The last epoch is a second row."
