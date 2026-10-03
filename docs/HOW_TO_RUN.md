@@ -55,6 +55,15 @@ If you point **default.yaml** at a synthetic or 2k-passage corpus, the ranking s
 
 They are sequenced so you never debug data/reward issues on a broken pipeline. Train after the frozen ranking exists. Score the learned policy **after** the `.pt` exists; do not mix the train curve into the ranking table.
 
+Two checkers sit outside that sequence and need neither GPU nor retrieval. `check_index.py` (§4.10) tells you which BM25 index a trajectory file was scored against. `verify_softmax_probe.py` recomputes the verify-sensitivity probe behind the published 0.0068 figure and diffs `results/metrics/verify_sensitivity_lambda0.json`, exiting non-zero if the committed number no longer reproduces:
+
+```bash
+python scripts/verify_softmax_probe.py            # check
+python scripts/verify_softmax_probe.py --write    # regenerate
+```
+
+It reads a v2-family 10-d checkpoint, so it replays the pre-15-d vectorizer internally instead of calling `src.rag_env`. See `IMPLEMENTATION_DECISIONS.md`, 2026-09-10 / 2026-10-03.
+
 ---
 
 ## 2. Datasets used
