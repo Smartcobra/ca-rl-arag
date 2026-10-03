@@ -428,6 +428,36 @@ Overall EM did not move: 103 and 100 swapped presets. What changed is that the p
 
 Sources: `learned_frontier_lambda0_v3.json` / `_v3last.json`, `learned_frontier_lambda20_v3.json` / `_v3last.json`, `learned_frontier_act02_v3.json` / `_v3last.json`, `train_policy_curve_frontier_v3_*.json`, and the matching JSONL.
 
+## 2026-10-03 — Three seeds for the final run: plan and budget
+
+Every learned number in this project is **one training run at seed 42**. The paper said so in half a sentence; it now says what that costs the reader (`paper/paper.tex`, Limitations). This entry is the plan to fix it, not a result.
+
+**What the seed does and does not touch.** `experiment.seed` feeds `set_seed`, the env, the policy initialization, and the per-epoch shuffle. The frozen controllers are deterministic — temperature 0, BM25, rule-based branching — so `naive_rag` / `rule_based` / `max_tools` do **not** need re-running per seed. Nor do the exams: a frozen argmax pass over the locked 300 is deterministic given a checkpoint. **Seeds multiply training only**, which is 95% of the bill. That is the one piece of good news here.
+
+**Why three.** Learned rows in the paper span 100 to 104 correct of 300. One run cannot say whether a four-answer difference is the objective or the draw. Three runs will not give a usable standard deviation either — with n=3 it is noise — so the reporting rule is **print all three values, or the min–max range**, never mean ± std. Three is enough to tell "the λ=20 policy branches on every seed" from "it branched once"; that is the claim we actually need to defend, and it is qualitative.
+
+**Budget**, derived from this run's measured latency (`mean_total_latency_ms / mean_n_steps`) against the v3 shape of 500 train, 180 valid, 20 epochs, 2 exams:
+
+| Preset | ms/step | train | valid-greedy | exams | one seed |
+|---|---:|---:|---:|---:|---:|
+| `frontier_lambda0` | 431 | 5.1 h | 1.7 h | 0.3 h | **7.1 h** |
+| `frontier_lambda20` | 533 | 7.2 h | 3.9 h | 0.7 h | **11.8 h** |
+| `frontier_act02` | 570 | 3.3 h | 1.1 h | 0.2 h | **4.7 h** |
+
+One seed across all three is **23.5 GPU-h**; three seeds is **70.6 GPU-h**. Convert at your tier's units per hour — that rate changes often enough not to be written down here. Treat these as estimates: they extrapolate per-step latency measured at exam time to training rollouts, and they assume the same GPU.
+
+**Tiers, in the order to give things up.**
+
+1. **Full, 70.6 GPU-h.** Three seeds × three presets. Do this if units allow.
+2. **Drop λ=80, 56.6 GPU-h.** `frontier_act02` is retrieve→stop on all 20 greedy epochs and the claim rests on the λ-arithmetic from 2026-09-12, not on a close call. Seeds buy the least here.
+3. **λ=20 only, 35.4 GPU-h.** The branching result is the headline and the one a reviewer will press on. If only one preset gets seeds, it is this one.
+
+Do **not** economize by evaluating greedy less often. The per-epoch valid pass is 29% of the bill (33% on λ=20) and halving it would be the obvious cut, but `_best.pt` is selected from exactly that curve. Changing its frequency changes the selection rule and breaks comparability with every run on disk.
+
+**Enabling change.** `scripts/train_policy.py` had no `--seed`; the seed was reachable only by editing the config, so a sweep meant three config files. It now takes `--seed`, written back into `cfg["experiment"]["seed"]` rather than a local, so the override also reaches the stratified `--limit` draw and the env. Each seed needs its own `--checkpoint` and `--curve` or the runs overwrite each other; the recipe is `HOW_TO_RUN.md` §4.11.
+
+**Order of work.** The frozen baselines on the 83,120 index (2026-10-01, still open) come **first**. They are a single pilot, they are seed-independent, and without them no learned row can be tabled beside a frozen one no matter how many seeds it has.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |

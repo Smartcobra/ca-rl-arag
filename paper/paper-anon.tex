@@ -1,0 +1,16 @@
+% Anonymous build for double-blind review. Compile THIS file, not paper.tex.
+%
+%   pdflatex paper-anon && bibtex paper-anon && pdflatex paper-anon && pdflatex paper-anon
+%
+% There is one source of truth: paper.tex. This wrapper only passes the
+% template's own `submission` option, which replaces the author block with
+% "Anonymous submission", drops the affiliation, and blanks \pdfinfo so the
+% title metadata does not travel in the PDF. \PassOptionsToPackage is one of
+% the few commands LaTeX allows before \documentclass, which is what lets the
+% option reach a \usepackage line the template marks DO NOT CHANGE.
+%
+% The option handles the author block and nothing else. Anything else that
+% identifies us -- acknowledgements, a repository URL, "our earlier work" --
+% has to go by hand. See SUBMISSION_CHECKLIST.md before sending.
+\PassOptionsToPackage{submission}{aaai2027}
+\input{paper.tex}

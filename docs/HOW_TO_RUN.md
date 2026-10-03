@@ -724,6 +724,34 @@ python scripts/plot_results.py --frontier-tag v3
 
 `--artifact-suffix v3` writes `baseline_default_v3.*`, `rule_based_default_v3.*`, and `max_tools_default_v3.*`. The untagged files stay as the v2-index record. `--frontier-tag v3` reads only `_v3` frozen anchors and `_v3` ceiling pools; if one is missing it exits instead of quietly using the v2 file.
 
+### 4.11 Three seeds (planned, not yet run)
+
+**Why:** every learned number on disk is one run at seed 42, so we cannot say whether a few-answer difference is the objective or the draw. Budget, tiers, and the reporting rule are in `IMPLEMENTATION_DECISIONS.md`, 2026-10-03. Run §4.10 first — the frozen baselines are seed-independent and block every cross-policy table.
+
+`train_policy.py` takes `--seed`. **Every seed needs its own `--checkpoint` and `--curve`**, or the runs silently overwrite each other:
+
+```bash
+for SEED in 42 43 44; do
+  for PRESET in lambda0 lambda20 act02; do
+    STEM=frontier_v3_${PRESET}_s${SEED}
+    python scripts/train_policy.py --config configs/frontier_v3.yaml \
+      --reward-preset frontier_${PRESET} --epochs 20 --seed "$SEED" \
+      --checkpoint results/checkpoints/learned_policy_${STEM}.pt \
+      --curve results/metrics/train_policy_curve_${STEM}.json
+    python scripts/run_pilot.py --config configs/frontier_v3.yaml \
+      --reward-preset frontier_${PRESET} --policies learned \
+      --learned-checkpoint results/checkpoints/learned_policy_${STEM}_best.pt \
+      --artifact-suffix v3s${SEED} --no-figures
+  done
+done
+```
+
+Seed 42 is included deliberately: it is a fresh run under the same stem convention, not the existing `_v3` files, so all three rows are produced the same way. The exam is a frozen argmax pass and is deterministic given a checkpoint, so there is no `--seed` on `run_pilot.py`.
+
+Budget is about **23.5 GPU-h per seed** across the three presets, so **70.6 GPU-h** for the loop above. If units are short, drop `act02` first (56.6 h) and then run λ=20 alone (35.4 h) — λ=20 carries the branching claim. Do not cut the per-epoch greedy pass to save time: `_best.pt` is selected from that curve, so changing its frequency changes the selection rule.
+
+Report all three values or the min–max range. With n=3 a standard deviation is noise.
+
 Preset: frozen policies ignore the reward scalar, so EM, F1, dollars, and the predictions are the same under every preset. One `default` run covers the EM-vs-$ frontier and the ceilings. A reward column beside λ=0 / 20 / 80 is a CPU rescore of these trajectories, not another Qwen pass.
 
 Every pilot artifact records a corpus fingerprint (`n_passages` plus a sha1 over the sorted passage ids) in the metric `meta` and in the pilot summary. Two rows belong in one table only when that matches.

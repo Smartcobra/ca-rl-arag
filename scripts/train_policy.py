@@ -286,6 +286,13 @@ def main() -> None:
     parser.add_argument("--hidden", type=int, default=None)
     parser.add_argument("--entropy-coef", type=float, default=None)
     parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Override experiment.seed. Give every seed its own --checkpoint and "
+        "--curve or the runs overwrite each other.",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -312,6 +319,10 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config(args.config, reward_preset=args.reward_preset)
+    # Write the override back into cfg, not just the local, so the one seed also
+    # reaches the stratified --limit draw and the env.
+    if args.seed is not None:
+        cfg["experiment"]["seed"] = int(args.seed)
     learned = _learned_cfg(cfg)
     epochs = int(args.epochs if args.epochs is not None else learned.get("epochs", 40))
     lr = float(args.lr if args.lr is not None else learned.get("lr", 0.003))
