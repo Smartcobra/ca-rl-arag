@@ -1,6 +1,6 @@
 # Results Guide — What Was Produced and How to Read It
 
-**Run this doc describes:** 80k-passage Qwen ranking pilot (300 eval: 150 Hotpot + 150 **Natural Questions** on DPR Wikipedia). Quality/cost numbers for naive / rule / max_tools are the same slice as `d456d26` (2026-08-27), **rescored 2026-09-04** after closing the `calibration_score` lazy-abstain tautology ([`REWARD_DESIGN.md`](REWARD_DESIGN.md)). Section 5 (reward ablation) is the **same corpus**, stratified 100. Section 6 is REINFORCE: `default` train curve (`train_policy_curve.json`, 2026-09-09) plus the **300-eval** (`learned_default.json`, 2026-09-10). Frozen argmax under `default` **collapsed to naive RAG** (retrieve→stop 300/300; predictions identical). Section 6 also has the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop) and the λ=80 `act_penalty` frontier (all three learned evals retrieve→stop 300/300; **checkpoints now in this checkout**, 2026-09-15/16 Colab sync). The 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`) is wired in yaml/trainer. **2026-09-23 / 24:** all three 40-epoch exams are on disk. λ=0 used tools (EM 0.347); λ=20 is EM-tied at 4 steps / 3 retrieve; λ=80 `act02` is retrieve→stop. `frontier_sweep_table.json` and `frontier_em_usd.png` were regenerated 2026-09-24. **2026-09-28:** frontier v3 exams are on disk (500 train / 180 valid, 20 epochs). Selected λ=0 is one 6-step recipe (EM 0.343, 103/300). λ=20 and λ=80 are retrieve→stop. `slice_meta.json`: `nq_corpus: dpr_wikipedia_w100`, `nq_hf_dataset: Tevatron/wikipedia-nq`, `n_nq_anchor: 0`, **1,450** NQ wiki golds / **847** distinct eval gold articles. Section 7 (synthetic) is extractive, 2026-08-07. Section 9 (verifier labels) uses `rule_based_default.jsonl` from this NQ run. The SQuAD fallback table (`e8a4423`) and leaked-NQ table (`2417c43`) are historical.
+**Run this doc describes:** 80k-passage Qwen ranking pilot (300 eval: 150 Hotpot + 150 **Natural Questions** on DPR Wikipedia). Quality/cost numbers for naive / rule / max_tools are the same slice as `d456d26` (2026-08-27), **rescored 2026-09-04** after closing the `calibration_score` lazy-abstain tautology ([`REWARD_DESIGN.md`](REWARD_DESIGN.md)). Section 5 (reward ablation) is the **same corpus**, stratified 100. Section 6 is REINFORCE: `default` train curve (`train_policy_curve.json`, 2026-09-09) plus the **300-eval** (`learned_default.json`, 2026-09-10). Frozen argmax under `default` **collapsed to naive RAG** (retrieve→stop 300/300; predictions identical). Section 6 also has the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop) and the λ=80 `act_penalty` frontier (all three learned evals retrieve→stop 300/300; **checkpoints now in this checkout**, 2026-09-15/16 Colab sync). The 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`) is wired in yaml/trainer. **2026-09-23 / 24:** all three 40-epoch exams are on disk. λ=0 used tools (EM 0.347); λ=20 is EM-tied at 4 steps / 3 retrieve; λ=80 `act02` is retrieve→stop. `frontier_sweep_table.json` and `frontier_em_usd.png` were regenerated 2026-09-24. **2026-09-28:** frontier v3 exams are on disk (500 train / 180 valid, 20 epochs). Selected λ=0 is one 6-step recipe (EM 0.343, 103/300). λ=20 and λ=80 are retrieve→stop. **2026-10-03:** v3 was retrained on the 16-d z-scored observation and **overwrote every `_v3` / `_v3last` file** (the 15-d numbers are at git `3a2c83c`). λ=20 now emits **16 distinct action sequences** on 300 questions and branches on the retrieval score (EM 0.343, 103/300, 5.31e-4). **Two indexes are live in this checkout:** everything `_v3` is the 83,120-passage corpus; naive / rule / max_tools and all v2 rows are the 80,000-passage corpus, and have not been re-scored. Do not put a `_v3` row in a table beside a frozen row. `slice_meta.json` (stale at `n_passages: 80000`, written 2026-08-27): `nq_corpus: dpr_wikipedia_w100`, `nq_hf_dataset: Tevatron/wikipedia-nq`, `n_nq_anchor: 0`, **1,450** NQ wiki golds / **847** distinct eval gold articles. Section 7 (synthetic) is extractive, 2026-08-07. Section 9 (verifier labels) uses `rule_based_default.jsonl` from this NQ run. The SQuAD fallback table (`e8a4423`) and leaked-NQ table (`2417c43`) are historical.
 
 This document describes the **Milestone 2 ranking results** plus Milestone 3 train + 300-eval: where files live, what each metric means, how to interpret the current numbers, and known limitations.
 
@@ -448,6 +448,8 @@ Hotpot / NQ for the **last-epoch** exams (from the JSONL). The selected λ=0 and
 
 ### Frontier v3 (2026-09-28; validation pick, naive anchor, 15-d observation)
 
+> **Superseded, and the files are gone.** The 2026-10-03 sweep below rewrote every `_v3` / `_v3last` artifact named at the end of this subsection. The numbers here are read from git commit `3a2c83c`, not from the working tree. Keep the subsection: it is the 15-d arm of the observation comparison.
+
 Same λ presets and the same locked 300. Train is 500 questions (300 Hotpot + 200 NQ). The checkpoint is the max greedy reward on the next 180 from the HuggingFace train split (`eval_split: valid_greedy`). Advantage on the train sample is that question's reward minus its cached naive reward. The observation is 15-d (341 parameters at hidden 16): the old 10 dims, plus tanh(top-1 BM25), tanh(top-1 − top-2), and a verify one-hot. 20 epochs. This sweep leaves the v2 checkpoints, `frontier_sweep_table.json`, and `frontier_em_usd.png` in place. `frontier_sweep_table_v3.json` and `frontier_em_usd_v3.png` are the plot outputs of `plot_results.py --frontier-tag v3`; those two files are not in this checkout. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v3.ipynb`.
 
 **Train** (sampling on the 500; greedy columns are the 180, not a ranking number):
@@ -483,7 +485,59 @@ Selected λ=0 is `retrieve, rewrite, rewrite, retrieve, retrieve, stop` on **300
 - **λ=20 and λ=80 selected exams are retrieve→stop.** On λ=20, validation prefers that path over three retrieves by about 0.0026. On λ=80 every greedy epoch is that path.
 - **Verify never runs on these exams**, so the new verify one-hot stays at zero. The 15-d observation is live for BM25 score and gap. Greedy still emits one sequence.
 - These retrieve→stop predictions match the v2 naive exam (`learned_frontier_act02.jsonl`) on **291/300**. Twenty questions have different BM25 top ids. The split is Hotpot 60 / NQ 40 against the ranking row 59 / 41, and overall EM stays 100. Read the +3 against this run's retrieve→stop, which is the λ=20 and λ=80 files.
-- Sources: `learned_frontier_lambda0_v3.json` / `_v3last.json`, `learned_frontier_lambda20_v3.json` / `_v3last.json`, `learned_frontier_act02_v3.json` / `_v3last.json`, `train_policy_curve_frontier_v3_lambda0.json` / `_lambda20.json` / `_act02.json`, and the matching JSONL.
+- Sources (**at git `3a2c83c`**, overwritten in the working tree): `learned_frontier_lambda0_v3.json` / `_v3last.json`, `learned_frontier_lambda20_v3.json` / `_v3last.json`, `learned_frontier_act02_v3.json` / `_v3last.json`, `train_policy_curve_frontier_v3_lambda0.json` / `_lambda20.json` / `_act02.json`, and the matching JSONL.
+
+---
+
+### Frontier v3 retrained (2026-10-03; 16-d z-scored observation) — the policy branches
+
+Everything is held fixed against the 2026-09-28 sweep above: same config, same 500 / 180 / locked 300, same 20 epochs, same validation pick, same naive anchor, same 83,120-passage corpus. **The only change is the feature scale.** The three BM25 channels and the gap are now standardized against the training slice and clipped to ±3 instead of passed through `tanh(score / 5)`, and the top-5 minimum is added, so the observation is 16-d (357 parameters at hidden 16). Under `tanh` those channels were 1.0 on all 300 questions (`IMPLEMENTATION_DECISIONS`, 2026-10-01). Treat this as an observation ablation, not a new experiment.
+
+**Index.** Every artifact reports `n_passages: 83120`, sha1 `18e880b5…`. The 2026-09-28 sweep used the same corpus, so the 15-d / 16-d comparison is clean. It is **not** the 80,000 index behind `baseline_default` / `rule_based_default` / `max_tools_default`, so nothing here may be tabled beside those rows yet (§1, one-index rule). `frontier_sweep_table_v3.json` and `frontier_em_usd_v3.png` still do not exist.
+
+**Eval** (frozen argmax, n=300; `v3` is `_best.pt`, `v3last` is epoch 20):
+
+| Point | Which checkpoint | EM | n_correct | $ | steps | retrieve | rewrite | verify | sequences |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| learned `frontier_lambda20` | **best = last, epoch 20** | **0.343** | **103/300** | 5.31e-4 | 7.49 | 2.84 | 1.74 | 1.90 | **16** |
+| learned `frontier_lambda0` | best, epoch 11 | 0.333 | 100/300 | 3.11e-4 | 3.97 | 1.00 | 0.00 | 1.97 | **2** |
+| learned `frontier_lambda0` | last, epoch 20 | 0.333 | 100/300 | 1.73e-4 | 2.02 | 1.02 | 0.00 | 0.00 | **2** |
+| learned `frontier_act02` | best, epoch 3 = last | 0.333 | 100/300 | 1.72e-4 | 2.00 | 1.00 | 0.00 | 0.00 | 1 |
+
+- **λ=20 emits 16 distinct action sequences on 300 questions.** Every earlier sweep in this project emitted one. The non-integer step counts are the same fact read off the summary. The two most common paths cover 140 questions: `retrieve, rewrite, rewrite, verify, retrieve, retrieve, verify, stop` (99) and `retrieve, retrieve, retrieve, rewrite, rewrite, verify, verify, stop` (41); six more paths cover 11 to 31 each. Hotpot uses 15 distinct paths, NQ 10.
+- **The branch tracks the retrieval score.** At the first real decision, using the decision-time observation (`observation_before.mean_score`, channel 0):
+
+| Preset | Branch A | Branch B |
+|---|---|---|
+| λ=20, step 1 | `rewrite` (n=177): mean 20.4–46.4, median **35.5** | `retrieve` (n=123): mean 34.1–108.9, median **54.2** |
+| λ=0 best, step 1 | `verify` (n=295): median **41.3** | `stop` (n=5): 89.7–108.9, median **99.9** |
+
+  One threshold on the mean score at **45.7** reproduces **278 of 300** λ=20 decisions (92.7%). For λ=0, a threshold near **90** catches all 5 early stops with 2 false positives. Weak retrieval gets a rewrite, strong retrieval gets another retrieve or an immediate stop. This is what the 2026-09-26 "fixed recipe, not a controller" entry was waiting for, and it was not expressible under the saturated feature.
+- **Verify still earns nothing.** λ=0's selected recipe runs two verifies per question and changes **0 of 300 predictions** and **0 of 300 retrieved sets** against this run's retrieve→stop, at 3.11e-4 versus 1.72e-4 (about **1.8×**). The verify result never feeds back into retrieval on that path, so it cannot move an answer. λ=0's last epoch drops verify and keeps 100/300 at the naive price. λ=20 does send more post-verify steps back to retrieval on a contradiction (**8/15, 53%**) than on support (**124/452, 27%**) or neutral (**13/104, 13%**) — an association, and the label correlates with the score channel we know the policy reads.
+- **EM barely moves.** Against this run's retrieve→stop (`frontier_act02` v3, same index), λ=20 is **+8 / −5** (Hotpot 0 / −1, NQ +8 / −4) for 103 against 100, with 268/300 predictions identical; the union is **108/300**. λ=0 best matches retrieve→stop on **300/300**. So branching bought **+3 EM for roughly 3× the dollars** — a real controller making a bad trade at this λ. The oracle headroom from 2026-09-26 is still mostly unclaimed.
+- **λ=80 is unchanged**: retrieve→stop on all 20 greedy epochs, best at epoch 3, one sequence. A richer observation does not rescue a reward that prices tools below their payoff (2026-09-12 arithmetic).
+
+**15-d against 16-d**, same index, same slices, same selection rule:
+
+| | 15-d `tanh` (2026-09-28) | 16-d z-score (this run) |
+|---|---|---|
+| λ=0 best | 0.343 (103/300), 6.0 steps, 3.0 retrieve, 0 verify, **1 sequence** | 0.333 (100/300), 3.97 steps, 1.0 retrieve, 1.97 verify, **2 sequences** |
+| λ=20 best | 0.333 (100/300), retrieve→stop, **1 sequence** | **0.343 (103/300)**, 7.49 steps, **16 sequences** |
+| λ=80 best | 0.333 (100/300), retrieve→stop, 1 sequence | 0.333 (100/300), retrieve→stop, 1 sequence |
+
+Best EM is 103 either way; it moved from λ=0 to λ=20. **Do not report this as an accuracy result.** One run per preset, and 2026-09-26 put the spread across fixed recipes at about 5 points. The result worth reporting is the input-conditioned behaviour.
+
+**Train** (greedy on the 180):
+
+| Preset | Selected epoch | Valid greedy reward | Greedy epochs with a non-integer step count |
+|---|---:|---:|---:|
+| `frontier_lambda0` | 11 | 0.59548 | 10 / 20 |
+| `frontier_lambda20` | **20** (= last) | **0.60218** | **15 / 20** |
+| `frontier_act02` | 3 | 0.56029 | 1 / 20 |
+
+Those non-integer counts mean the branching appears during training, not only at exam time. Under 15-d, λ=0 had exactly one such epoch and λ=20 none.
+
+Sources: `learned_frontier_lambda0_v3.json` / `_v3last.json`, `learned_frontier_lambda20_v3.json` / `_v3last.json`, `learned_frontier_act02_v3.json` / `_v3last.json`, `train_policy_curve_frontier_v3_lambda0.json` / `_lambda20.json` / `_act02.json`, and the matching JSONL.
 
 ---
 
@@ -569,7 +623,13 @@ That gap is precisely where a learned policy should win: see `contradiction` / l
 8. **Free-cost sanity (2026-09-13) validates the trainer.** `correctness_only` frozen eval is **8 steps / 3 retrieve / 2 verify on 300/300** (step cap), EM 0.340 (102/300, net +2 vs naive). `lambda_zero` frozen eval is still retrieve→stop 300/300. The loop can learn tools; \(P_{\mathrm{act}}\) is what keeps the ranking row naive.
 9. **λ=80 `act_penalty` sweep did not draw a frontier.** `frontier_act0` / `act005` / `act02` frozen evals are all retrieve→stop 300/300, EM 0.333, identical to naive. Extra max_tools $ at λ=80 is ~0.046 vs ~0.028 quality, so even \(P_{\mathrm{act}}=0\) is still high pressure on average.
 10. **λ=0 / 20 / 80 selected checkpoints are naive; the 0.347 row is the last epoch.** `_best.pt` is epoch 25 (λ=0) and epoch 15 (λ=20), both retrieve→stop, train EM 0.43. The last-epoch λ=0 recipe scores train EM 0.40 and 104/300 on the exam we are not selecting. Each learned policy uses 1 action sequence. Ceilings on the figure: 110, 124, 127. The ranking `learned` row stays the `default` checkpoint.
-11. **Frontier v3 (2026-09-28) selects one λ=0 recipe and leaves λ=20 / λ=80 on retrieve→stop.** Validation pick is epoch 11 for λ=0: `retrieve, rewrite, rewrite, retrieve, retrieve, stop` on 300/300, EM 0.343 (103/300, Hotpot 60 / NQ 43), $ 4.21e-4. Against this run's retrieve→stop that is Hotpot 1/1 and NQ 8/5. The third retrieve copies the second on 300/300. λ=0 last matches retrieve→stop answers after two unused rewrites. λ=20 (epoch 7) and λ=80 (every greedy epoch) are retrieve→stop, EM 0.333 (100/300). Greedy verify is 0. The ranking `learned` row stays `learned_default.json`.
+11. **Frontier v3 (2026-09-28) selects one λ=0 recipe and leaves λ=20 / λ=80 on retrieve→stop.** Validation pick is epoch 11 for λ=0: `retrieve, rewrite, rewrite, retrieve, retrieve, stop` on 300/300, EM 0.343 (103/300, Hotpot 60 / NQ 43), $ 4.21e-4. Against this run's retrieve→stop that is Hotpot 1/1 and NQ 8/5. The third retrieve copies the second on 300/300. λ=0 last matches retrieve→stop answers after two unused rewrites. λ=20 (epoch 7) and λ=80 (every greedy epoch) are retrieve→stop, EM 0.333 (100/300). Greedy verify is 0. The ranking `learned` row stays `learned_default.json`. **These files were overwritten on 2026-10-03; read them at git `3a2c83c`.**
+12. **The score features were saturated until 2026-10-01, so items 7–11 describe a policy that could not see the retrieval score.** `tanh(score / 5)` returned 1.0 on all 300 questions because top-1 BM25 runs 26–122. Every "the policy does not branch on the score" statement above is true but uninformative: the feature was a constant. The fix standardizes against the training slice and clips to ±3.
+13. **After the fix the policy branches, and it branches on the score (2026-10-03).** Retrained with the only change being the feature scale, λ=20 emits **16 distinct action sequences** on 300 questions, where every previous sweep in this project emitted one. One threshold on the decision-time mean score at **45.7** reproduces **278/300** of its first decisions: weak retrieval gets a rewrite, strong retrieval gets another retrieve. λ=0 stops immediately on exactly the 5 questions with the strongest retrieval (mean ≥ 89.7) and verifies on the other 295. This is the headline claim for the paper, and it is about behaviour, not accuracy.
+14. **Branching bought +3 EM for about 3× the dollars.** λ=20 is 103/300 at 5.31e-4 against this run's retrieve→stop 100/300 at 1.72e-4 (+8 / −5, union 108/300). Best EM is 103 under both observations; it just moved from λ=0 to λ=20. With one run per preset and a ~5-point spread across fixed recipes (2026-09-26), **do not claim an accuracy gain.** The 2026-09-26 oracle headroom is still mostly unclaimed.
+15. **Verify still does not pay, and now we know why.** λ=0's two verifies change **0/300 predictions** and **0/300 retrieved sets** while costing 1.8×: on that path the verify result never feeds back into retrieval, so it cannot move an answer. Item 6's win condition needs verify to *gate a re-retrieve*, which only λ=20 does, and only weakly (contradiction → retrieve 53%, support 27%, neutral 13%, confounded with the score).
+16. **λ=80 is immune to the observation fix**, still retrieve→stop on all 20 greedy epochs. A better input cannot rescue a reward that prices tools below their payoff (item 9).
+17. **Open blocker for any cross-policy table: two indexes.** The `_v3` rows are the 83,120-passage corpus; naive / rule / max_tools and the 110 / 124 / 127 ceilings are the 80,000-passage corpus. Until the frozen baselines are re-scored on 83,120, items 13–16 may only be compared against this run's own retrieve→stop anchor.
 
 ---
 

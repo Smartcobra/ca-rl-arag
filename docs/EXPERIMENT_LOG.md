@@ -2,7 +2,7 @@
 
 Append-only notes while running pilots. Prefer short factual entries. **Each dated block names the run it belongs to.** Do not cite a number from this file without that run line.
 
-For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), the λ=80 frontier (all three learned evals retrieve→stop 300/300), the 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`), the 2026-09-23 λ=0 / 20 exams (`learned_frontier_lambda0.json` EM 0.347 / 6 steps; `_lambda20.json` EM 0.333 / 4 steps / 3 retrieve), the 2026-09-24 40-epoch `frontier_act02` exam (retrieve→stop, EM 0.333) plus regenerated `frontier_sweep_table.json` / `frontier_em_usd.png`, and the 2026-09-28 frontier v3 exams (selected λ=0 EM 0.343 / 6 steps / 3 retrieve; λ=20 and λ=80 retrieve→stop), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
+For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), the λ=80 frontier (all three learned evals retrieve→stop 300/300), the 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`), the 2026-09-23 λ=0 / 20 exams (`learned_frontier_lambda0.json` EM 0.347 / 6 steps; `_lambda20.json` EM 0.333 / 4 steps / 3 retrieve), the 2026-09-24 40-epoch `frontier_act02` exam (retrieve→stop, EM 0.333) plus regenerated `frontier_sweep_table.json` / `frontier_em_usd.png`, the 2026-09-28 frontier v3 exams (selected λ=0 EM 0.343 / 6 steps / 3 retrieve; λ=20 and λ=80 retrieve→stop), and the 2026-10-03 v3 retrain on the 16-d z-scored observation (λ=20 EM 0.343 with **16 distinct action sequences**, branching on the retrieval score; it overwrote the 2026-09-28 `_v3` files, which live at git `3a2c83c`), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
 
 ## 2026-08-07
 
@@ -374,3 +374,34 @@ Sources: `learned_frontier_lambda0_v3.json` / `_v3last.json`, `learned_frontier_
 | `frontier_act02` best = last | 0.333 | 100/300 | 0.399 | 1.72e-4 | 2.0 | 1.0 | 0.0 | 0.0 |
 
 Selected λ=0 is one sequence on 300/300: `retrieve, rewrite, rewrite, retrieve, retrieve, stop`. Hotpot 60/150, NQ 43/150. λ=20, λ=80, and λ=0 last share one prediction file: Hotpot 60/150, NQ 40/150. Against that retrieve→stop, selected λ=0 is Hotpot 1 recovery / 1 regression and NQ 8 / 5. The second retrieve changes the top-5 on 106/300. The third retrieve copies the second on 300/300. Union of the two answer sets is 109/300. Greedy verify is 0 on every exam. Full write-up: [`RESULTS.md`](RESULTS.md) §6.
+
+## 2026-10-03 — Frontier v3 retrained on the 16-d z-scored observation
+
+**Run:** `configs/frontier_v3.yaml`, rerun after the 2026-10-01 score-feature fix. Identical to 2026-09-28 in every respect except the observation: the BM25 mean, top-1, gap and the new top-5 minimum are standardized against the 100-question training slice and clipped to ±3 instead of passed through `tanh(score / 5)`, so the vector is 16-d (357 parameters at hidden 16). Same 500 train / 180 valid / locked 300, 20 epochs, naive-anchored advantage, validation pick. Presets `frontier_lambda0`, `frontier_lambda20`, `frontier_act02`.
+
+**This run overwrote every `_v3` and `_v3last` artifact from 2026-09-28.** The 15-d numbers are at git `3a2c83c`. Frozen baselines were **not** re-run, so `frontier_sweep_table_v3.json` / `frontier_em_usd_v3.png` still do not exist and the 2026-10-01 one-index task is still open.
+
+**Index:** every artifact reports `n_passages: 83120`, sha1 `18e880b5…` — the same corpus the 2026-09-28 sweep used, so 15-d against 16-d is one index. The frozen baselines on disk are still the 80,000 index.
+
+Sources: `learned_frontier_lambda0_v3.json` / `_v3last.json`, `learned_frontier_lambda20_v3.json` / `_v3last.json`, `learned_frontier_act02_v3.json` / `_v3last.json`, `train_policy_curve_frontier_v3_lambda0.json` / `_lambda20.json` / `_act02.json`, and the matching JSONL.
+
+**Valid greedy** (n=180):
+
+| Preset | Selected epoch | Reward | Greedy epochs with a non-integer step count |
+|---|---:|---:|---:|
+| `frontier_lambda0` | 11 | 0.59548 | 10 / 20 |
+| `frontier_lambda20` | 20 (= last) | 0.60218 | 15 / 20 |
+| `frontier_act02` | 3 | 0.56029 | 1 / 20 |
+
+**Eval** (frozen argmax, n=300):
+
+| Point | EM | n_correct | $ | steps | retrieve | rewrite | verify | sequences |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `frontier_lambda20` best = last | **0.343** | **103/300** | 5.31e-4 | 7.49 | 2.84 | 1.74 | 1.90 | **16** |
+| `frontier_lambda0` best | 0.333 | 100/300 | 3.11e-4 | 3.97 | 1.00 | 0.00 | 1.97 | **2** |
+| `frontier_lambda0` last | 0.333 | 100/300 | 1.73e-4 | 2.02 | 1.02 | 0.00 | 0.00 | **2** |
+| `frontier_act02` best = last | 0.333 | 100/300 | 1.72e-4 | 2.00 | 1.00 | 0.00 | 0.00 | 1 |
+
+λ=20 emits **16 distinct action sequences**; every earlier sweep in this project emitted one. The branch tracks the retrieval score: at step 1 it rewrites when the decision-time mean score is low (20.4–46.4, median 35.5) and retrieves again when it is high (34.1–108.9, median 54.2), and a single threshold at 45.7 reproduces 278/300 of those decisions. λ=0 stops immediately on exactly the 5 questions with the strongest retrieval (89.7–108.9) and verifies on the other 295 (median 41.3). λ=80 is unchanged, retrieve→stop on all 20 greedy epochs.
+
+λ=0's two verifies change **0/300 predictions** and **0/300 retrieved sets** against this run's retrieve→stop at 1.8× the cost. λ=20 is +8 / −5 against it (Hotpot 0 / −1, NQ +8 / −4), 268/300 predictions identical, union 108/300. Best EM is 103 under both observations and only moved presets, so this is a behaviour result, not an accuracy result. Full write-up: [`RESULTS.md`](RESULTS.md) §6.

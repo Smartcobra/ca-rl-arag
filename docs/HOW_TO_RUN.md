@@ -662,7 +662,9 @@ Repeat the train and both exams for `frontier_lambda20` and `frontier_act02` wit
 
 `_best.pt` is the max greedy reward on `valid_slice.jsonl` (`eval_split: valid_greedy` in the curve). Read that epoch before opening the 300. The `v3` exam is that checkpoint. The `v3last` exam is the last epoch.
 
-**This run (2026-09-28).** All three presets finished 20 epochs and both exams. The selected checkpoint is `_best.pt`.
+**This run (2026-09-28, 15-d `tanh` observation).** All three presets finished 20 epochs and both exams. The selected checkpoint is `_best.pt`.
+
+> These artifacts were **overwritten** by the 2026-10-03 retrain; the table below is read at git `3a2c83c`. Current numbers are in the next block.
 
 | Preset | Which | Epoch | Eval EM | n_correct | $ | steps / retrieve / rewrite / verify | Hotpot / NQ |
 |---|---|---:|---:|---:|---:|---|---|
@@ -671,11 +673,24 @@ Repeat the train and both exams for `frontier_lambda20` and `frontier_act02` wit
 | `frontier_lambda20` | best = last | 7 and 20 | 0.333 | 100/300 | 1.72e-4 | 2.0 / 1.0 / 0.0 / 0.0 (300/300) | 60 / 40 |
 | `frontier_act02` | best = last | 11 and 20 | 0.333 | 100/300 | 1.72e-4 | 2.0 / 1.0 / 0.0 / 0.0 (300/300) | 60 / 40 |
 
-Selected λ=0 is `retrieve → rewrite → rewrite → retrieve → retrieve → stop`. Against this run's retrieve→stop (λ=20 and λ=80 share those 300 answers; λ=0 last matches them too): Hotpot 1 recovery / 1 regression, NQ 8 / 5. The third retrieve copies the second on 300/300. On the 180, that recipe's greedy reward is 0.61941 versus about 0.594 for retrieve→stop. λ=80 greedy is retrieve→stop on all 20 epochs. `frontier_sweep_table_v3.json` and `frontier_em_usd_v3.png` are what `--frontier-tag v3` writes; they are not in this checkout. Sources: `learned_frontier_lambda0_v3.json` / `_v3last.json`, `_lambda20_v3.json` / `_v3last.json`, `_act02_v3.json` / `_v3last.json`, and `train_policy_curve_frontier_v3_*.json`.
+Selected λ=0 is `retrieve → rewrite → rewrite → retrieve → retrieve → stop`. Against this run's retrieve→stop (λ=20 and λ=80 share those 300 answers; λ=0 last matches them too): Hotpot 1 recovery / 1 regression, NQ 8 / 5. The third retrieve copies the second on 300/300. On the 180, that recipe's greedy reward is 0.61941 versus about 0.594 for retrieve→stop. λ=80 greedy is retrieve→stop on all 20 epochs. `frontier_sweep_table_v3.json` and `frontier_em_usd_v3.png` are what `--frontier-tag v3` writes; they are not in this checkout. Sources (at git `3a2c83c`): `learned_frontier_lambda0_v3.json` / `_v3last.json`, `_lambda20_v3.json` / `_v3last.json`, `_act02_v3.json` / `_v3last.json`, and `train_policy_curve_frontier_v3_*.json`.
 
-### 4.10 Frozen baselines on the v3 index (required before any v3 figure)
+**Rerun (2026-10-03, 16-d z-scored observation).** Same commands, same config, same corpus (83,120 passages, sha1 `18e880b5…`); the only change is the 2026-10-01 score-feature fix, so this is an observation ablation. `data/processed/bm25_score_norm.json` must be present before `train_policy.py` — the environment loads the standardization constants from it on first use.
+
+| Preset | Which | Epoch | Eval EM | n_correct | $ | steps / retrieve / rewrite / verify | sequences |
+|---|---|---:|---:|---:|---:|---|---:|
+| `frontier_lambda20` | **best = last** | 20 | **0.343** | **103/300** | 5.31e-4 | 7.49 / 2.84 / 1.74 / 1.90 | **16** |
+| `frontier_lambda0` | best | 11 | 0.333 | 100/300 | 3.11e-4 | 3.97 / 1.00 / 0.00 / 1.97 | **2** |
+| `frontier_lambda0` | last | 20 | 0.333 | 100/300 | 1.73e-4 | 2.02 / 1.02 / 0.00 / 0.00 | **2** |
+| `frontier_act02` | best = last | 3 and 20 | 0.333 | 100/300 | 1.72e-4 | 2.00 / 1.00 / 0.00 / 0.00 | 1 |
+
+λ=20 now emits **16 distinct action sequences** instead of one, and branches on the retrieval score: a single threshold on the decision-time mean BM25 at 45.7 reproduces 278/300 of its first decisions. Valid greedy reward at the selected epoch: λ=0 0.59548 (epoch 11), λ=20 0.60218 (epoch 20), λ=80 0.56029 (epoch 3). λ=20's greedy step count on the 180 is non-integer on 15 of 20 epochs, so the branching is visible during training. `frontier_sweep_table_v3.json` and `frontier_em_usd_v3.png` are still **not** in this checkout, because §4.10 has not been run. Sources: the same filenames as above, in the working tree. Full write-up: `RESULTS.md` §6.
+
+### 4.10 Frozen baselines on the v3 index (required before any v3 figure) — **not yet run**
 
 **Why:** `build_train_valid.py` merges the new train and validation gold passages into `corpus.jsonl`. BM25 scores against the whole corpus, so that changes retrieval for the locked 300 too (20 of 300 get different top ids, and this run's retrieve→stop is Hotpot 60 / NQ 40 against the ranking row 59 / 41). The frozen `naive_rag` / `rule_based` / `max_tools` rows on disk were scored before that merge. Putting them next to a v3 learned row compares two indexes. So do the 110 / 124 / 127 ceilings, which are built from old-index trajectories. See `IMPLEMENTATION_DECISIONS.md`, 2026-10-01.
+
+Concretely: every `_v3` artifact reports `n_passages: 83120`, sha1 `18e880b5…`; the frozen rows on disk are the 80,000-passage corpus. (`slice_meta.json` still says 80000 — it was written 2026-08-27 and `build_train_valid.py` does not update it. Trust the per-run `meta.corpus` fingerprint, not `slice_meta`.) As of 2026-10-03 this section has still not been run, through two learned sweeps.
 
 Do **not** re-run `prepare_data.py` or `build_train_valid.py`. The corpus is already the one the v3 exams used; rebuilding it would move the index again.
 
