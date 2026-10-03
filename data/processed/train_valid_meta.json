@@ -1,0 +1,32 @@
+{
+  "train_file": "data/processed/train_slice_v3.jsonl",
+  "valid_file": "data/processed/valid_slice.jsonl",
+  "eval_file_unchanged": "data/processed/eval_slice.jsonl",
+  "n_train": 500,
+  "n_valid": 180,
+  "train_by_dataset": {
+    "hotpot_qa": 300,
+    "natural_questions": 200
+  },
+  "valid_by_dataset": {
+    "hotpot_qa": 110,
+    "natural_questions": 70
+  },
+  "n_corpus": 83120,
+  "single_hop": {
+    "n_requested": 270,
+    "n_kept": 270,
+    "n_scanned": 270,
+    "n_skipped": 0,
+    "n_passages": 3847,
+    "n_gold_articles": 1261,
+    "hit_quota": true,
+    "diversify_by_title": false,
+    "hf_id": "Tevatron/wikipedia-nq",
+    "hf_split": "train",
+    "dataset": "natural_questions",
+    "label": "DPR Wikipedia 100-word passages (Tevatron/wikipedia-nq)",
+    "kind": "tevatron"
+  },
+  "note": "Validation is the next HF train-split prefix. Eval ids were checked, not rewritten."
+}
