@@ -4,3 +4,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 agentic_rag_rl_colab.zip
+
+# LaTeX intermediates. paper/paper.pdf and paper/figures/ stay tracked.
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/missfont.log

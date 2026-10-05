@@ -65,24 +65,28 @@ when the venue is settled.
 
 ## 4. Numbers
 
-- The paper describes the **v2** run: 261 parameters, a 10-d observation, 100
-  training questions, and an 80,000-passage index. The repository has since moved
-  to a 16-d observation, 357 parameters, 500 training questions, and an
-  83,120-passage index, and the retrained policy **branches** where the paper says
-  it does not. Decide deliberately whether this submission is the v2 story or the
-  v3 story; do not mix rows from the two. See `docs/RESULTS.md` §6.
-- One index per table (`docs/IMPLEMENTATION_DECISIONS.md`, 2026-10-01). The
-  frozen baselines have **not** been re-scored on the 83,120 index.
-- Seeds: a single run at seed 42. See `docs/IMPLEMENTATION_DECISIONS.md`,
-  2026-10-03, for the three-seed plan and what it costs.
+- The paper now has both indexes, in separate tables. Table frozen, Table learned,
+  and `figures/frontier.png` are the 80,000-passage dollar sweep. The later table
+  is the 83,120-passage index: the 15-d validation pick (λ=0 at 103/300, one
+  six-step recipe; λ=20 and λ=80 one-shot) and two seed-42 draws of the 16-d
+  z-scored observation (103/300 with 16 sequences, then 104/300 without that
+  controller). Do not add a row from one table to the other.
+- One index per table (`docs/IMPLEMENTATION_DECISIONS.md`, 2026-10-01). Naive,
+  rule, and max-tools have **not** been re-scored on the 83,120 index, so the
+  frontier figure has not been rebuilt. That is the remaining Colab pilot
+  (`HOW_TO_RUN.md` §4.10). No training.
+- Seeds: the learned rows are seed 42. The two 16-d draws are the same seed run
+  twice. Three fresh seeds (42, 43, 44) are planned if units allow
+  (`HOW_TO_RUN.md` §4.11).
 - `python scripts/verify_softmax_probe.py` re-checks the 0.0068 figure in
   Section "Constant Recipes Leave a Per-Question Gap".
 
 ## 5. Build hygiene
 
-- `paper.pdf`, `paper.aux`, `paper.bbl`, `paper.blg`, and `paper.log` are tracked
-  and currently **stale**: they predate the 2026-10-03 limitations edit. Rebuild
-  and commit before submitting, or the committed PDF will not match the source.
-- Run `bibtex`, not just `pdflatex`. The `gao2022tevatron` key was renamed on
-  2026-10-03; `paper.bbl` was hand-synced to match, but a real rebuild is the
-  only way to be sure the bibliography is consistent.
+- `paper/paper.pdf` and `paper/figures/frontier.png` stay tracked. The PDF on
+  disk predates the 2026-10-05 text edit. Rebuild it before submitting.
+  `pdflatex` is not installed on the machine that made that edit.
+- `paper.aux`, `paper.bbl`, `paper.blg`, `paper.log`, and `missfont.log` are
+  gitignored. If they are still in the index, `git rm --cached` them. Keep the
+  PDF.
+- Run `bibtex`, not just `pdflatex`. The bibliography key is `gao2022tevatron`.
