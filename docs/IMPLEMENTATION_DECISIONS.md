@@ -458,6 +458,27 @@ Do **not** economize by evaluating greedy less often. The per-epoch valid pass i
 
 **Order of work.** The frozen baselines on the 83,120 index (2026-10-01, still open) come **first**. They are a single pilot, they are seed-independent, and without them no learned row can be tabled beside a frozen one no matter how many seeds it has.
 
+## 2026-10-05 — v4 is a second seed-42 draw, not the three-seed plan
+
+Same config, same 83,120 index (sha1 `18e880b5…`), same seed, new filenames so `_v3` stays. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v4.ipynb`. This is the comparison the 2026-10-03 entry said one run cannot support. It is still seed 42, run twice. The two policies do not match, so that seed did not pin the controller.
+
+**Exams** (frozen argmax, locked 300):
+
+| Preset | Selected epoch | EM | n_correct | $ | steps | retrieve | rewrite | verify | distinct sequences |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `frontier_lambda0` best = last | 20 | **0.347** | **104/300** | 5.37e-4 | 7.65 | 2.95 | 1.70 | 2.00 | **15** |
+| `frontier_lambda20` best | 16 | **0.347** | **104/300** | 4.14e-4 | 5.89 | 2.94 | 1.95 | 0.00 | **6** |
+| `frontier_lambda20` last | 20 | 0.333 | 100/300 | 4.85e-4 | 6.93 | 2.86 | 1.21 | 1.86 | **11** |
+| `frontier_act02` best | 3 | 0.333 | 100/300 | 1.72e-4 | 2.00 | 1.00 | 0.00 | 0.00 | 1 |
+
+**What repeated.** λ=80 is retrieve→stop on all 20 greedy epochs, and the exam matches the 2026-10-03 `act02` file on 300/300 predictions. Selected λ=0 and λ=20 beat this run's retrieve→stop by +4 EM (+9 / −5, union 109/300). The third retrieve copies the second (292/292 on λ=0, 290/291 on λ=20). Verify on the selected λ=0 policy still does not send a contradiction back to retrieval (0/28).
+
+**What did not repeat.** The 2026-10-03 headline was λ=20 with 16 sequences and a rewrite-vs-retrieve split at mean score 45.7 (278/300). This draw's λ=20 is one recipe on 270/300: `retrieve, rewrite, rewrite, retrieve, retrieve, stop`. That recipe holds the entire +4. The other 30 questions are net 0 against retrieve→stop. The first action is rewrite on 272/300, including scores up to 97.9. The score mainly marks 8 early stops (85.4–108.9). λ=0 is the preset that branches here (15 sequences). Its first decision is rewrite below mean score 45.4 and verify above it (293/300), and those two verifies change 0 answers relative to λ=20 (same predictions on 300/300, retrieved sets on 294/300) at 5.37e-4 versus 4.14e-4.
+
+**Accuracy.** Best EM is 104 here and 103 on 2026-10-03. v4 λ=20 matches that file on 295/300 (+1 / −0). One answer. Report the failure to repeat the controller, not a new EM. Seeds 43 and 44 are still unrun. Frozen baselines on 83,120 are still unrun, so no `_v4` row sits beside naive / rule / max_tools.
+
+Sources: `learned_frontier_{lambda0,lambda20,act02}_v4.json` / `_v4last.json`, `train_policy_curve_frontier_v4_*.json`, and the matching JSONL.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
@@ -482,3 +503,4 @@ Do **not** economize by evaluating greedy less often. The per-epoch valid pass i
 | 2026-10-01 | Index audit of the v3 exams vs the frozen rows | v3 train/valid golds were merged into `corpus.jsonl`, so BM25 changed for the locked 300: 20/300 different top ids, retrieve→stop is Hotpot 60 / NQ 40 against the ranking row 59 / 41. The frontier figure, the sweep table, and the 110 / 124 / 127 ceilings were still built from old-index files even under `--frontier-tag v3`. | One index per table. `--artifact-suffix` forks every policy; `--frontier-tag` refuses to fall back to untagged files; every artifact carries a corpus fingerprint; `check_index.py` verifies before a GPU run. Re-run naive / rule / max on the v3 index and rebuild the ceilings. |
 | 2026-10-01 | Score-channel scale (`tanh(score/5)` vs train-slice z-score) | v3 λ=0 top-1 is 26.2–122.3 (median 49.3). `tanh(x/5)` is 0.9999 or 1.0 on all 300, and the mean channel is too. Gap was the only score input that moved. Mean `< 3` never fires: raw means stay above 20, reranked means above 7. | Z-score mean, top-1, gap, and top-5 min with the 100-question train slice and clip to [−3, 3]. Vector is 16-d. Old checkpoints do not load. The `< 3` abstain bonus stays in the code and stays dead until a reward change retargets it. |
 | 2026-10-03 | v3 retrained on the 16-d z-scored observation (same config, same 83,120 index; only the feature scale changed) | λ=20 emits **16 distinct action sequences** on 300 questions, where every earlier sweep emitted one; a single threshold on the decision-time mean BM25 at 45.7 reproduces 278/300 of its first decisions. EM 0.343 (103/300) at 5.31e-4 vs this run's retrieve→stop 0.333 (100/300) at 1.72e-4 (+8 / −5, union 108/300). λ=0 stops early on exactly the 5 strongest-retrieval questions; its two verifies change 0/300 predictions at 1.8× the cost. λ=80 unchanged. Overwrote the 2026-09-28 `_v3` files (git `3a2c83c`). | The 2026-09-26 win condition is met: the controller reads the observation. Report behaviour, not accuracy — best EM is 103 under both observations and only changed preset. Verify still needs to gate a re-retrieve to earn its cost. Frozen baselines are **still** on the 80k index, so no `_v3` row may sit beside them. |
+| 2026-10-05 | v4, second seed-42 training run of the same 16-d config (new filenames; `_v3` kept) | Selected λ=0 (epoch 20) and λ=20 (epoch 16) tie at EM 0.347 (104/300) with identical predictions. λ=20 is one 6-step recipe on 270/300 and that recipe holds the +4 vs retrieve→stop (+9 / −5, union 109) at 4.14e-4. λ=0 uses 15 sequences; a threshold at 45.4 separates rewrite vs verify on 293/300, and the two verifies change 0 answers (5.37e-4). λ=20 last copies the first retrieve and matches retrieve→stop. λ=80 unchanged, predictions identical to the 2026-10-03 `act02` file. | The 16-sequence λ=20 controller did not repeat. 104 vs 103 is one answer. Do not move the headline from behaviour to accuracy. This is not seeds 43 and 44. Frozen baselines are still the 80k index, so no `_v4` row may sit beside them. |

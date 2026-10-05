@@ -10,7 +10,7 @@ This package delivers the Milestone 2 checklist from the research roadmap:
 - Explicit multi-component reward + ablation presets (`src/rewards.py`, `configs/reward_weights.yaml`)
 - Dataset slices for **HotpotQA + single-hop** (NQ preferred; TriviaQA / SQuAD fallbacks — Scope Memo V2 §7)
 - Pilot logs, metrics, data cards, and implementation decision notes
-- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — `default` learned eval is naive RAG; free-cost `correctness_only` used the step cap; λ=0 used tools (EM 0.347); λ=20 is EM-tied at 4 steps / 3 retrieve; λ=80 `act02` is retrieve→stop. v3 (2026-09-28, validation pick): selected λ=0 is one 6-step recipe (EM 0.343, 103/300); λ=20 and λ=80 are retrieve→stop. **v3 retrained 2026-10-03 on the 16-d z-scored observation: λ=20 emits 16 distinct action sequences and branches on the retrieval score** (EM 0.343, 103/300)
+- Tiny REINFORCE trainer (`src/policies/learned.py`, `scripts/train_policy.py`) — `default` learned eval is naive RAG; free-cost `correctness_only` used the step cap; λ=0 used tools (EM 0.347); λ=20 is EM-tied at 4 steps / 3 retrieve; λ=80 `act02` is retrieve→stop. v3 (2026-09-28, validation pick): selected λ=0 is one 6-step recipe (EM 0.343, 103/300); λ=20 and λ=80 are retrieve→stop. **v3 retrained 2026-10-03 on the 16-d z-scored observation: λ=20 emits 16 distinct action sequences and branches on the retrieval score** (EM 0.343, 103/300). **v4 (2026-10-05), a second seed-42 run of that config:** selected λ=0 and λ=20 tie at EM 0.347 (104/300) with the same answers; λ=20 is one recipe on 270/300, so the 16-sequence controller did not repeat
 
 ## Design locks (review comments)
 
@@ -196,7 +196,20 @@ Identical to the sweep above except the observation. The BM25 mean, top-1, gap a
 
 Caveats: λ=0's two verifies change **0/300 predictions** at 1.8× the cost, because the verify result never gates a re-retrieve on that path. λ=20 is +8 / −5 against this run's retrieve→stop (union 108/300), so branching bought **+3 EM for ~3× the dollars**. Best EM is 103 under both observations and only moved presets — report the behaviour, not an accuracy gain. Sources: `learned_frontier_{lambda0,lambda20,act02}_v3.json` / `_v3last.json`, `train_policy_curve_frontier_v3_*.json`.
 
-> **Two indexes are live in this checkout.** Every `_v3` row is the 83,120-passage corpus; naive / rule / max_tools, the v2 rows, and the 110 / 124 / 127 ceilings are the 80,000-passage corpus. The frozen baselines have not been re-scored, so `frontier_sweep_table_v3.json` / `frontier_em_usd_v3.png` do not exist and **no `_v3` row may be tabled beside a frozen row** ([`IMPLEMENTATION_DECISIONS.md`](docs/IMPLEMENTATION_DECISIONS.md), 2026-10-01).
+### Frontier v4 (2026-10-05; second seed-42 run of the 16-d config)
+
+Same config, same corpus, new filenames. `_v3` stays. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v4.ipynb`.
+
+| Point | Which | Eval EM | $ | steps / retrieve / rewrite / verify | sequences |
+|---|---|---:|---:|---|---:|
+| learned `frontier_lambda0` | **best = last, epoch 20** | **0.347** (104/300) | 5.37e-4 | 7.65 / 2.95 / 1.70 / 2.00 | **15** |
+| learned `frontier_lambda20` | **best, epoch 16** | **0.347** (104/300) | 4.14e-4 | 5.89 / 2.94 / 1.95 / 0.00 | **6** |
+| learned `frontier_lambda20` | last, epoch 20 | 0.333 (100/300) | 4.85e-4 | 6.93 / 2.86 / 1.21 / 1.86 | **11** |
+| learned `frontier_act02` | best, epoch 3 = last | 0.333 (100/300) | 1.72e-4 | 2.00 / 1.00 / 0.00 / 0.00 | 1 |
+
+Selected λ=0 and λ=20 have the same 300 answers (Hotpot 60 / NQ 44). Against this run's retrieve→stop that is +9 / −5, union 109/300. λ=20 is one 6-step recipe on 270/300, and that recipe holds the +4, at about 2.4× the dollars. λ=0's extra verifies change 0 of those answers. The 16-sequence score branch from 2026-10-03 did not repeat. 104 vs 103 is one answer. Sources: `learned_frontier_{lambda0,lambda20,act02}_v4.json` / `_v4last.json`.
+
+> **Two indexes are live in this checkout.** Every `_v3` and `_v4` row is the 83,120-passage corpus; naive / rule / max_tools, the v2 rows, and the 110 / 124 / 127 ceilings are the 80,000-passage corpus. The frozen baselines have not been re-scored, so `frontier_sweep_table_v3.json` / `frontier_em_usd_v3.png` do not exist and **no `_v3` or `_v4` row may be tabled beside a frozen row** ([`IMPLEMENTATION_DECISIONS.md`](docs/IMPLEMENTATION_DECISIONS.md), 2026-10-01).
 
 ### Reward-weight ablation (not a ranking table)
 
@@ -259,7 +272,7 @@ Sparse episode reward is returned on `stop` with a full component breakdown in `
 
 ## Next (Milestone 3)
 
-- `default` learned eval **tied naive**. The λ=0 / 20 / 80 40-epoch family is on disk: tools (EM 0.347) / 3-retrieve (EM-tied) / retrieve→stop. Combined figure: `results/figs/frontier_em_usd.png`. v3 (2026-09-28) selected λ=0 is one 6-step recipe (EM 0.343, 103/300); λ=20 and λ=80 are retrieve→stop. Retrained 2026-10-03 on the 16-d z-scored observation: λ=20 is EM 0.343 (103/300) over **16 distinct sequences**, branching on the retrieval score. `frontier_em_usd_v3.png` does not exist — the frozen baselines are still on the old index.
+- `default` learned eval **tied naive**. The λ=0 / 20 / 80 40-epoch family is on disk: tools (EM 0.347) / 3-retrieve (EM-tied) / retrieve→stop. Combined figure: `results/figs/frontier_em_usd.png`. v3 (2026-09-28) selected λ=0 is one 6-step recipe (EM 0.343, 103/300); λ=20 and λ=80 are retrieve→stop. Retrained 2026-10-03 on the 16-d z-scored observation: λ=20 is EM 0.343 (103/300) over **16 distinct sequences**, branching on the retrieval score. A second seed-42 run on 2026-10-05 (`v4`) ties selected λ=0 and λ=20 at EM 0.347 (104/300) with the same answers; λ=20 is one recipe on 270/300, so that controller did not repeat. `frontier_em_usd_v3.png` does not exist — the frozen baselines are still on the old index.
 - Compare against Adaptive-RAG as the open-loop baseline
 - λ–μ Pareto sweeps using `configs/reward_weights.yaml` → `pareto_sweep`
 - Optional neural NLI + denser retriever once the extractive/BM25 pipeline is solid

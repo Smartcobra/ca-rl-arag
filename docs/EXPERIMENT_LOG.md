@@ -2,7 +2,7 @@
 
 Append-only notes while running pilots. Prefer short factual entries. **Each dated block names the run it belongs to.** Do not cite a number from this file without that run line.
 
-For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), the λ=80 frontier (all three learned evals retrieve→stop 300/300), the 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`), the 2026-09-23 λ=0 / 20 exams (`learned_frontier_lambda0.json` EM 0.347 / 6 steps; `_lambda20.json` EM 0.333 / 4 steps / 3 retrieve), the 2026-09-24 40-epoch `frontier_act02` exam (retrieve→stop, EM 0.333) plus regenerated `frontier_sweep_table.json` / `frontier_em_usd.png`, the 2026-09-28 frontier v3 exams (selected λ=0 EM 0.343 / 6 steps / 3 retrieve; λ=20 and λ=80 retrieve→stop), and the 2026-10-03 v3 retrain on the 16-d z-scored observation (λ=20 EM 0.343 with **16 distinct action sequences**, branching on the retrieval score; it overwrote the 2026-09-28 `_v3` files, which live at git `3a2c83c`), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
+For a full walkthrough of the current 80k ranking (Tevatron NQ slice `d456d26`, **rescored 2026-09-04**) plus REINFORCE train (2026-09-09), 300-eval (2026-09-10, `default` learned = naive), the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop), the λ=80 frontier (all three learned evals retrieve→stop 300/300), the 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`), the 2026-09-23 λ=0 / 20 exams (`learned_frontier_lambda0.json` EM 0.347 / 6 steps; `_lambda20.json` EM 0.333 / 4 steps / 3 retrieve), the 2026-09-24 40-epoch `frontier_act02` exam (retrieve→stop, EM 0.333) plus regenerated `frontier_sweep_table.json` / `frontier_em_usd.png`, the 2026-09-28 frontier v3 exams (selected λ=0 EM 0.343 / 6 steps / 3 retrieve; λ=20 and λ=80 retrieve→stop), the 2026-10-03 v3 retrain on the 16-d z-scored observation (λ=20 EM 0.343 with **16 distinct action sequences**, branching on the retrieval score; it overwrote the 2026-09-28 `_v3` files, which live at git `3a2c83c`), and the 2026-10-05 `v4` second run of that same config (selected λ=0 and λ=20 tie at EM 0.347 with identical predictions; the 16-sequence controller did not repeat; `_v3` stays), see [`RESULTS.md`](RESULTS.md). The SQuAD fallback snapshot is `e8a4423`. The leaked-NQ 80k snapshot is `2417c43`.
 
 ## 2026-08-07
 
@@ -405,3 +405,28 @@ Sources: `learned_frontier_lambda0_v3.json` / `_v3last.json`, `learned_frontier_
 λ=20 emits **16 distinct action sequences**; every earlier sweep in this project emitted one. The branch tracks the retrieval score: at step 1 it rewrites when the decision-time mean score is low (20.4–46.4, median 35.5) and retrieves again when it is high (34.1–108.9, median 54.2), and a single threshold at 45.7 reproduces 278/300 of those decisions. λ=0 stops immediately on exactly the 5 questions with the strongest retrieval (89.7–108.9) and verifies on the other 295 (median 41.3). λ=80 is unchanged, retrieve→stop on all 20 greedy epochs.
 
 λ=0's two verifies change **0/300 predictions** and **0/300 retrieved sets** against this run's retrieve→stop at 1.8× the cost. λ=20 is +8 / −5 against it (Hotpot 0 / −1, NQ +8 / −4), 268/300 predictions identical, union 108/300. Best EM is 103 under both observations and only moved presets, so this is a behaviour result, not an accuracy result. Full write-up: [`RESULTS.md`](RESULTS.md) §6.
+
+## 2026-10-05 — Frontier v4, second training run of the 16-d config
+
+**Run:** `configs/frontier_v3.yaml`, seed 42, notebook `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v4.ipynb`. Same 500 / 180 / locked 300, 20 epochs, validation pick, naive anchor, 16-d z-scored observation, and the same corpus (83,120 passages, sha1 `18e880b5…`) as 2026-10-03. Artifacts use `v4` / `v4last`. The `_v3` files are not overwritten. Frozen baselines were not re-run.
+
+**Valid greedy** (n=180):
+
+| Preset | Selected epoch | Reward | Greedy epochs with a non-integer step count |
+|---|---:|---:|---:|
+| `frontier_lambda0` | 20 (= last) | 0.61255 | 14 / 20 |
+| `frontier_lambda20` | 16 | 0.59530 | 19 / 20 |
+| `frontier_act02` | 3 | 0.56025 | 0 / 20 |
+
+**Eval** (frozen argmax, n=300):
+
+| Point | EM | n_correct | $ | steps | retrieve | rewrite | verify | sequences | Hotpot / NQ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| `frontier_lambda0` best = last | **0.347** | **104/300** | 5.37e-4 | 7.65 | 2.95 | 1.70 | 2.00 | **15** | 60 / 44 |
+| `frontier_lambda20` best | **0.347** | **104/300** | 4.14e-4 | 5.89 | 2.94 | 1.95 | 0.00 | **6** | 60 / 44 |
+| `frontier_lambda20` last | 0.333 | 100/300 | 4.85e-4 | 6.93 | 2.86 | 1.21 | 1.86 | **11** | 60 / 40 |
+| `frontier_act02` best = last | 0.333 | 100/300 | 1.72e-4 | 2.00 | 1.00 | 0.00 | 0.00 | 1 | 60 / 40 |
+
+Selected λ=0 and λ=20 have identical predictions on 300/300. Against this run's retrieve→stop both are +9 / −5 (Hotpot +1 / −1, NQ +8 / −4), union 109/300. λ=20 is `retrieve, rewrite, rewrite, retrieve, retrieve, stop` on 270/300, and that path holds the whole +4, at about 2.4× the retrieve→stop dollars. λ=0 adds 15 sequences and two verifies for the same answers, at about 3.1×. A threshold at 45.4 separates its first decision (rewrite vs verify) on 293/300. After a contradiction the next action is never retrieve or rewrite (0/28). λ=20 last matches retrieve→stop answers and retrieved sets on 300/300: the second retrieve changes the top-5 on 0/279. λ=80 is retrieve→stop on all 20 greedy epochs, and its predictions match the 2026-10-03 `act02` file on 300/300.
+
+Against 2026-10-03, v4 λ=20 is the same prediction on 295/300 (+1 Hotpot / −0). Best EM moved from 103 to 104. The 16-sequence score branch did not repeat. Full write-up: [`RESULTS.md`](RESULTS.md) §6.
