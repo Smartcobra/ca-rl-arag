@@ -65,21 +65,17 @@ when the venue is settled.
 
 ## 4. Numbers
 
-- The paper now has both indexes, in separate tables. Table frozen, Table learned,
-  and `figures/frontier.png` are the 80,000-passage dollar sweep. The later table
-  is the 83,120-passage index: the 15-d validation pick (λ=0 at 103/300, one
-  six-step recipe; λ=20 and λ=80 one-shot) and two seed-42 draws of the 16-d
-  z-scored observation (103/300 with 16 sequences, then 104/300 without that
-  controller). Do not add a row from one table to the other.
-- One index per table (`docs/IMPLEMENTATION_DECISIONS.md`, 2026-10-01). Naive,
-  rule, and max-tools have **not** been re-scored on the 83,120 index, so the
-  frontier figure has not been rebuilt. That is the remaining Colab pilot
-  (`HOW_TO_RUN.md` §4.10). No training.
-- Seeds: the learned rows are seed 42. The two 16-d draws are the same seed run
-  twice. Three fresh seeds (42, 43, 44) are planned if units allow
-  (`HOW_TO_RUN.md` §4.11).
-- `python scripts/verify_softmax_probe.py` re-checks the 0.0068 figure in
-  Section "Constant Recipes Leave a Per-Question Gap".
+- The paper is rewritten as one argument. Figure 1 is `figures/pipeline.png`.
+  Figure 2 is the existing frontier, still the frozen-controller index.
+  Table learned is the 16-d policy on the 83,120-passage index. The two runs
+  are both seed 42. They are not labeled as different seeds.
+- Naive, rule, and max-tools have **not** been re-scored on the 83,120 index.
+  The two-index sentence stays in Limitations until that Colab pilot lands
+  (`HOW_TO_RUN.md` §4.10). No training. Then delete that sentence and the
+  ceilings can sit in the learned table.
+- The saturated-tanh result is one diagnostics paragraph. The 0.0068 softmax
+  probe is no longer a results claim.
+- Three fresh seeds (42, 43, 44) are still planned (`HOW_TO_RUN.md` §4.11).
 
 ## 5. Build hygiene
 
