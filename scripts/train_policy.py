@@ -1,3 +1,19 @@
+from __future__ import annotations
+
+
+import random
+import numpy as np
+import torch
+
+def make_deterministic(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.use_deterministic_algorithms(True, warn_only=True)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 #!/usr/bin/env python3
 """REINFORCE trainer for the tiny learned policy.
 
@@ -13,7 +29,6 @@ greedy reward on that validation slice. Otherwise greedy stays on the train
 file (smoke runs and the older 100-example config).
 """
 
-from __future__ import annotations
 
 import os
 
@@ -333,7 +348,7 @@ def main() -> None:
         raise SystemExit(f"--hidden {hidden} exceeds cap {MAX_HIDDEN}.")
 
     seed = int(cfg["experiment"]["seed"])
-    set_seed(seed)
+    make_deterministic(seed)
 
     examples, train_path = _load_train_examples(cfg, args.limit)
     corpus = read_jsonl(resolve_path(cfg, cfg["data"]["corpus_file"]))
