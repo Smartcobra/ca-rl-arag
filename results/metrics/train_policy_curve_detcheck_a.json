@@ -1,0 +1,22 @@
+[
+  {
+    "epoch": 1,
+    "n": 500,
+    "mean_reward": 0.6450172211093895,
+    "mean_em": 0.352,
+    "mean_n_steps": 5.054,
+    "mean_n_retrieve": 1.608,
+    "mean_n_verify": 0.734,
+    "eval_reward": 0.5875934400905101,
+    "eval_em": 0.31666666666666665,
+    "eval_n_steps": 5.194444444444445,
+    "eval_n_retrieve": 1.0,
+    "eval_n_verify": 1.1944444444444444,
+    "eval_split": "valid_greedy",
+    "advantage": "sampled_minus_naive",
+    "split": "train",
+    "hidden": 16,
+    "lr": 0.003,
+    "reward_preset": "frontier_lambda20"
+  }
+]
