@@ -14,7 +14,7 @@
       "n_correct": 100,
       "n_examples": 300,
       "mean_em": 0.3333333333333333,
-      "mean_total_usd": 0.0003286605000000001,
+      "mean_total_usd": 0.0003286585000000002,
       "kind": "ceiling"
     },
     {
