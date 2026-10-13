@@ -81,6 +81,28 @@ def test_legal_mask_last_step() -> None:
     assert mask.sum() == 1
 
 
+def test_same_seed_same_weights_despite_global_rng() -> None:
+    torch.manual_seed(1)
+    first = LearnedPolicy(hidden=16, seed=42)
+    torch.manual_seed(99)
+    second = LearnedPolicy(hidden=16, seed=42)
+    for left, right in zip(first.parameters(), second.parameters()):
+        assert torch.equal(left, right)
+
+
+def test_sample_uses_private_generator() -> None:
+    pol = LearnedPolicy(hidden=16, seed=0)
+    obs = _empty_evidence_obs()
+    pol.reseed_sampler(123)
+    actions_a = [pol.act(obs, cfg=_CFG)[0] for _ in range(8)]
+    pol.reseed_sampler(123)
+    torch.manual_seed(7)
+    expected = torch.random.get_rng_state().clone()
+    actions_b = [pol.act(obs, cfg=_CFG)[0] for _ in range(8)]
+    assert actions_a == actions_b
+    assert torch.equal(torch.random.get_rng_state(), expected)
+
+
 def test_act_deterministic_is_argmax() -> None:
     pol = LearnedPolicy(hidden=16, seed=0)
     obs = np.zeros(OBS_DIM, dtype=np.float32)
@@ -227,6 +249,8 @@ def main() -> None:
     test_legal_mask_empty_evidence()
     test_legal_mask_last_step()
     test_act_respects_mask()
+    test_same_seed_same_weights_despite_global_rng()
+    test_sample_uses_private_generator()
     test_act_deterministic_is_argmax()
     test_reinforce_step_finite()
     test_verify_features_and_no_dataset_id()

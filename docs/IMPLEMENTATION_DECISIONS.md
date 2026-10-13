@@ -479,6 +479,14 @@ Same config, same 83,120 index (sha1 `18e880b5…`), same seed, new filenames so
 
 Sources: `learned_frontier_{lambda0,lambda20,act02}_v4.json` / `_v4last.json`, `train_policy_curve_frontier_v4_*.json`, and the matching JSONL.
 
+## 2026-10-13 — one-epoch seed-42 pair did not match
+
+Back-to-back detcheck runs (`learned_policy_detcheck_{a,b}`, λ=20, one epoch, seed 42) were not a match. Training mean EM and mean step count matched. Mean retrieve was 1.606 vs 1.608 (one extra retrieve on 500 questions). Greedy validation differed by two steps and two verifies on 180 questions. The checkpoint hashes differed.
+
+`make_deterministic` already set `use_deterministic_algorithms(True, warn_only=True)`. `warn_only` does not stop the kernel. Qwen greedy decode is fp16, and flash / memory-efficient attention can change one token. That token changes one action, the REINFORCE update, and then the greedy pass. The policy also sampled with `Categorical.sample()` on the global RNG, and the `torch.Generator` in `LearnedPolicy` was created and never used for weights or actions.
+
+The trainer now sets `CUBLAS_WORKSPACE_CONFIG=:4096:8` before CUDA init, turns TF32 and reduced-precision fp16 reductions off, and forces math attention for temperature 0. Weight init is inside `fork_rng` on the policy seed. Each training question reseeds a private CPU generator from `(seed, epoch, example id)`. Seeds 43 and 44 stay blocked until a new detcheck pair matches.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |

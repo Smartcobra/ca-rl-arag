@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
 import gc
 import re
 from typing import Any
 
-from ..utils import tokenize, truncate
+from ..utils import configure_deterministic_kernels, math_sdp_context, tokenize, truncate
 
 _ANSWER_PREFIXES = ("Answer:", "Final answer:", "A:")
 _PURE_ABSTAIN = re.compile(r"^ABSTAIN[.:!?]*$", re.IGNORECASE)
@@ -374,6 +375,9 @@ class HuggingFaceGenerator:
         self.allow_abstain = bool(allow_abstain)
         self.force_yes_no = bool(force_yes_no)
         self._torch = torch
+        # Temperature 0 is greedy, but fp16 flash attention is not a fixed function.
+        if self.temperature <= 0:
+            configure_deterministic_kernels()
 
         self.device = self._resolve_device(device)
         dtype = self._resolve_dtype(torch_dtype)
@@ -398,6 +402,11 @@ class HuggingFaceGenerator:
             self.model.to(self.device)
         self.model.eval()
         self.model.requires_grad_(False)
+        gen_cfg = getattr(self.model, "generation_config", None)
+        if gen_cfg is not None and self.temperature <= 0:
+            # Qwen's shipped config samples. The generate() kwarg is not enough
+            # on every transformers version.
+            gen_cfg.do_sample = False
 
     def _resolve_device(self, device: str) -> str:
         torch = self._torch
@@ -497,7 +506,10 @@ class HuggingFaceGenerator:
         if self.temperature > 0:
             gen_kwargs["temperature"] = self.temperature
 
-        with torch.inference_mode():
+        attention = math_sdp_context() if self.temperature <= 0 else contextlib.nullcontext()
+        if self.temperature <= 0:
+            configure_deterministic_kernels()
+        with torch.inference_mode(), attention:
             out = self.model.generate(**inputs, **gen_kwargs)
         new_tokens = out[0, prompt_tokens:]
         text = self.tokenizer.decode(new_tokens, skip_special_tokens=True).strip()

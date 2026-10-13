@@ -131,10 +131,20 @@ class LearnedPolicy:
         self.hidden = int(hidden)
         self.seed = int(seed)
         self.device = torch.device(device)
-        g = torch.Generator(device="cpu")
-        g.manual_seed(self.seed)
-        self.mlp = PolicyMLP(self.hidden).to(self.device)
+        # Private CPU stream. Categorical.sample() uses the global RNG, so one
+        # extra torch draw anywhere in the episode shifts every later action.
+        self._rng = torch.Generator(device="cpu")
+        self._rng.manual_seed(self.seed)
+        # Weight init must depend on this seed, not on how many draws Qwen's
+        # load took from the global RNG before the policy was built.
+        with torch.random.fork_rng(devices=[]):
+            torch.manual_seed(self.seed)
+            self.mlp = PolicyMLP(self.hidden).to(self.device)
         self.mlp.train()
+
+    def reseed_sampler(self, seed: int) -> None:
+        """Restart the action stream. Called once per training question."""
+        self._rng.manual_seed(int(seed) & 0x7FFFFFFF)
 
     def parameters(self):
         return self.mlp.parameters()
@@ -158,7 +168,8 @@ class LearnedPolicy:
         if deterministic:
             action = dist.probs.argmax(dim=-1)
         else:
-            action = dist.sample()
+            # Same distribution as Categorical.sample(), on self._rng only.
+            action = torch.multinomial(dist.probs, num_samples=1, generator=self._rng).squeeze(-1)
         log_prob = dist.log_prob(action).squeeze()
         entropy = dist.entropy().squeeze()
         return int(action.item()), log_prob, entropy

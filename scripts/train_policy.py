@@ -1,19 +1,3 @@
-from __future__ import annotations
-
-
-import random
-import numpy as np
-import torch
-
-def make_deterministic(seed=42):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.use_deterministic_algorithms(True, warn_only=True)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
 #!/usr/bin/env python3
 """REINFORCE trainer for the tiny learned policy.
 
@@ -29,17 +13,23 @@ greedy reward on that validation slice. Otherwise greedy stays on the train
 file (smoke runs and the older 100-example config).
 """
 
+from __future__ import annotations
 
 import os
 
+# Before the first CUDA call. cuBLAS otherwise picks a workspace whose
+# fp16 reduction order changes between processes.
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 import argparse
 import json
 import random
 import sys
+import zlib
 from pathlib import Path
 
+import numpy as np
 import torch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,7 +47,29 @@ from src.policies import naive_stop_policy
 from src.policies.learned import MAX_HIDDEN, LearnedPolicy, assert_train_only_path
 from src.rag_env import ACTION_TO_IDX, AgenticRAGEnv
 from src.retrieval import BM25Retriever
-from src.utils import ensure_dir, read_jsonl, set_seed
+from src.utils import configure_deterministic_kernels, ensure_dir, read_jsonl
+
+
+def make_deterministic(seed: int = 42) -> None:
+    """Seed Python, NumPy, and torch, and pin the fp16 decode kernels.
+
+    ``warn_only=True`` stays on: a hard deterministic-algorithms flag aborts
+    inside Qwen. The flags in ``configure_deterministic_kernels`` are what
+    stop flash attention from changing a greedy token.
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    configure_deterministic_kernels()
+    torch.use_deterministic_algorithms(True, warn_only=True)
+
+
+def _episode_sample_seed(seed: int, epoch: int, example_id: str) -> int:
+    """Stable per-question sample seed. Python's hash() is salted per process."""
+    payload = f"{int(seed)}:{int(epoch)}:{example_id}".encode()
+    return int(zlib.crc32(payload) & 0x7FFFFFFF)
 
 
 def _learned_cfg(cfg: dict) -> dict:
@@ -175,8 +187,17 @@ def _rollout(
     example: dict,
     *,
     deterministic: bool,
+    epoch: int | None = None,
 ) -> tuple[float, float, dict[str, float], list[torch.Tensor], list[torch.Tensor]]:
     """One episode. Training samples; greedy eval uses argmax (deterministic=True)."""
+    if not deterministic:
+        policy.reseed_sampler(
+            _episode_sample_seed(
+                int(cfg["experiment"]["seed"]),
+                int(epoch or 0),
+                str(example.get("id") or ""),
+            )
+        )
     obs, _info = env.reset(options={"example": example})
     log_probs: list[torch.Tensor] = []
     entropies: list[torch.Tensor] = []
@@ -480,7 +501,7 @@ def main() -> None:
 
             for ex in order:
                 reward, em, stats, log_probs, entropies = _rollout(
-                    env, policy, cfg, ex, deterministic=False
+                    env, policy, cfg, ex, deterministic=False, epoch=epoch
                 )
                 epoch_rewards.append(reward)
                 epoch_em.append(em)
