@@ -15,11 +15,9 @@
 
 \setcounter{secnumdepth}{1}
 
-\title{Tools Help Per Question, Not on Average}
+\title{Cost-Aware Reinforcement Learning for Agentic RAG }
 \author{Parsuram Pradhan}
-\affiliations{
-    parsuram.pradhan@yobytech.com
-}
+
 
 \begin{document}
 
@@ -85,7 +83,9 @@ Figure~\ref{fig:pipeline} is the protocol. An episode is one question. The contr
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=\textwidth]{figures/pipeline.png}
+\setlength{\abovecaptionskip}{6pt}
+\captionsetup{skip=6pt}
+\includegraphics[width=\textwidth]{paper_v4/figures/pipeline.png}
 \caption{The pipeline. Data enters an episode that loops from observation through the policy, an action, and a tool to a new observation. The price card enters the reward, the reward trains the policy with REINFORCE, and the locked 300 questions produce the frontier.}
 \label{fig:pipeline}
 \end{figure*}
@@ -122,22 +122,23 @@ The test set is locked at 300 questions: 150 HotpotQA distractor items \cite{yan
 \subsection{The Charge Makes Extra Tools a Losing Bet}
 Table~\ref{tab:frozen} is the frozen controllers. One-shot retrieval scores 100/300. Using every tool scores 105/300. The quality terms move by about 0.03: \(Q_{\mathrm{ans}}\) rises by 0.021, \(Q_{\mathrm{ground}}\) by 0.018, and \(Q_{\mathrm{cal}}\) by 0.009. The action charge rises from 0.02 to 0.12. Scaled dollars and latency together rise by about 0.002. A quality term of 0.03 against a charge of 0.10 is a reward loss of about 0.07, from 0.580 to 0.509. Of the penalty that separates the two trajectories, about 99 percent is \(\rho\) and about 1 percent is the price card. One extra retrieval costs roughly \(3\times 10^{-4}\) in the \(\lambda{=}2\) dollar term and 0.02 in \(\rho\), so the flat charge is about sixty times the measured dollar price of that call. The rule policy pays for a rerank and a verify on every question, lands between them on cost and reward, and does not improve exact match.
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
-\setlength{\tabcolsep}{3pt}
 \small
-\begin{tabular}{lrrrr}
+\setlength{\tabcolsep}{12pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccc@{}}
 \toprule
-Policy & Hotpot & NQ & Correct & \$ \\
+ & One-shot & Rule & Max tools \\
 \midrule
-One-shot & 59/150 & 41/150 & 100/300 & \(1.72\times 10^{-4}\) \\
-Rule & 56/150 & 41/150 & 97/300 & \(5.04\times 10^{-4}\) \\
-Max tools & 61/150 & 44/150 & 105/300 & \(7.47\times 10^{-4}\) \\
+HotpotQA & 59/150 & 56/150 & 61/150 \\
+Natural Questions & 41/150 & 41/150 & 44/150 \\
+Correct & 100/300 & 97/300 & 105/300 \\
+\(\$\times 10^{-4}\) & 1.72 & 5.04 & 7.47 \\
 \bottomrule
-\end{tabular}
-\caption{Frozen controllers. Hotpot is HotpotQA. One-shot retrieval has the highest reward (0.580). The max-tool policy has the highest exact match and the lowest reward (0.509). These three rows were scored before the training and validation passages entered the index. They are the corners of Figure~\ref{fig:frontier}, not rows of Table~\ref{tab:learned}.}
+\end{tabular*}
+\caption{Frozen controllers. Dollars are shown times \(10^{-4}\). One-shot retrieval has the highest reward (0.580). Max tools has the highest exact match and the lowest reward (0.509). These rows were scored before the training and validation passages entered the index. They are the corners of Figure~\ref{fig:frontier}, not rows of Table~\ref{tab:learned}.}
 \label{tab:frozen}
-\end{table}
+\end{table*}
 
 The learner follows the arithmetic. With the action charge left on, including when the dollar and latency weights are zero, argmax evaluation is retrieve-then-stop on all 300 questions. Removing every penalty, so the return is \(Q_{\mathrm{ans}}\) alone, moves the same trainer off that mode: it spends the eight-step budget, three retrieves, two rewrites, and two verifies, and exact match rises from 100/300 to 102/300. At \(\lambda{=}80\), the extra max-tool dollars are about \(80 \times 5.8\times 10^{-4} \approx 0.046\), larger than the 0.03 quality those tools buy, and the action charge is also on. The selected policy is again retrieve-then-stop. The price card is not what pins the policy. The charge is, and at a high enough dollar weight the price card is enough on its own.
 
@@ -158,20 +159,21 @@ Table~\ref{tab:learned} is that controller under the protocol in Section 3, scor
 \begin{table*}[t]
 \centering
 \small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{llrrrr}
+\setlength{\tabcolsep}{8pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}llrrrr@{}}
 \toprule
-Run & Checkpoint & Correct & Sequences & Steps & \$ \\
+Run & Checkpoint & Correct & Sequences & Steps & \(\$\times 10^{-4}\) \\
 \midrule
-1 & \(\lambda{=}20\) & 103/300 & 16 & 7.49 & \(5.31\times 10^{-4}\) \\
-1 & \(\lambda{=}0\) & 100/300 & 2 & 3.97 & \(3.11\times 10^{-4}\) \\
-1 & \(\lambda{=}80\) & 100/300 & 1 & 2.00 & \(1.72\times 10^{-4}\) \\
-2 & \(\lambda{=}0\) & 104/300 & 15 & 7.65 & \(5.37\times 10^{-4}\) \\
-2 & \(\lambda{=}20\) & 104/300 & 6 & 5.89 & \(4.14\times 10^{-4}\) \\
-2 & \(\lambda{=}80\) & 100/300 & 1 & 2.00 & \(1.72\times 10^{-4}\) \\
+1 & \(\lambda{=}20\) & 103/300 & 16 & 7.49 & 5.31 \\
+1 & \(\lambda{=}0\) & 100/300 & 2 & 3.97 & 3.11 \\
+1 & \(\lambda{=}80\) & 100/300 & 1 & 2.00 & 1.72 \\
+\midrule
+2 & \(\lambda{=}0\) & 104/300 & 15 & 7.65 & 5.37 \\
+2 & \(\lambda{=}20\) & 104/300 & 6 & 5.89 & 4.14 \\
+2 & \(\lambda{=}80\) & 100/300 & 1 & 2.00 & 1.72 \\
 \bottomrule
-\end{tabular}
-\caption{Selected checkpoints of the 357-parameter policy. Both runs use seed 42. Sequences is the number of distinct action strings on the 300 questions. One-shot retrieval on this index scores 100/300 at \(1.72\times 10^{-4}\) dollars. \(\lambda{=}80\) matches it. These rows are not comparable to Table~\ref{tab:frozen}.}
+\end{tabular*}
+\caption{Selected checkpoints of the 357-parameter policy. Both runs use seed 42. Sequences is the number of distinct action strings on the 300 questions. Dollars are shown times \(10^{-4}\). One-shot retrieval on this index scores 100/300 at \(1.72\times 10^{-4}\) dollars. \(\lambda{=}80\) matches it. These rows are not comparable to Table~\ref{tab:frozen}.}
 \label{tab:learned}
 \end{table*}
 
