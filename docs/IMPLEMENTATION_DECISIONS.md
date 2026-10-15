@@ -487,6 +487,14 @@ Back-to-back detcheck runs (`learned_policy_detcheck_{a,b}`, λ=20, one epoch, s
 
 The trainer now sets `CUBLAS_WORKSPACE_CONFIG=:4096:8` before CUDA init, turns TF32 and reduced-precision fp16 reductions off, and forces math attention for temperature 0. Weight init is inside `fork_rng` on the policy seed. Each training question reseeds a private CPU generator from `(seed, epoch, example id)`. Seeds 43 and 44 stay blocked until a new detcheck pair matches.
 
+## 2026-10-15 — latency in the reward was the wall clock
+
+After the decode fix, a new one-epoch pair matched on EM, steps, retrieve, and verify for all 500 training episodes. Mean reward still differed in the sixth decimal. `frontier_lambda20` keeps `mu_latency: 0.5`. `src/agentic_rag.py` timed every action with `time.perf_counter()`, and `src/rewards.py` put that measurement into `c_lat`. Run B was about 10 ms faster per episode, which is the 0.0000048 gap. The different reward moved the gradient, so two near-tie validation questions flipped. No seed can pin a clock. The `.pt` hash also cannot match: the file stores `mean_reward`, and `torch.save` writes the filename into the zip.
+
+The price card now has a nominal millisecond table. Per-call values are a non-negative least-squares fit to `total_latency_ms` on the 2,100 v4 exam trajectories (retrieve 212.40, rewrite 999.23, rerank 143.20, verify 0, generate 853.95 plus 51.97 per completion token). At 2 completion tokens a generate is 957.89 ms, the fit's generate coefficient. The token slope is the one-shot median gap between 1-word and 2-word answers. Logged `total_latency_ms` is still the measured clock. The reward and `budget_exhausted` use only the table. `mu_latency` stays 0.5.
+
+Step 12 now compares `state_dict` tensors with `torch.equal`. Seeds 42, 43, and 44 stay blocked until that cell prints MATCH.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |

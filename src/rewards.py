@@ -164,7 +164,13 @@ class RewardComputer:
 
         mu = float(self.w.get("mu_latency", 0.5))
         unit = float(self.price_card.get("latency", {}).get("latency_unit_usd_per_sec", 0.001))
-        c_lat = mu * (float(cost_summary.get("total_latency_ms", 0.0)) / 1000.0) * unit
+        # Nominal table when the tracker priced this episode. Older summaries
+        # only have the measured clock, and those stay on total_latency_ms.
+        if "nominal_latency_ms" in cost_summary:
+            latency_ms = float(cost_summary.get("nominal_latency_ms") or 0.0)
+        else:
+            latency_ms = float(cost_summary.get("total_latency_ms", 0.0))
+        c_lat = mu * (latency_ms / 1000.0) * unit
 
         # Hallucination penalty
         unsupported = max(0.0, 1.0 - claim_ground) if not abstained else 0.0
