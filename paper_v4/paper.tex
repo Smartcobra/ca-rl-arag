@@ -5,6 +5,7 @@
 \urlstyle{rm} % DO NOT CHANGE THIS
 \def\UrlFont{\rm}  % DO NOT CHANGE THIS
 \usepackage{natbib}  % DO NOT CHANGE THIS AND DO NOT ADD ANY OPTIONS TO IT
+\InputIfFileExists{early-cites.tex}{}{\input{paper_v4/early-cites.tex}}
 \usepackage{caption} % DO NOT CHANGE THIS AND DO NOT ADD ANY OPTIONS TO IT
 \frenchspacing  % DO NOT CHANGE THIS
 \usepackage{amsmath}
@@ -78,9 +79,9 @@ Rewrite, rerank, and verify, priced in dollars \\
 
 Search-R1 trains the language model with an outcome reward to issue searches and reason over the results \cite{jin2025searchr1}. GRASP is the closest typed-action neighbor: a GRPO policy over semantic search, keyword search, and paragraph reading, rewarded for answer F1, grounded reading, complementary search, and turn efficiency \cite{gandhi2026grasp}. The efficiency term is paid only when answer F1 exceeds 0.5, and it counts turns, not dollars. GRASP does not price rewrite, rerank, or verification. We keep the generator fixed and ask a prior question: once those tools have a dollar cost, does a learned controller spend them only when they pay?
 
-FrugalGPT and RouteLLM price a different choice. FrugalGPT cascades queries across LLM APIs whose fees differ by orders of magnitude, so a cheap model answers when it can and an expensive model answers when it must \cite{chen2023frugalgpt}. RouteLLM learns a router from preference data and sends each query to a strong model or a weak one \cite{ong2024routellm}. Both decide which model to call. We use one generator, Qwen2.5-3B-Instruct, and price the tool calls inside the episode.
+\mbox{FrugalGPT} and \mbox{RouteLLM} price a different choice. \mbox{FrugalGPT} cascades queries across LLM APIs whose fees differ by orders of magnitude, so a cheap model answers when it can and an expensive model answers when it must \cite{chen2023frugalgpt}. \mbox{RouteLLM} learns a router from preference data and sends each query to a strong model or a weak one \cite{ong2024routellm}. Both decide which model to call. We use one generator, Qwen2.5-3B-Instruct, and price the tool calls inside the episode.
 
-The retrieval line behind that generator is older than the agent. REALM trains a retriever inside language-model pretraining \cite{guu2020realm}. Fusion-in-Decoder reads each retrieved passage on its own and fuses them in the decoder \cite{izacard2021fid}. RETRO conditions each chunk of the generation on neighbors from a trillion-token store \cite{borgeaud2022retro}. Atlas asks how far a retrieval-augmented model can go in the few-shot regime \cite{izacard2023atlas}.
+The retrieval line behind that \mbox{generator} is older than the agent. REALM trains a retriever inside language-model pretraining \cite{guu2020realm}. Fusion-in-Decoder reads each retrieved passage on its own and fuses them in the decoder \cite{izacard2021fid}. RETRO conditions each chunk of the generation on neighbors from a trillion-token store \cite{borgeaud2022retro}. Atlas asks how far a retrieval-augmented model can go in the few-shot regime \cite{izacard2023atlas}.
 
 Later controllers decide when to search again. IRCoT interleaves retrieval with chain-of-thought steps \cite{trivedi2023ircot}. FLARE retrieves when the next sentence looks uncertain \cite{jiang2023flare}. DRAGIN triggers retrieval from the model's own information need \cite{su2024dragin}. Self-Ask splits a multi-hop question into follow-ups \cite{press2023selfask}. Toolformer inserts API calls, including a search engine, into the generation \cite{schick2023toolformer}. On the query side, Ma et al.\ rewrite, then retrieve, then read \cite{ma2023rewrite}. HyDE embeds a hypothetical answering passage instead of the question \cite{gao2023hyde}. monoBERT reranks BM25 hits with a cross-encoder \cite{nogueira2019monobert}. RankGPT asks a language model to permute the candidates \cite{sun2023rankgpt}.
 
@@ -91,8 +92,8 @@ Figure~\ref{fig:pipeline} is the protocol. An episode is one question. The contr
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=\textwidth]{figures/pipeline.png}
-\caption{The pipeline. Data enters an episode that loops from observation through the policy, an action, and a tool to a new observation. The price card enters the reward, the reward trains the policy with REINFORCE, and the locked 300 questions produce the frontier.}
+\includegraphics[width=\textwidth]{paper_v4/figures/pipeline.png}
+\caption{The pipeline, as drawn. The top row loops from observation to the policy, an action, a tool, and a new observation. The price card feeds the reward, and REINFORCE carries that reward back to the policy. The 300 test questions feed the frontier, exact match against dollars.}
 \label{fig:pipeline}
 \end{figure*}
 
@@ -174,7 +175,7 @@ Figure~\ref{fig:frontier} plots exact match against dollars. An oracle keeps the
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.92\textwidth]{figures/frontier.png}
+\includegraphics[width=0.92\textwidth]{paper_v4/figures/frontier.png}
 \caption{Exact match against mean dollars per question on the 83{,}120-passage index. Squares are one-shot retrieval and the rule. The triangle is max tools. The diamond is the six-step recipe. The filled circle is the learned \(\lambda{=}20\) exam; seeds 42, 43, and 44 sit on the same point. Hollow circles are oracles: the dataset switch scores 100, and the oracle that may also use max tools scores 107. The oracle of one-shot retrieval and the six-step recipe is the one-shot point.}
 \label{fig:frontier}
 \end{figure*}
@@ -230,8 +231,9 @@ A next controller has to read the question, or the passages, before it spends a 
 A language model was used to revise sentences and to check bibliography entries against paper abstracts. An image model drafted Figure~\ref{fig:pipeline}; the experimental plots were drawn from the logged numbers. No model output is reported as a measurement.
 
 \section*{Ethical Statement}
-Pricing a tool can refuse a search that would have changed the answer, and the user is not told. On this set, fixed recipes span 97 to 105 correct out of 300, and an oracle that may use the max-tool trajectory reaches 107 at nearly the one-shot price. The learned recipe and one-shot retrieval each score 100 and disagree on 44 questions. The abstention bonus does not fire on this corpus, because raw BM25 means stay above 20 and reranked means stay above 7, above the threshold of 3 written for a weak retrieval, and the three selected checkpoints never call the verifier. The dollar amounts are a scale for a local 3B model, not a bill a person pays. The questions and passages are public benchmarks, no human subjects were involved, and these checkpoints are not a serving policy.
+Pricing a tool can refuse a search that would have changed the answer, and the user is not told. Fixed recipes score 97 to 105 out of 300, and an oracle that may use max tools reaches 107 near the one-shot price. The learned recipe and one-shot retrieval each score 100 and disagree on 44 questions. The abstention bonus does not fire on this corpus, and the selected checkpoints never call the verifier. The dollars are a scale for a local 3B model, not a bill a person pays. The questions and passages are public benchmarks with no human subjects, and the checkpoints are not a serving policy.
 
-\bibliography{references}
+\FloatBarrier
+\InputIfFileExists{included-bib.tex}{}{\input{paper_v4/included-bib.tex}}
 
 \end{document}
