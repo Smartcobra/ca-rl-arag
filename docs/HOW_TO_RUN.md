@@ -735,9 +735,11 @@ python scripts/plot_results.py --frontier-tag v3
 
 `--artifact-suffix v3` writes `baseline_default_v3.*`, `rule_based_default_v3.*`, and `max_tools_default_v3.*`. The untagged files stay as the v2-index record. `--frontier-tag v3` reads only `_v3` frozen anchors and `_v3` ceiling pools; if one is missing it exits instead of quietly using the v2 file.
 
-### 4.11 Three seeds (planned, not yet run)
+### 4.11 Three seeds on λ=20 — run 2026-10-20
 
-**Why:** every learned number on disk is one run at seed 42, so we cannot say whether a few-answer difference is the objective or the draw. Budget, tiers, and the reporting rule are in `IMPLEMENTATION_DECISIONS.md`, 2026-10-03. Run §4.10 first — the frozen baselines are seed-independent and block every cross-policy table.
+**Result.** Seeds 42, 43, and 44, `frontier_lambda20` only, 20 epochs, validation pick, suffix `v4s{SEED}`. Selected epochs 17 / 14 / 11, same greedy reward 0.60396. The exam is one sequence on 300/300: `rewrite, rewrite, retrieve, stop`. EM 0.333 (100/300, Hotpot 52 / NQ 48), $ 2.02e-4. Predictions and retrieved ids match on 300/300. The second action is rewrite 300/300 and retrieve 0 times, so the branch on retrieval strength appears in **0 of 3** seeds. Full write-up: `IMPLEMENTATION_DECISIONS.md`, 2026-10-20, and `RESULTS.md` §10 item 20.
+
+**Why this was the plan:** every learned number before this block was one run at seed 42, so a few-answer difference could not be separated from the draw. Budget, tiers, and the reporting rule are in `IMPLEMENTATION_DECISIONS.md`, 2026-10-03. The run below is the λ=20-only tier (about 35.4 GPU-h), not the 70.6 h three-preset loop. Frozen baselines on this index are the `_v4` files from the rescore (`baseline_default_v4`, `rule_based_default_v4`, `max_tools_default_v4`).
 
 `train_policy.py` takes `--seed`. **Every seed needs its own `--checkpoint` and `--curve`**, or the runs silently overwrite each other:
 
@@ -782,6 +784,7 @@ Every pilot artifact records a corpus fingerprint (`n_passages` plus a sha1 over
 9. Frontier family: score `<stem>_best.pt` before looking at the 300. Selected λ=0 (epoch 25) and λ=20 (epoch 15) match naive (EM 0.333, retrieve→stop). Last-epoch files stay as the second row (`learned_frontier_lambda0.json` is epoch 40, EM 0.347, train EM 0.40 vs 0.43). Table + figure: `frontier_sweep_table.json` / `frontier_em_usd.png`. Hollow markers are the ceilings 110, 124, 127. Do not overwrite `learned_policy.pt`.
 10. Frontier v3 (2026-09-28): score `learned_policy_frontier_v3_<preset>_best.pt`. Selected λ=0 is epoch 11 (EM 0.343, 103/300, 6 steps / 3 retrieve / 2 rewrite). λ=20 epoch 7 and λ=80 every greedy epoch are retrieve→stop (EM 0.333, 100/300). Last-epoch λ=0 is the `v3last` file (two rewrites, same answers as retrieve→stop). Those files were overwritten on 2026-10-03; read them at git `3a2c83c`. The working-tree `_v3` exams are the 16-d retrain (λ=20, 16 sequences, EM 0.343). Do not overwrite the v2 `.pt` files or `learned_policy.pt`.
 11. Frontier v4 (2026-10-05): same config, `v4` checkpoint and curve names, `--artifact-suffix v4` / `v4last`. Selected λ=0 (epoch 20) and λ=20 (epoch 16) are EM 0.347 (104/300) with the same answers. λ=80 is retrieve→stop. Does not overwrite `_v3`.
+12. λ=20 seeds 42 / 43 / 44 (2026-10-20): `learned_frontier_lambda20_v4s{42,43,44}`. Selected epochs 17 / 14 / 11. Same exam, `rewrite, rewrite, retrieve, stop` on 300/300, EM 0.333 (100/300, Hotpot 52 / NQ 48), $ 2.02e-4. Branch count 0 of 3.
 
 If anything fails, start from smoke test, then re-prepare data, then re-run pilot. Do not debug the trainer against the 300-eval until `correctness_only` has also collapsed.
 
@@ -792,10 +795,10 @@ If anything fails, start from smoke test, then re-prepare data, then re-run pilo
 | Doc | Topic |
 |---|---|
 | `README.md` | Project overview |
-| `docs/RESULTS.md` | **Detailed results:** 80k ranking slice `d456d26` (150 Hotpot + 150 NQ), reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04. §6 `default` train + 300-eval (collapsed to naive), 2026-09-13 free-cost sanity, failed λ=80 `act_penalty` sweep, 2026-09-23/24 λ=0 / 20 / 80 40-epoch family (tools / 3-retrieve / retrieve→stop), 2026-09-28 frontier v3 (selected λ=0 EM 0.343; files overwritten 2026-10-03), the 16-d retrain (λ=20, 16 sequences, EM 0.343), and the 2026-10-05 `v4` rerun (λ=0 and λ=20 tie at EM 0.347; the 16-sequence controller did not repeat). SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
+| `docs/RESULTS.md` | **Detailed results:** 80k ranking slice `d456d26` (150 Hotpot + 150 NQ), reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04. §6 `default` train + 300-eval (collapsed to naive), 2026-09-13 free-cost sanity, failed λ=80 `act_penalty` sweep, 2026-09-23/24 λ=0 / 20 / 80 40-epoch family (tools / 3-retrieve / retrieve→stop), 2026-09-28 frontier v3 (selected λ=0 EM 0.343; files overwritten 2026-10-03), the 16-d retrain (λ=20, 16 sequences, EM 0.343), the 2026-10-05 `v4` rerun (λ=0 and λ=20 tie at EM 0.347; the 16-sequence controller did not repeat), and the 2026-10-20 λ=20 seeds 42/43/44 (same recipe, branch in 0 of 3). SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
 | `docs/NQ_MAX_TOOLS_ANALYSIS.md` | Leaked-NQ max-tools mechanism; tiny-corpus run `34e6585` (NQ 148/150), not the current Tevatron-NQ snapshot |
 | `docs/REWARD_DESIGN.md` | Why reward weights were chosen |
-| `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, tiny REINFORCE trainer (2026-09-05); train 2026-09-09; learned eval 2026-09-10; free-cost sanity and λ=80 frontier 2026-09-13; frontier retarget 2026-09-15; λ=0 / 20 / 80 40-epoch family 2026-09-23/24; frontier v3 exams 2026-09-28; 16-d retrain 2026-10-03; `v4` second run 2026-10-05 |
+| `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, tiny REINFORCE trainer (2026-09-05); train 2026-09-09; learned eval 2026-09-10; free-cost sanity and λ=80 frontier 2026-09-13; frontier retarget 2026-09-15; λ=0 / 20 / 80 40-epoch family 2026-09-23/24; frontier v3 exams 2026-09-28; 16-d retrain 2026-10-03; `v4` second run 2026-10-05; λ=20 seeds 42/43/44 2026-10-20 |
 | `docs/WHY_SMALL_MLP.md` | Why the policy is 261 parameters; `default` and λ=80 frontier evals were naive; `correctness_only` used the step cap |
 | `docs/EXPERIMENT_LOG.md` | Recorded pilot numbers (each dated block names its run) |
 | `docs/data_cards/*.md` | Dataset cards |

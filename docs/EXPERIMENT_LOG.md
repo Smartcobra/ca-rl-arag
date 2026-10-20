@@ -430,3 +430,25 @@ Sources: `learned_frontier_lambda0_v3.json` / `_v3last.json`, `learned_frontier_
 Selected λ=0 and λ=20 have identical predictions on 300/300. Against this run's retrieve→stop both are +9 / −5 (Hotpot +1 / −1, NQ +8 / −4), union 109/300. λ=20 is `retrieve, rewrite, rewrite, retrieve, retrieve, stop` on 270/300, and that path holds the whole +4, at about 2.4× the retrieve→stop dollars. λ=0 adds 15 sequences and two verifies for the same answers, at about 3.1×. A threshold at 45.4 separates its first decision (rewrite vs verify) on 293/300. After a contradiction the next action is never retrieve or rewrite (0/28). λ=20 last matches retrieve→stop answers and retrieved sets on 300/300: the second retrieve changes the top-5 on 0/279. λ=80 is retrieve→stop on all 20 greedy epochs, and its predictions match the 2026-10-03 `act02` file on 300/300.
 
 Against 2026-10-03, v4 λ=20 is the same prediction on 295/300 (+1 Hotpot / −0). Best EM moved from 103 to 104. The 16-sequence score branch did not repeat. Full write-up: [`RESULTS.md`](RESULTS.md) §6.
+
+## 2026-10-20 — λ=20 seeds 42, 43, 44
+
+**Run:** `configs/frontier_v3.yaml`, preset `frontier_lambda20`, 20 epochs, seeds 42, 43, 44. Nominal latency table in the reward (`mu_latency` 0.5). Corpus 83,120 passages, sha1 `18e880b5…`. Artifacts `learned_frontier_lambda20_v4s{42,43,44}`. Curves `train_policy_curve_frontier_v4_lambda20_s{42,43,44}.json`. λ=0 and λ=80 were not retrained.
+
+**Valid greedy** (n=180). The selected epoch is the first time the curve reaches its best `eval_reward`.
+
+| Seed | Selected epoch | Greedy reward | Also tied at that reward |
+|---|---:|---:|---|
+| 42 | 17 | 0.60396 | 17–20 |
+| 43 | 14 | 0.60396 | 14, 16, 17, 19 |
+| 44 | 11 | 0.60396 | 11 only |
+
+**Eval** (frozen argmax of `_best.pt`, n=300). The three files match on predictions and retrieved ids, 300/300.
+
+| Seed | EM | n_correct | Hotpot / NQ | $ | steps / retrieve / rewrite / verify | sequences |
+|---|---:|---:|---|---:|---|---:|
+| 42, 43, 44 | 0.333 | 100/300 | 52 / 48 | 2.02e-4 | 4 / 1 / 2 / 0 | 1 |
+
+The sequence is `rewrite, rewrite, retrieve, stop` on 300/300. Against `baseline_default_v4` (100/300, Hotpot 60 / NQ 40, $ 1.72e-4): same prediction on 179/300, +22 / −22 (Hotpot +5 / −13, NQ +17 / −9), union 122/300.
+
+**Branch count: 0 of 3.** The second action is rewrite on 300/300, at mean score 0, because the first action is rewrite before any retrieval. Retrieve appears 0 times as that second action. The rule requires both actions at least 15 times and one score threshold matching at least 250 questions. Epoch-1 train EM still differs (0.368 / 0.346 / 0.374). The selected exam does not. Full write-up: [`RESULTS.md`](RESULTS.md) §10 item 20.

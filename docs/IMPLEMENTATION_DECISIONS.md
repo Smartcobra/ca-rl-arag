@@ -495,6 +495,22 @@ The price card now has a nominal millisecond table. Per-call values are a non-ne
 
 Step 12 now compares `state_dict` tensors with `torch.equal`. Seeds 42, 43, and 44 stay blocked until that cell prints MATCH.
 
+## 2026-10-20 — λ=20 seeds 42, 43, and 44
+
+`frontier_lambda20` only, 20 epochs, validation pick, 83,120-passage index (sha1 `18e880b5…`). Notebook `notebooks/Frontier_Reviewer_Followup.ipynb` after the nominal-latency price card. Artifacts `learned_frontier_lambda20_v4s{42,43,44}` and `train_policy_curve_frontier_v4_lambda20_s{42,43,44}.json`. λ=0 and λ=80 were not retrained.
+
+**Selected exams.** The first epoch that hits the best greedy reward is 17 / 14 / 11. That reward is 0.60396 on all three curves. The frozen exam is the same file three times: one action sequence on 300/300, `rewrite, rewrite, retrieve, stop`. EM 0.333 (100/300, Hotpot 52 / NQ 48), $ 2.02e-4, 4 steps, 1 retrieve, 2 rewrite, 0 verify. Predictions and retrieved passage ids match on 300/300 across the three seeds. Mean reward matches to the printed float (0.5977963952853981). Measured wall-clock latency does not (3061 / 3000 / 2956 ms); the reward uses the nominal table.
+
+**Against this index's one-shot** (100/300, Hotpot 60 / NQ 40, $ 1.72e-4): same prediction on 179/300, +22 / −22. Hotpot +5 / −13, NQ +17 / −9. Overall exact match does not move. The per-question union is 122/300.
+
+**The branch.** The second action is rewrite on 300/300, and the mean score at that step is 0 because the first action is also rewrite, before any retrieval. Retrieve appears 0 times as that second action. The counting rule needs rewrite and retrieve each at least 15 times, and one score threshold matching at least 250 of those questions. None of the three seeds qualify.
+
+The branch on retrieval strength appears in 0 of 3 seeds.
+
+Training curves still differ by seed. Epoch-1 train EM is 0.368 / 0.346 / 0.374. The selected controller is the recipe above on every seed. Report the three exams, which are identical. Do not report a mean and a standard deviation.
+
+Sources: `learned_frontier_lambda20_v4s{42,43,44}.json` and the matching JSONL and curves.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
@@ -520,3 +536,4 @@ Step 12 now compares `state_dict` tensors with `torch.equal`. Seeds 42, 43, and 
 | 2026-10-01 | Score-channel scale (`tanh(score/5)` vs train-slice z-score) | v3 λ=0 top-1 is 26.2–122.3 (median 49.3). `tanh(x/5)` is 0.9999 or 1.0 on all 300, and the mean channel is too. Gap was the only score input that moved. Mean `< 3` never fires: raw means stay above 20, reranked means above 7. | Z-score mean, top-1, gap, and top-5 min with the 100-question train slice and clip to [−3, 3]. Vector is 16-d. Old checkpoints do not load. The `< 3` abstain bonus stays in the code and stays dead until a reward change retargets it. |
 | 2026-10-03 | v3 retrained on the 16-d z-scored observation (same config, same 83,120 index; only the feature scale changed) | λ=20 emits **16 distinct action sequences** on 300 questions, where every earlier sweep emitted one; a single threshold on the decision-time mean BM25 at 45.7 reproduces 278/300 of its first decisions. EM 0.343 (103/300) at 5.31e-4 vs this run's retrieve→stop 0.333 (100/300) at 1.72e-4 (+8 / −5, union 108/300). λ=0 stops early on exactly the 5 strongest-retrieval questions; its two verifies change 0/300 predictions at 1.8× the cost. λ=80 unchanged. Overwrote the 2026-09-28 `_v3` files (git `3a2c83c`). | The 2026-09-26 win condition is met: the controller reads the observation. Report behaviour, not accuracy — best EM is 103 under both observations and only changed preset. Verify still needs to gate a re-retrieve to earn its cost. Frozen baselines are **still** on the 80k index, so no `_v3` row may sit beside them. |
 | 2026-10-05 | v4, second seed-42 training run of the same 16-d config (new filenames; `_v3` kept) | Selected λ=0 (epoch 20) and λ=20 (epoch 16) tie at EM 0.347 (104/300) with identical predictions. λ=20 is one 6-step recipe on 270/300 and that recipe holds the +4 vs retrieve→stop (+9 / −5, union 109) at 4.14e-4. λ=0 uses 15 sequences; a threshold at 45.4 separates rewrite vs verify on 293/300, and the two verifies change 0 answers (5.37e-4). λ=20 last copies the first retrieve and matches retrieve→stop. λ=80 unchanged, predictions identical to the 2026-10-03 `act02` file. | The 16-sequence λ=20 controller did not repeat. 104 vs 103 is one answer. Do not move the headline from behaviour to accuracy. This is not seeds 43 and 44. Frozen baselines are still the 80k index, so no `_v4` row may sit beside them. |
+| 2026-10-20 | λ=20 seeds 42, 43, 44 after the nominal-latency fix (`v4s42` / `v4s43` / `v4s44`) | Selected epochs 17 / 14 / 11, same greedy reward 0.60396. Exam is one sequence on 300/300: `rewrite, rewrite, retrieve, stop`. EM 0.333 (100/300, Hotpot 52 / NQ 48) at 2.02e-4 on all three. Predictions and retrieved ids match 300/300. Versus this index's one-shot: +22 / −22 (Hotpot +5 / −13, NQ +17 / −9), union 122/300. Second action is rewrite 300/300, retrieve 0. | The branch on retrieval strength appears in 0 of 3 seeds. Training curves still differ. The selected controller does not. |
