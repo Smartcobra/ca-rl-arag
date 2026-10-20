@@ -12,5 +12,10 @@
 % The option handles the author block and nothing else. Anything else that
 % identifies us -- acknowledgements, a repository URL, "our earlier work" --
 % has to go by hand. See SUBMISSION_CHECKLIST.md before sending.
+%
+% Do not \input ReproducibilityChecklist.tex here. AAAI-27 asks for that
+% checklist as a separate upload, and pages 8--9 of the main PDF are
+% references only. Compile the checklist on its own:
+%   pdflatex ReproducibilityChecklist
 \PassOptionsToPackage{submission}{aaai2027}
 \input{paper.tex}
