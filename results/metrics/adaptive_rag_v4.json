@@ -1,0 +1,173 @@
+{
+  "summary": {
+    "mean_em": 0.3333333333333333,
+    "mean_f1": 0.4041468253968254,
+    "mean_q_ans": 0.36874007936507935,
+    "mean_q_ground": 0.6387433091924436,
+    "mean_q_cal": -0.13533333333333336,
+    "mean_p_hall": 0.03962291666666666,
+    "mean_reward": 0.5885973023586568,
+    "mean_total_usd": 0.000195558,
+    "mean_total_latency_ms": 2647.5431356464574,
+    "mean_total_tokens": 899.0766666666667,
+    "mean_n_steps": 3.58,
+    "mean_n_retrieve": 1.0,
+    "mean_n_rewrite": 1.58,
+    "mean_n_rerank": 0.0,
+    "mean_n_verify": 0.0,
+    "mean_usd_per_correct": 0.0001927235,
+    "n_examples": 300.0,
+    "n_correct": 100.0,
+    "n_abstained": 47.0,
+    "abstain_rate": 0.15666666666666668,
+    "total_usd_all": 0.0586674,
+    "usd_per_correct": 0.000586674,
+    "by_dataset": {
+      "hotpot_qa": {
+        "mean_em": 0.36666666666666664,
+        "mean_f1": 0.4258809523809524,
+        "mean_q_ans": 0.39627380952380953,
+        "mean_q_ground": 0.6716666666666666,
+        "mean_q_cal": -0.11000000000000003,
+        "mean_p_hall": 0.059149999999999994,
+        "mean_reward": 0.6160601823273362,
+        "mean_total_usd": 0.000185016,
+        "mean_total_latency_ms": 2926.1293185661634,
+        "mean_total_tokens": 818.9266666666666,
+        "mean_n_steps": 3.453333333333333,
+        "mean_n_retrieve": 1.0,
+        "mean_n_rewrite": 1.4533333333333334,
+        "mean_n_rerank": 0.0,
+        "mean_n_verify": 0.0,
+        "mean_usd_per_correct": 0.0001797909090909091,
+        "n_examples": 150.0,
+        "n_correct": 55.0,
+        "n_abstained": 25.0,
+        "abstain_rate": 0.16666666666666666,
+        "total_usd_all": 0.0277524,
+        "usd_per_correct": 0.0005045890909090909
+      },
+      "natural_questions": {
+        "mean_em": 0.3,
+        "mean_f1": 0.3824126984126984,
+        "mean_q_ans": 0.34120634920634924,
+        "mean_q_ground": 0.6058199517182205,
+        "mean_q_cal": -0.16066666666666668,
+        "mean_p_hall": 0.020095833333333334,
+        "mean_reward": 0.5611344223899773,
+        "mean_total_usd": 0.0002061,
+        "mean_total_latency_ms": 2368.9569527267518,
+        "mean_total_tokens": 979.2266666666667,
+        "mean_n_steps": 3.7066666666666666,
+        "mean_n_retrieve": 1.0,
+        "mean_n_rewrite": 1.7066666666666668,
+        "mean_n_rerank": 0.0,
+        "mean_n_verify": 0.0,
+        "mean_usd_per_correct": 0.00020852999999999998,
+        "n_examples": 150.0,
+        "n_correct": 45.0,
+        "n_abstained": 22.0,
+        "abstain_rate": 0.14666666666666667,
+        "total_usd_all": 0.030914999999999998,
+        "usd_per_correct": 0.000687
+      }
+    }
+  },
+  "meta": {
+    "policy": "adaptive_rag",
+    "classifier": "tfidf_word_bigram_logreg",
+    "C": 100.0,
+    "features": "question text only, word and bigram tf-idf",
+    "selected_on": "data/processed/valid_slice.jsonl",
+    "valid_n_correct": 62,
+    "valid_mean_total_usd": 0.0001935875,
+    "grid": [
+      {
+        "C": 0.01,
+        "n_correct": 59,
+        "mean_total_usd": 0.00020221083333333333,
+        "n_oneshot": 0,
+        "n_rewrite_first": 180
+      },
+      {
+        "C": 0.1,
+        "n_correct": 59,
+        "mean_total_usd": 0.00020221083333333333,
+        "n_oneshot": 0,
+        "n_rewrite_first": 180
+      },
+      {
+        "C": 1.0,
+        "n_correct": 59,
+        "mean_total_usd": 0.00020107833333333334,
+        "n_oneshot": 5,
+        "n_rewrite_first": 175
+      },
+      {
+        "C": 10.0,
+        "n_correct": 62,
+        "mean_total_usd": 0.00019580416666666666,
+        "n_oneshot": 36,
+        "n_rewrite_first": 144
+      },
+      {
+        "C": 100.0,
+        "n_correct": 62,
+        "mean_total_usd": 0.0001935875,
+        "n_oneshot": 46,
+        "n_rewrite_first": 134
+      }
+    ],
+    "generator": "Qwen/Qwen2.5-3B-Instruct",
+    "temperature": 0.0,
+    "test_files": {
+      "oneshot": "results/trajectories/baseline_default_v4.jsonl",
+      "rewrite_first": "results/trajectories/learned_frontier_lambda20_v4s42.jsonl"
+    },
+    "n_routed": {
+      "oneshot": 63,
+      "rewrite_first": 237
+    },
+    "n_routed_by_dataset": {
+      "hotpot_qa": {
+        "oneshot": 41,
+        "rewrite_first": 109
+      },
+      "natural_questions": {
+        "oneshot": 22,
+        "rewrite_first": 128
+      }
+    },
+    "repairs": {
+      "n": 22,
+      "kept": 17
+    },
+    "breaks": {
+      "n": 22,
+      "avoided": 5
+    },
+    "references": {
+      "oneshot": {
+        "n_correct": 100,
+        "n": 300,
+        "mean_total_usd": 0.00017163849999999998
+      },
+      "rewrite_first": {
+        "n_correct": 100,
+        "n": 300,
+        "mean_total_usd": 0.0002023575
+      },
+      "oracle_of_the_two": {
+        "n_correct": 122,
+        "n": 300,
+        "mean_total_usd": 0.00017350550000000008
+      },
+      "oracle_with_max_tools": {
+        "n_correct": 126,
+        "n": 300,
+        "mean_total_usd": 0.00018138500000000005
+      }
+    },
+    "paper": "paper_v4/paper.tex was not edited"
+  }
+}
