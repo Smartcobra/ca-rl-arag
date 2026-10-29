@@ -72,7 +72,8 @@ def test_eval_trajectories_score_features_vary() -> None:
         [vectorize_structured_obs(_obs_from_trajectory(row), _CFG) for row in rows],
         axis=0,
     )
-    assert vecs.shape == (300, 16)
+    assert vecs.shape == (300, 25)
+    assert np.all(vecs[:, 16:] == 0.0)
     std = vecs.std(axis=0)
     for name, idx in SCORE_FEATURE_INDEX.items():
         value = float(std[idx])

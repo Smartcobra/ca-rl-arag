@@ -9,7 +9,7 @@ trusted.
 
 The probe point is `learned_policy_frontier_lambda0.pt` (epoch 40) on the first
 post-verify decision in `learned_frontier_lambda0.jsonl`. That checkpoint is a
-**10-d** policy from the v2 family, so it predates the 15-d and 16-d
+**10-d** policy from the v2 family, so it predates the 15-d, 16-d, and 25-d
 observations and `LearnedPolicy.load` refuses it on purpose. The 10-d vectorizer
 is replayed here rather than imported; see `_legacy_vectorize_10d`.
 
@@ -52,7 +52,7 @@ def _legacy_vectorize_10d(obs: dict[str, Any], label: str, cfg: dict[str, Any]) 
     """The 10-d observation as it stood at commit 23dc131, with the label forced.
 
     Deliberately a copy, not a call into `src.rag_env`. The live vectorizer is
-    16-d and z-scores the BM25 channels against the training slice; running the
+    25-d and z-scores the BM25 channels against the training slice; running the
     v2 checkpoint through it would be a different experiment, and reshaping the
     live one to stay 10-d-compatible would hold today's code hostage to a frozen
     number. The cost of the copy is that this function must not be "fixed" to
@@ -83,7 +83,7 @@ def _legacy_vectorize_10d(obs: dict[str, Any], label: str, cfg: dict[str, Any]) 
 def load_legacy_policy(path: Path) -> nn.Sequential:
     """Load a 10-d checkpoint straight into a bare net.
 
-    `LearnedPolicy.load` rejects this file because the live head is 16-d. That
+    `LearnedPolicy.load` rejects this file because the live head is 25-d. That
     guard is right for training and eval and wrong here, so this reads the
     state dict directly and checks the width itself.
     """
@@ -187,7 +187,7 @@ def build_payload(checkpoint: Path, trajectories: Path, cfg: dict[str, Any]) -> 
         "obs_dim": LEGACY_OBS_DIM,
         "vectorizer": "src/rag_env.py at commit 23dc131 (pre-15-d), replayed in this script",
         "note": (
-            "v2-family checkpoint. The live observation is 16-d with z-scored BM25 "
+            "v2-family checkpoint. The live observation is 25-d with z-scored BM25 "
             "channels, so this number cannot be regenerated through src.rag_env."
         ),
     }

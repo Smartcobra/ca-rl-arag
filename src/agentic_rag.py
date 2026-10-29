@@ -33,6 +33,12 @@ class AgentState:
     def observation(self, tracker: CostTracker, cfg: dict[str, Any]) -> dict[str, Any]:
         budget = cfg.get("budget", {})
         max_steps = int(cfg.get("agent", {}).get("max_steps", 6))
+        top_passage_text = ""
+        if self.evidence:
+            top = self.evidence[0]
+            title = str(top.get("title") or "").strip()
+            text = str(top.get("text") or "").strip()
+            top_passage_text = f"{title}. {text}".strip() if title and text else (title or text)
         return {
             "query": self.question,
             "current_query": self.current_query,
@@ -41,6 +47,8 @@ class AgentState:
             "top_scores": [float(d.get("score", 0.0)) for d in self.evidence[:5]],
             "mean_score": float(sum(d.get("score", 0.0) for d in self.evidence) / len(self.evidence)) if self.evidence else 0.0,
             "draft_answer": truncate(self.draft_answer, 200),
+            "draft_answer_full": self.draft_answer,
+            "top_passage_text": top_passage_text,
             "verification": self.verify_out,
             "action_history": list(self.action_history),
             "counts": dict(self.counts),

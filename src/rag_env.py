@@ -9,6 +9,7 @@ Reward: trajectory reward assigned at episode end (sparse); optional step shapin
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Optional, SupportsFloat
 
@@ -18,7 +19,9 @@ from gymnasium import spaces
 
 from .agentic_rag import ACTIONS, AgenticRAG, AgentState
 from .cost import CostTracker
+from .generation.llm import is_yes_no_question
 from .rewards import RewardComputer
+from .utils import tokenize
 
 
 ACTION_TO_IDX = {a: i for i, a in enumerate(ACTIONS)}
@@ -27,7 +30,13 @@ IDX_TO_ACTION = {i: a for a, i in ACTION_TO_IDX.items()}
 # Layout is append-only. legal_mask reads indices 1, 2, 6–9. New features go at the end.
 # No dataset id: that would let the policy copy a Hotpot/NQ switch without reading the situation.
 # 16 = the old 15, plus the minimum of the top-5 scores.
-OBS_DIM = 16
+# 25 = those 16, plus question length, a who/what/when/which/yes-no one-hot,
+# capitalized-entity count, draft abstain, and draft overlap with the top passage.
+OBS_DIM = 25
+_QUESTION_LENGTH_SCALE = 32.0
+_ENTITY_COUNT_SCALE = 5.0
+_WORD_RE = re.compile(r"[A-Za-z0-9]+")
+_WH_WORDS = ("who", "what", "when", "which")
 
 # z-scored BM25 channels. The variance test checks every one of these.
 SCORE_FEATURE_INDEX = {
@@ -101,6 +110,86 @@ def _bm25_top_features(obs: dict[str, Any]) -> tuple[float, float, float]:
     return top1_norm, standardize_score(gap, "gap"), top5_min
 
 
+def _question_words(question: str) -> list[str]:
+    return _WORD_RE.findall(question or "")
+
+
+def _question_length(question: str) -> float:
+    """Word count / 32, clipped to 1. Missing question stays 0."""
+    return float(min(len(_question_words(question)) / _QUESTION_LENGTH_SCALE, 1.0))
+
+
+def _question_word_one_hot(question: str) -> tuple[float, float, float, float, float]:
+    """who, what, when, which, yes/no. where/why/how and anything else stay zero."""
+    words = _question_words(question)
+    if not words:
+        return 0.0, 0.0, 0.0, 0.0, 0.0
+    first = words[0].lower()
+    if first == "whom":
+        first = "who"
+    if first in _WH_WORDS:
+        slots = [0.0, 0.0, 0.0, 0.0, 0.0]
+        slots[_WH_WORDS.index(first)] = 1.0
+        return slots[0], slots[1], slots[2], slots[3], slots[4]
+    if is_yes_no_question(question):
+        return 0.0, 0.0, 0.0, 0.0, 1.0
+    return 0.0, 0.0, 0.0, 0.0, 0.0
+
+
+def _capitalized_entity_count(question: str) -> float:
+    """Capitalized words after the first, / 5, clipped to 1. Not a named-entity tagger."""
+    words = _question_words(question)
+    count = sum(1 for word in words[1:] if word[:1].isupper())
+    return float(min(count / _ENTITY_COUNT_SCALE, 1.0))
+
+
+def _draft_abstained(draft: str) -> float:
+    """1 when the draft is ABSTAIN. An empty draft is 0."""
+    text = (draft or "").strip().rstrip(".!?").strip()
+    return 1.0 if text.upper() == "ABSTAIN" else 0.0
+
+
+def _draft_overlap(draft: str, passage: str) -> float:
+    """Fraction of draft tokens that also appear in the top passage.
+
+    Abstain, an empty draft, and an empty passage stay 0.
+    """
+    if _draft_abstained(draft) == 1.0:
+        return 0.0
+    draft_tokens = tokenize(draft or "")
+    passage_tokens = set(tokenize(passage or ""))
+    if not draft_tokens or not passage_tokens:
+        return 0.0
+    hits = sum(1 for token in draft_tokens if token in passage_tokens)
+    return float(hits / len(draft_tokens))
+
+
+def _cheap_features(obs: dict[str, Any]) -> list[float]:
+    """Question features from the original question, then the two draft features.
+
+    ``current_query`` is ignored: a rewrite would otherwise move the feature.
+    ``dataset`` is ignored. The passage string is not a feature; only the overlap is.
+    """
+    question = str(obs.get("query") or "")
+    if "draft_answer_full" in obs:
+        draft = str(obs.get("draft_answer_full") or "")
+    else:
+        draft = str(obs.get("draft_answer") or "")
+    passage = str(obs.get("top_passage_text") or "")
+    who, what, when, which, yes_no = _question_word_one_hot(question)
+    return [
+        _question_length(question),
+        who,
+        what,
+        when,
+        which,
+        yes_no,
+        _capitalized_entity_count(question),
+        _draft_abstained(draft),
+        _draft_overlap(draft, passage),
+    ]
+
+
 def _verify_one_hot(verify: dict[str, Any] | None) -> tuple[float, float, float]:
     """support / contradiction / neutral. All zero before verify has run."""
     label = str((verify or {}).get("label") or "").strip().lower()
@@ -114,7 +203,7 @@ def _verify_one_hot(verify: dict[str, Any] | None) -> tuple[float, float, float]
 
 
 def vectorize_structured_obs(obs: dict[str, Any], cfg: dict[str, Any]) -> np.ndarray:
-    """16-d vector used by the env and the learned policy head.
+    """25-d vector used by the env and the learned policy head.
 
     Score channels (mean, top-1, top-1−top-2 gap, top-5 minimum) are
     standardized with the training-slice mean and standard deviation and
@@ -122,7 +211,8 @@ def vectorize_structured_obs(obs: dict[str, Any], cfg: dict[str, Any]) -> np.nda
 
     The first 10 dims are the original snapshot, with the mean score on the
     new scale. Then top-1, the gap, a verify one-hot (support, contradiction,
-    neutral), and the top-5 minimum.
+    neutral), and the top-5 minimum. Appended: question length, the question
+    word, capitalized-entity count, draft abstain, and draft overlap.
     """
     max_steps = float(cfg.get("agent", {}).get("max_steps", 6))
     max_usd = float(cfg.get("budget", {}).get("max_usd", 0.05)) or 0.05
@@ -155,6 +245,7 @@ def vectorize_structured_obs(obs: dict[str, Any], cfg: dict[str, Any]) -> np.nda
             oh_contra,
             oh_neutral,
             top5_min_norm,
+            *_cheap_features(obs),
         ],
         dtype=np.float32,
     )
@@ -187,6 +278,8 @@ class AgenticRAGEnv(gym.Env):
         # remaining_usd/max_usd, verify_support, verify_contra, retrieve/3,
         # rewrite/2, rerank/2, verify/2.
         # Then standardized top-1, standardized gap, verify one-hot, standardized top-5 min.
+        # Then question length, who/what/when/which/yes-no, entity count,
+        # draft abstain, and draft overlap with the top passage.
         # Score channels use [-3, 3]. The other channels sit inside [0, 1].
         self.observation_space = spaces.Box(
             low=-SCORE_CLIP, high=SCORE_CLIP, shape=(OBS_DIM,), dtype=np.float32

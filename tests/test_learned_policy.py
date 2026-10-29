@@ -47,12 +47,15 @@ def _empty_evidence_obs(*, remaining_frac: float = 1.0) -> np.ndarray:
 def test_mlp_shape_and_size() -> None:
     mlp = PolicyMLP(16)
     n = parameter_count(mlp)
-    assert OBS_DIM == 16
-    assert n == 357
+    assert OBS_DIM == 25
+    assert n == 501
     assert n <= MAX_PARAM_COUNT
-    wide = parameter_count(PolicyMLP(32))
-    assert wide == 709
-    assert wide <= MAX_PARAM_COUNT
+    try:
+        PolicyMLP(32)
+    except ValueError as exc:
+        assert "720" in str(exc)
+    else:
+        raise AssertionError("width 32 is 997 parameters and must exceed the 720 cap")
     out = mlp(torch.randn(4, OBS_DIM))
     assert tuple(out.shape) == (4, len(ACTIONS))
 
@@ -79,6 +82,26 @@ def test_legal_mask_last_step() -> None:
     mask = legal_mask(_empty_evidence_obs(remaining_frac=1.0 / 8.0), _CFG)
     assert mask[ACTION_TO_IDX["stop"]]
     assert mask.sum() == 1
+
+
+def test_force_first_retrieve_mask() -> None:
+    forced = {"agent": {**_AGENT, "force_first_retrieve": True}}
+    mask = legal_mask(_empty_evidence_obs(), forced)
+    assert mask[ACTION_TO_IDX["retrieve"]]
+    assert int(mask.sum()) == 1
+    open_mask = legal_mask(_empty_evidence_obs(), _CFG)
+    assert open_mask[ACTION_TO_IDX["retrieve"]]
+    assert open_mask[ACTION_TO_IDX["rewrite"]]
+    last = legal_mask(_empty_evidence_obs(remaining_frac=1.0 / 8.0), forced)
+    assert last[ACTION_TO_IDX["stop"]]
+    assert int(last.sum()) == 1
+    seen = _empty_evidence_obs()
+    seen[1] = 0.5
+    seen[6] = 1.0 / 3.0
+    after = legal_mask(seen, forced)
+    assert after[ACTION_TO_IDX["retrieve"]]
+    assert after[ACTION_TO_IDX["rewrite"]]
+    assert after[ACTION_TO_IDX["stop"]]
 
 
 def test_same_seed_same_weights_despite_global_rng() -> None:
@@ -179,6 +202,43 @@ def test_verify_features_and_no_dataset_id() -> None:
     assert np.isclose(one[10], np.float32(standardize_score(8.0, "top1")))
     assert np.isclose(one[15], np.float32(standardize_score(8.0, "top5_min")))
     assert abs(float(one[10]) - float(support[10])) > 0.05
+    assert np.all(support[16:] == 0.0)
+
+
+def test_question_and_draft_features() -> None:
+    cfg = {"agent": {"max_steps": 8}, "budget": {"max_usd": 0.05}}
+    who = vectorize_structured_obs({"query": "Who is Barack Obama?"}, cfg)
+    assert tuple(who.shape) == (OBS_DIM,)
+    assert np.isclose(who[16], np.float32(4.0 / 32.0))
+    assert list(who[17:22]) == [1.0, 0.0, 0.0, 0.0, 0.0]
+    assert np.isclose(who[22], np.float32(2.0 / 5.0))
+    assert who[23] == 0.0 and who[24] == 0.0
+    yes_no = vectorize_structured_obs({"query": "Are cats and dogs both animals?"}, cfg)
+    assert list(yes_no[17:22]) == [0.0, 0.0, 0.0, 0.0, 1.0]
+    other = vectorize_structured_obs({"query": "Where is Paris?"}, cfg)
+    assert list(other[17:22]) == [0.0, 0.0, 0.0, 0.0, 0.0]
+    tagged = vectorize_structured_obs(
+        {"query": "Who is Barack Obama?", "dataset": "hotpot_qa", "current_query": "rewritten query about something else"},
+        cfg,
+    )
+    assert np.allclose(who, tagged)
+    passage = "Barack Obama was born in Hawaii."
+    abstain = vectorize_structured_obs(
+        {"query": "Who is Barack Obama?", "draft_answer_full": "ABSTAIN", "top_passage_text": passage},
+        cfg,
+    )
+    assert abstain[23] == 1.0 and abstain[24] == 0.0
+    overlap = vectorize_structured_obs(
+        {"query": "Who is Barack Obama?", "draft_answer_full": "born in Hawaii", "top_passage_text": passage},
+        cfg,
+    )
+    assert overlap[23] == 0.0
+    assert float(overlap[24]) > 0.0
+    empty = vectorize_structured_obs(
+        {"query": "Who is Barack Obama?", "draft_answer_full": "", "top_passage_text": passage},
+        cfg,
+    )
+    assert empty[23] == 0.0 and empty[24] == 0.0
 
 
 def test_assert_train_only_path() -> None:
@@ -248,12 +308,14 @@ def main() -> None:
     test_hidden_cap()
     test_legal_mask_empty_evidence()
     test_legal_mask_last_step()
+    test_force_first_retrieve_mask()
     test_act_respects_mask()
     test_same_seed_same_weights_despite_global_rng()
     test_sample_uses_private_generator()
     test_act_deterministic_is_argmax()
     test_reinforce_step_finite()
     test_verify_features_and_no_dataset_id()
+    test_question_and_draft_features()
     test_assert_train_only_path()
     test_as_callable_empty_evidence()
     test_get_policy_learned_requires_cfg()

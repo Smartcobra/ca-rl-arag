@@ -1,6 +1,6 @@
 """Tiny MLP action head for Milestone-3 REINFORCE (train-only).
 
-Input is the 16-d vector from ``AgenticRAGEnv._vector_obs``. Output is 5
+Input is the 25-d vector from ``AgenticRAGEnv._vector_obs``. Output is 5
 logits in ``ACTIONS`` order. Hidden width is capped: the train slice is
 too small for a wide net.
 """
@@ -20,13 +20,16 @@ from ..rag_env import IDX_TO_ACTION, OBS_DIM, vectorize_structured_obs
 
 N_ACTIONS = len(ACTIONS)
 MAX_HIDDEN = 32
-# 16→16→5 = 357. 16→32→5 = 709. Tests refuse anything larger.
+# 25→16→5 = 501. 25→32→5 = 997, which is over the cap, so width 32 raises.
+# Width 23 is 718 and still fits. The cap stays 720.
 MAX_PARAM_COUNT = 720
 
 # Vector layout must match AgenticRAGEnv._vector_obs. Append-only:
 # [mean_score, n_evidence/10, remaining_steps/max, remaining_usd/max_usd,
 #  verify_support, verify_contra, retrieve/3, rewrite/2, rerank/2, verify/2,
-#  top1_bm25, top1_top2_gap, verify_one_hot × 3, top5_min]
+#  top1_bm25, top1_top2_gap, verify_one_hot × 3, top5_min,
+#  question_length, who, what, when, which, yes/no, entity_count,
+#  draft_abstain, draft_overlap]
 # Score channels are train-slice z-scores clipped to [-3, 3], not tanh(score/5).
 _IDX_N_EVIDENCE = 1
 _IDX_REMAINING_STEPS = 2
@@ -78,6 +81,13 @@ def legal_mask(obs_vec: np.ndarray, cfg: dict[str, Any] | None = None) -> np.nda
         allow[ACTIONS.index("stop")] = True
         return allow
 
+    # The retrieve-first variant. Step 0 is not a learned choice: the second
+    # action is the first one that can see a BM25 score.
+    if bool(agent.get("force_first_retrieve")) and n_retrieve <= 1e-5:
+        allow[:] = False
+        allow[ACTIONS.index("retrieve")] = True
+        return allow
+
     if n_ev < 0.5:
         allow[ACTIONS.index("rerank")] = False
         allow[ACTIONS.index("verify")] = False
@@ -104,7 +114,7 @@ def legal_mask(obs_vec: np.ndarray, cfg: dict[str, Any] | None = None) -> np.nda
 
 
 class PolicyMLP(nn.Module):
-    """16 → hidden → 5. Default hidden=16 is 357 parameters."""
+    """25 → hidden → 5. Default hidden=16 is 501 parameters. Width 32 exceeds the 720 cap."""
 
     def __init__(self, hidden: int = 16):
         super().__init__()
@@ -209,7 +219,7 @@ class LearnedPolicy:
         if saved_dim is not None and int(saved_dim) != OBS_DIM:
             raise ValueError(
                 f"{path} was trained with obs_dim={saved_dim}; this code expects {OBS_DIM}. "
-                "The 10-d and 15-d checkpoints stay on disk. Train a new checkpoint."
+                "A 10-d, 15-d, or 16-d checkpoint will not load into this head. Train a new checkpoint."
             )
         pol = cls(hidden=int(payload["hidden"]), seed=int(payload.get("seed") or 0), device=device)
         try:
@@ -217,7 +227,7 @@ class LearnedPolicy:
         except RuntimeError as exc:
             raise ValueError(
                 f"{path} does not match OBS_DIM={OBS_DIM}. "
-                "A 10-d or 15-d checkpoint cannot load into this head."
+                "A 10-d, 15-d, or 16-d checkpoint cannot load into this head."
             ) from exc
         return pol
 
