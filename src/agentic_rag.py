@@ -95,7 +95,7 @@ class AgenticRAG:
             return True
         if tracker.total_tokens > int(b.get("max_tokens", 8000)):
             return True
-        if tracker.total_latency_ms > float(b.get("max_latency_ms", 30000)):
+        if tracker.nominal_latency_ms > float(b.get("max_latency_ms", 30000)):
             return True
         return False
 

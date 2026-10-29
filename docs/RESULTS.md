@@ -1,6 +1,6 @@
 # Results Guide — What Was Produced and How to Read It
 
-**Run this doc describes:** 80k-passage Qwen ranking pilot (300 eval: 150 Hotpot + 150 **Natural Questions** on DPR Wikipedia). Quality/cost numbers for naive / rule / max_tools are the same slice as `d456d26` (2026-08-27), **rescored 2026-09-04** after closing the `calibration_score` lazy-abstain tautology ([`REWARD_DESIGN.md`](REWARD_DESIGN.md)). Section 5 (reward ablation) is the **same corpus**, stratified 100. Section 6 is REINFORCE: `default` train curve (`train_policy_curve.json`, 2026-09-09) plus the **300-eval** (`learned_default.json`, 2026-09-10). Frozen argmax under `default` **collapsed to naive RAG** (retrieve→stop 300/300; predictions identical). Section 6 also has the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop) and the λ=80 `act_penalty` frontier (all three learned evals retrieve→stop 300/300; **checkpoints now in this checkout**, 2026-09-15/16 Colab sync). The 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`) is wired in yaml/trainer. **2026-09-23 / 24:** all three 40-epoch exams are on disk. λ=0 used tools (EM 0.347); λ=20 is EM-tied at 4 steps / 3 retrieve; λ=80 `act02` is retrieve→stop. `frontier_sweep_table.json` and `frontier_em_usd.png` were regenerated 2026-09-24. `slice_meta.json`: `nq_corpus: dpr_wikipedia_w100`, `nq_hf_dataset: Tevatron/wikipedia-nq`, `n_nq_anchor: 0`, **1,450** NQ wiki golds / **847** distinct eval gold articles. Section 7 (synthetic) is extractive, 2026-08-07. Section 9 (verifier labels) uses `rule_based_default.jsonl` from this NQ run. The SQuAD fallback table (`e8a4423`) and leaked-NQ table (`2417c43`) are historical.
+**Run this doc describes:** 80k-passage Qwen ranking pilot (300 eval: 150 Hotpot + 150 **Natural Questions** on DPR Wikipedia). Quality/cost numbers for naive / rule / max_tools are the same slice as `d456d26` (2026-08-27), **rescored 2026-09-04** after closing the `calibration_score` lazy-abstain tautology ([`REWARD_DESIGN.md`](REWARD_DESIGN.md)). Section 5 (reward ablation) is the **same corpus**, stratified 100. Section 6 is REINFORCE: `default` train curve (`train_policy_curve.json`, 2026-09-09) plus the **300-eval** (`learned_default.json`, 2026-09-10). Frozen argmax under `default` **collapsed to naive RAG** (retrieve→stop 300/300; predictions identical). Section 6 also has the 2026-09-13 free-cost sanity (`correctness_only` used the step cap; `lambda_zero` stayed retrieve→stop) and the λ=80 `act_penalty` frontier (all three learned evals retrieve→stop 300/300; **checkpoints now in this checkout**, 2026-09-15/16 Colab sync). The 2026-09-15 retarget (λ=0 / 20 / 80, 40 epochs, greedy `eval_reward`) is wired in yaml/trainer. **2026-09-23 / 24:** all three 40-epoch exams are on disk. λ=0 used tools (EM 0.347); λ=20 is EM-tied at 4 steps / 3 retrieve; λ=80 `act02` is retrieve→stop. `frontier_sweep_table.json` and `frontier_em_usd.png` were regenerated 2026-09-24. **2026-09-28:** frontier v3 exams are on disk (500 train / 180 valid, 20 epochs). Selected λ=0 is one 6-step recipe (EM 0.343, 103/300). λ=20 and λ=80 are retrieve→stop. **2026-10-03:** v3 was retrained on the 16-d z-scored observation and **overwrote every `_v3` / `_v3last` file** (the 15-d numbers are at git `3a2c83c`). λ=20 now emits **16 distinct action sequences** on 300 questions and branches on the retrieval score (EM 0.343, 103/300, 5.31e-4). **2026-10-05:** a second training run of that same 16-d config is on disk under `v4` / `v4last` and does not overwrite `_v3`. Selected λ=0 (epoch 20) and λ=20 (epoch 16) tie at EM 0.347 (104/300) with identical predictions. λ=0 uses 15 sequences and two verifies; λ=20 is one 6-step recipe on 270/300. λ=80 is retrieve→stop. The 16-sequence λ=20 controller from 2026-10-03 did not repeat. **Two indexes are live in this checkout:** everything `_v3` and `_v4` is the 83,120-passage corpus; naive / rule / max_tools and all v2 rows are the 80,000-passage corpus, and have not been re-scored. Do not put a `_v3` or `_v4` row in a table beside a frozen row. `slice_meta.json` (stale at `n_passages: 80000`, written 2026-08-27): `nq_corpus: dpr_wikipedia_w100`, `nq_hf_dataset: Tevatron/wikipedia-nq`, `n_nq_anchor: 0`, **1,450** NQ wiki golds / **847** distinct eval gold articles. Section 7 (synthetic) is extractive, 2026-08-07. Section 9 (verifier labels) uses `rule_based_default.jsonl` from this NQ run. The SQuAD fallback table (`e8a4423`) and leaked-NQ table (`2417c43`) are historical.
 
 This document describes the **Milestone 2 ranking results** plus Milestone 3 train + 300-eval: where files live, what each metric means, how to interpret the current numbers, and known limitations.
 
@@ -43,6 +43,20 @@ results/
 │   ├── train_policy_curve_frontier_act02.json  # 40 epochs (5-epoch copy in partial_curve_backup/)
 │   ├── train_policy_curve_frontier_lambda0.json  # 40 epochs
 │   ├── train_policy_curve_frontier_lambda20.json
+│   ├── learned_frontier_lambda0_v3.json      # v3 selected (valid greedy), 300 eval (2026-09-28)
+│   ├── learned_frontier_lambda0_v3last.json  # v3 last epoch
+│   ├── learned_frontier_lambda20_v3.json / _v3last.json
+│   ├── learned_frontier_act02_v3.json / _v3last.json
+│   ├── train_policy_curve_frontier_v3_lambda0.json  # 20 epochs, valid_greedy
+│   ├── train_policy_curve_frontier_v3_lambda20.json
+│   ├── train_policy_curve_frontier_v3_act02.json
+│   ├── learned_frontier_lambda0_v4.json      # v4 selected = last (2026-10-05)
+│   ├── learned_frontier_lambda0_v4last.json  # same policy as the v4 file
+│   ├── learned_frontier_lambda20_v4.json / _v4last.json
+│   ├── learned_frontier_act02_v4.json / _v4last.json
+│   ├── train_policy_curve_frontier_v4_lambda0.json
+│   ├── train_policy_curve_frontier_v4_lambda20.json
+│   ├── train_policy_curve_frontier_v4_act02.json
 │   ├── reward_ablation_table.json    # Compact reward-weight sweep (nests by_dataset)
 │   ├── reward_ablation_by_dataset.json
 │   └── ablation_rule_based_*.json    # Per-preset full summaries
@@ -55,7 +69,9 @@ results/
 │   ├── learned_policy_frontier_act005.pt / _best.pt
 │   ├── learned_policy_frontier_act02.pt / _best.pt   # 40-epoch retarget (2026-09-24)
 │   ├── learned_policy_frontier_lambda0.pt / _best.pt / _trainer.pt   # 40-epoch (2026-09-23)
-│   └── learned_policy_frontier_lambda20.pt / _best.pt / _trainer.pt
+│   ├── learned_policy_frontier_lambda20.pt / _best.pt / _trainer.pt
+│   ├── learned_policy_frontier_v3_lambda0.pt / _lambda20.pt / _act02.pt (+ _best.pt)
+│   └── learned_policy_frontier_v4_lambda0.pt / _lambda20.pt / _act02.pt (+ _best.pt)
 ├── figs/                             # Plots from metrics (via plot_results.py)
 │   ├── policy_quality_reward.png     # overall, mix-weighted
 │   ├── policy_cost.png
@@ -78,6 +94,14 @@ results/
     ├── learned_frontier_act02.jsonl     # 300/300 retrieve→stop (40-epoch exam)
     ├── learned_frontier_lambda0.jsonl  # 300/300: 6 steps, 1 retrieve, 2 rewrite, 2 verify
     ├── learned_frontier_lambda20.jsonl # 300/300: 4 steps, 3 retrieve, 0 verify
+    ├── learned_frontier_lambda0_v3.jsonl      # 2026-10-03 working tree: 2 sequences
+    ├── learned_frontier_lambda0_v3last.jsonl  # 2026-10-03 working tree: 2 sequences
+    ├── learned_frontier_lambda20_v3.jsonl / _v3last.jsonl   # 2026-10-03: 16 sequences
+    ├── learned_frontier_act02_v3.jsonl / _v3last.jsonl      # 300/300 retrieve→stop
+    ├── learned_frontier_lambda0_v4.jsonl / _v4last.jsonl    # 15 sequences; best = last
+    ├── learned_frontier_lambda20_v4.jsonl                   # 6 sequences; 270/300 one recipe
+    ├── learned_frontier_lambda20_v4last.jsonl               # 11 sequences; answers = retrieve→stop
+    ├── learned_frontier_act02_v4.jsonl / _v4last.jsonl      # 300/300 retrieve→stop
     └── env_rollouts.jsonl            # Short Gym env check dumps
 ```
 
@@ -90,6 +114,8 @@ results/
 | `train_policy_curve_correctness_only.json` / `_lambda_zero.json` | Same, per free-cost preset | Homework curves for the 2026-09-13 sanity |
 | `learned_frontier_act0.json` / `_act005.json` | λ=80 `act_penalty` family on the 300 (2026-09-13, 5 epochs) | Failed headline: both tied naive. Historical |
 | `learned_frontier_lambda0.json` / `_lambda20.json` / `_act02.json` / `frontier_sweep_table.json` | λ=0 / 20 / 80 family on the 300 (40 epochs; table regenerated 2026-09-24) | First learned-family spread: tools / 3-retrieve / retrieve→stop |
+| `learned_frontier_*_v3.json` / `*_v3last.json` | v3 selected checkpoint and last epoch on the same 300. Working tree is the 2026-10-03 16-d retrain; the 2026-09-28 15-d numbers are at git `3a2c83c` | 16-d λ=20 branches (16 sequences, EM 0.343). 15-d selected λ=0 was one 6-step recipe |
+| `learned_frontier_*_v4.json` / `*_v4last.json` | Second 16-d training run, same config and corpus (2026-10-05). Does not overwrite `_v3` | Selected λ=0 and λ=20 tie at EM 0.347 with the same answers. λ=80 is retrieve→stop |
 | `*.jsonl` trajectories | One row per question | Failure analysis (wrong EM, action loops, costs) |
 | `env_rollouts.jsonl` | Tiny env sanity rows (`id`, `reward`, `em`, `f1`) | Confirms Gymnasium env scores episodes |
 | `reward_ablation_table.json` | Same policy, different reward presets | Justify α/β/γ/λ choices — **same NQ slice**, stratified 100 |
@@ -430,8 +456,155 @@ Hotpot / NQ for the **last-epoch** exams (from the JSONL). The selected λ=0 and
 - **λ=20 last epoch spends for the same answers.** Three retrieves, identical passages, 100/300, same 59+41 split as naive, $ 2.72e-4. The selected checkpoint (epoch 15) is retrieve→stop at the naive dollar cost.
 - **λ=80 `act02` is retrieve→stop on every greedy epoch**, as the −EV arithmetic predicted. Frozen exam is retrieve→stop **300/300**, EM 0.333, $ 1.72e-4, Hotpot 59 / NQ 41.
 - Selected checkpoints sit on the naive square. Last-epoch λ=0 and λ=20 are extra rows, not the frontier line. Hollow markers on `frontier_em_usd.png` are the controller ceilings: 110 (naive on Hotpot, λ=0 recipe on NQ), 124 (better of naive or λ=0 per question), 127 (those two plus max_tools). Combined table: `frontier_sweep_table.json`.
-- **Verify inputs move the λ=0 softmax by about one point, and the action does not change.** On a real post-verify observation, raw P(action) for support=1 is retrieve 0.106 / rewrite 0.280 / rerank 0.032 / verify 0.374 / stop 0.209. For contradiction=1 it is 0.099 / 0.274 / 0.036 / 0.379 / 0.212. Max gap 0.0068. Rounded to two decimals they differ (verify 0.37 vs 0.38). Argmax is verify either way. Source: `results/metrics/verify_sensitivity_lambda0.json`.
+- **Verify inputs move the λ=0 softmax by about one point, and the action does not change.** On a real post-verify observation, raw P(action) for support=1 is retrieve 0.106 / rewrite 0.280 / rerank 0.032 / verify 0.374 / stop 0.209. For contradiction=1 it is 0.099 / 0.274 / 0.036 / 0.379 / 0.212. Max gap 0.0068. Rounded to two decimals they differ (verify 0.37 vs 0.38). Argmax is verify either way. Source: `results/metrics/verify_sensitivity_lambda0.json`, regenerated by `python scripts/verify_softmax_probe.py --write`; the same command without `--write` re-checks the committed file and exits non-zero on a mismatch.
 - Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v2.ipynb`. Commands: [`HOW_TO_RUN.md`](HOW_TO_RUN.md) §4.8.
+
+### Frontier v3 (2026-09-28; validation pick, naive anchor, 15-d observation)
+
+> **Superseded, and the files are gone.** The 2026-10-03 sweep below rewrote every `_v3` / `_v3last` artifact named at the end of this subsection. The numbers here are read from git commit `3a2c83c`, not from the working tree. Keep the subsection: it is the 15-d arm of the observation comparison.
+
+Same λ presets and the same locked 300. Train is 500 questions (300 Hotpot + 200 NQ). The checkpoint is the max greedy reward on the next 180 from the HuggingFace train split (`eval_split: valid_greedy`). Advantage on the train sample is that question's reward minus its cached naive reward. The observation is 15-d (341 parameters at hidden 16): the old 10 dims, plus tanh(top-1 BM25), tanh(top-1 − top-2), and a verify one-hot. 20 epochs. This sweep leaves the v2 checkpoints, `frontier_sweep_table.json`, and `frontier_em_usd.png` in place. `frontier_sweep_table_v3.json` and `frontier_em_usd_v3.png` are the plot outputs of `plot_results.py --frontier-tag v3`; those two files are not in this checkout. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v3.ipynb`.
+
+**Train** (sampling on the 500; greedy columns are the 180, not a ranking number):
+
+| Preset | Selected epoch | Valid greedy reward / EM / steps / retrieve | Last sampled EM / steps / verify |
+|---|---:|---|---|
+| `frontier_lambda0` | **11** | **0.61941 / 0.333 (60/180) / 6.0 / 3.0** | 0.372 / 5.01 / 0.38 |
+| `frontier_lambda20` | **7** | **0.59043 / 0.322 (58/180) / 2.0 / 1.0** | 0.366 / 4.45 / 0.63 |
+| `frontier_act02` | **11** | **0.56024 / 0.322 (58/180) / 2.0 / 1.0** | 0.376 / 2.15 / 0.04 |
+
+On the 180, the λ=0 6-step recipe beats that run's retrieve→stop epochs by about **0.026** reward and **+2** EM (60 vs 58). Epoch 1 is the only greedy epoch whose step count is not an integer recipe (2.644 steps / 1.644 retrieve, reward 0.59356). Epoch 20 on λ=0 is a 4-step path (1 retrieve, 2 rewrite), valid reward 0.59292. On λ=20 the best 3-retrieve greedy epoch (epoch 2, reward 0.58785) sits **0.0026** under retrieve→stop. λ=80 greedy is retrieve→stop on all 20 epochs (reward span about \(10^{-5}\)). Sampled verify stays on at λ=0 and λ=20. Greedy verify is 0.0 at every selected and last epoch.
+
+**Eval** (frozen argmax, n=300). The `v3` artifact is `_best.pt`. The `v3last` artifact is epoch 20.
+
+| Point | Which checkpoint | EM | n_correct | F1 | $ | steps | retrieve | rewrite | verify | sequences |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| learned `frontier_lambda0` | **best, epoch 11** | **0.343** | **103/300** | 0.421 | 4.21e-4 | **6.0** | **3.0** | **2.0** | **0.0** | **1** |
+| learned `frontier_lambda0` | last, epoch 20 | 0.333 | 100/300 | 0.399 | 3.21e-4 | **4.0** | **1.0** | **2.0** | **0.0** | **1** |
+| learned `frontier_lambda20` | best, epoch 7 | 0.333 | 100/300 | 0.399 | 1.72e-4 | **2.0** | **1.0** | **0.0** | **0.0** | **1** |
+| learned `frontier_lambda20` | last, epoch 20 | 0.333 | 100/300 | 0.399 | 1.72e-4 | **2.0** | **1.0** | **0.0** | **0.0** | **1** |
+| learned `frontier_act02` | best, epoch 11 | 0.333 | 100/300 | 0.399 | 1.72e-4 | **2.0** | **1.0** | **0.0** | **0.0** | **1** |
+| learned `frontier_act02` | last, epoch 20 | 0.333 | 100/300 | 0.399 | 1.72e-4 | **2.0** | **1.0** | **0.0** | **0.0** | **1** |
+
+Selected λ=0 is `retrieve, rewrite, rewrite, retrieve, retrieve, stop` on **300/300**. λ=20 best, λ=20 last, λ=80 best, and λ=80 last are `retrieve, stop` on **300/300**, and those four files share predictions. λ=0 last is `retrieve, rewrite, rewrite, stop` on **300/300**, and those predictions match the retrieve→stop files on **300/300**: the two rewrites never get a second retrieve, so the passages stay the first hit. Eval reward under each preset: λ=0 best **0.622**, λ=0 last **0.600**, λ=20 **0.598**, λ=80 **0.568**.
+
+| Point | Hotpot EM (n_correct) | NQ EM (n_correct) |
+|---|---|---|
+| learned `frontier_lambda0` best | **0.400 (60/150)** | **0.287 (43/150)** |
+| λ=0 last, λ=20, λ=80 | 0.400 (60/150) | 0.267 (40/150) |
+
+- **The EM gain is the second retrieve.** Against this run's retrieve→stop, selected λ=0 fixes 1 Hotpot answer and breaks 1, and fixes 8 NQ answers and breaks 5 (net +3, 103 vs 100). The union of the two answer sets is **109/300**. The second retrieve changes the top-5 on **106/300** and the top-1 on **52/300**. The third retrieve copies the second on **300/300** (no rewrite between them).
+- **λ=0 last spends two rewrites for the same answers** as retrieve→stop, at $ 3.21e-4 versus $ 1.72e-4. Validation already ranked that path under the 6-step recipe (0.593 vs 0.619).
+- **λ=20 and λ=80 selected exams are retrieve→stop.** On λ=20, validation prefers that path over three retrieves by about 0.0026. On λ=80 every greedy epoch is that path.
+- **Verify never runs on these exams**, so the new verify one-hot stays at zero. The 15-d observation is live for BM25 score and gap. Greedy still emits one sequence.
+- These retrieve→stop predictions match the v2 naive exam (`learned_frontier_act02.jsonl`) on **291/300**. Twenty questions have different BM25 top ids. The split is Hotpot 60 / NQ 40 against the ranking row 59 / 41, and overall EM stays 100. Read the +3 against this run's retrieve→stop, which is the λ=20 and λ=80 files.
+- Sources (**at git `3a2c83c`**, overwritten in the working tree): `learned_frontier_lambda0_v3.json` / `_v3last.json`, `learned_frontier_lambda20_v3.json` / `_v3last.json`, `learned_frontier_act02_v3.json` / `_v3last.json`, `train_policy_curve_frontier_v3_lambda0.json` / `_lambda20.json` / `_act02.json`, and the matching JSONL.
+
+---
+
+### Frontier v3 retrained (2026-10-03; 16-d z-scored observation) — the policy branches
+
+Everything is held fixed against the 2026-09-28 sweep above: same config, same 500 / 180 / locked 300, same 20 epochs, same validation pick, same naive anchor, same 83,120-passage corpus. **The only change is the feature scale.** The three BM25 channels and the gap are now standardized against the training slice and clipped to ±3 instead of passed through `tanh(score / 5)`, and the top-5 minimum is added, so the observation is 16-d (357 parameters at hidden 16). Under `tanh` those channels were 1.0 on all 300 questions (`IMPLEMENTATION_DECISIONS`, 2026-10-01). Treat this as an observation ablation, not a new experiment.
+
+**Index.** Every artifact reports `n_passages: 83120`, sha1 `18e880b5…`. The 2026-09-28 sweep used the same corpus, so the 15-d / 16-d comparison is clean. It is **not** the 80,000 index behind `baseline_default` / `rule_based_default` / `max_tools_default`, so nothing here may be tabled beside those rows yet (§1, one-index rule). `frontier_sweep_table_v3.json` and `frontier_em_usd_v3.png` still do not exist.
+
+**Eval** (frozen argmax, n=300; `v3` is `_best.pt`, `v3last` is epoch 20):
+
+| Point | Which checkpoint | EM | n_correct | $ | steps | retrieve | rewrite | verify | sequences |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| learned `frontier_lambda20` | **best = last, epoch 20** | **0.343** | **103/300** | 5.31e-4 | 7.49 | 2.84 | 1.74 | 1.90 | **16** |
+| learned `frontier_lambda0` | best, epoch 11 | 0.333 | 100/300 | 3.11e-4 | 3.97 | 1.00 | 0.00 | 1.97 | **2** |
+| learned `frontier_lambda0` | last, epoch 20 | 0.333 | 100/300 | 1.73e-4 | 2.02 | 1.02 | 0.00 | 0.00 | **2** |
+| learned `frontier_act02` | best, epoch 3 = last | 0.333 | 100/300 | 1.72e-4 | 2.00 | 1.00 | 0.00 | 0.00 | 1 |
+
+- **λ=20 emits 16 distinct action sequences on 300 questions.** Every earlier sweep in this project emitted one. The non-integer step counts are the same fact read off the summary. The two most common paths cover 140 questions: `retrieve, rewrite, rewrite, verify, retrieve, retrieve, verify, stop` (99) and `retrieve, retrieve, retrieve, rewrite, rewrite, verify, verify, stop` (41); six more paths cover 11 to 31 each. Hotpot uses 15 distinct paths, NQ 10.
+- **The branch tracks the retrieval score.** At the first real decision, using the decision-time observation (`observation_before.mean_score`, channel 0):
+
+| Preset | Branch A | Branch B |
+|---|---|---|
+| λ=20, step 1 | `rewrite` (n=177): mean 20.4–46.4, median **35.5** | `retrieve` (n=123): mean 34.1–108.9, median **54.2** |
+| λ=0 best, step 1 | `verify` (n=295): median **41.3** | `stop` (n=5): 89.7–108.9, median **99.9** |
+
+  One threshold on the mean score at **45.7** reproduces **278 of 300** λ=20 decisions (92.7%). For λ=0, a threshold near **90** catches all 5 early stops with 2 false positives. Weak retrieval gets a rewrite, strong retrieval gets another retrieve or an immediate stop. This is what the 2026-09-26 "fixed recipe, not a controller" entry was waiting for, and it was not expressible under the saturated feature.
+- **Verify still earns nothing.** λ=0's selected recipe runs two verifies per question and changes **0 of 300 predictions** and **0 of 300 retrieved sets** against this run's retrieve→stop, at 3.11e-4 versus 1.72e-4 (about **1.8×**). The verify result never feeds back into retrieval on that path, so it cannot move an answer. λ=0's last epoch drops verify and keeps 100/300 at the naive price. λ=20 does send more post-verify steps back to retrieval on a contradiction (**8/15, 53%**) than on support (**124/452, 27%**) or neutral (**13/104, 13%**) — an association, and the label correlates with the score channel we know the policy reads.
+- **EM barely moves.** Against this run's retrieve→stop (`frontier_act02` v3, same index), λ=20 is **+8 / −5** (Hotpot 0 / −1, NQ +8 / −4) for 103 against 100, with 268/300 predictions identical; the union is **108/300**. λ=0 best matches retrieve→stop on **300/300**. So branching bought **+3 EM for roughly 3× the dollars** — a real controller making a bad trade at this λ. The oracle headroom from 2026-09-26 is still mostly unclaimed.
+- **λ=80 is unchanged**: retrieve→stop on all 20 greedy epochs, best at epoch 3, one sequence. A richer observation does not rescue a reward that prices tools below their payoff (2026-09-12 arithmetic).
+
+**15-d against 16-d**, same index, same slices, same selection rule:
+
+| | 15-d `tanh` (2026-09-28) | 16-d z-score (this run) |
+|---|---|---|
+| λ=0 best | 0.343 (103/300), 6.0 steps, 3.0 retrieve, 0 verify, **1 sequence** | 0.333 (100/300), 3.97 steps, 1.0 retrieve, 1.97 verify, **2 sequences** |
+| λ=20 best | 0.333 (100/300), retrieve→stop, **1 sequence** | **0.343 (103/300)**, 7.49 steps, **16 sequences** |
+| λ=80 best | 0.333 (100/300), retrieve→stop, 1 sequence | 0.333 (100/300), retrieve→stop, 1 sequence |
+
+Best EM is 103 either way; it moved from λ=0 to λ=20. **Do not report this as an accuracy result.** One run per preset, and 2026-09-26 put the spread across fixed recipes at about 5 points. The result worth reporting is the input-conditioned behaviour.
+
+**Train** (greedy on the 180):
+
+| Preset | Selected epoch | Valid greedy reward | Greedy epochs with a non-integer step count |
+|---|---:|---:|---:|
+| `frontier_lambda0` | 11 | 0.59548 | 10 / 20 |
+| `frontier_lambda20` | **20** (= last) | **0.60218** | **15 / 20** |
+| `frontier_act02` | 3 | 0.56029 | 1 / 20 |
+
+Those non-integer counts mean the branching appears during training, not only at exam time. Under 15-d, λ=0 had exactly one such epoch and λ=20 none.
+
+Sources: `learned_frontier_lambda0_v3.json` / `_v3last.json`, `learned_frontier_lambda20_v3.json` / `_v3last.json`, `learned_frontier_act02_v3.json` / `_v3last.json`, `train_policy_curve_frontier_v3_lambda0.json` / `_lambda20.json` / `_act02.json`, and the matching JSONL.
+
+---
+
+### Frontier v4 (2026-10-05; second 16-d training run) — the λ=20 controller did not repeat
+
+Same config as the sweep above (`configs/frontier_v3.yaml`): 500 train / 180 valid / locked 300, 20 epochs, validation pick, naive-anchored advantage, 16-d z-scored observation, corpus 83,120 passages, sha1 `18e880b5…`. Seed 42, as in `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v4.ipynb`. The new filenames are the only deliberate change. `_v3` is not overwritten. `frontier_sweep_table_v4.json` and `frontier_em_usd_v4.png` do not exist; the frozen baselines are still the 80,000 index (§1).
+
+**Eval** (frozen argmax, n=300). The `v4` artifact is `_best.pt`. The `v4last` artifact is epoch 20. For λ=0 those are the same epoch, and the two files match on 300/300 predictions and retrieved sets. For λ=80 the exams match even though the selected epoch is 3.
+
+| Point | Which checkpoint | EM | n_correct | F1 | $ | steps | retrieve | rewrite | verify | sequences | Hotpot / NQ |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| learned `frontier_lambda0` | **best = last, epoch 20** | **0.347** | **104/300** | 0.424 | 5.37e-4 | 7.65 | 2.95 | 1.70 | 2.00 | **15** | 60 / 44 |
+| learned `frontier_lambda20` | **best, epoch 16** | **0.347** | **104/300** | 0.424 | 4.14e-4 | 5.89 | 2.94 | 1.95 | 0.00 | **6** | 60 / 44 |
+| learned `frontier_lambda20` | last, epoch 20 | 0.333 | 100/300 | 0.399 | 4.85e-4 | 6.93 | 2.86 | 1.21 | 1.86 | **11** | 60 / 40 |
+| learned `frontier_act02` | best, epoch 3 = last | 0.333 | 100/300 | 0.399 | 1.72e-4 | 2.00 | 1.00 | 0.00 | 0.00 | 1 | 60 / 40 |
+
+Eval reward under each preset: λ=0 **0.624**, λ=20 best **0.618**, λ=20 last **0.590**, λ=80 **0.568**.
+
+- **Selected λ=0 and λ=20 have the same 300 answers.** Predictions match on 300/300. Retrieved sets match on 294/300. Against this run's retrieve→stop (`frontier_act02` v4, and the same 300 answers as `frontier_act02` v3) both are **+9 / −5** (Hotpot +1 / −1, NQ +8 / −4), 263/300 predictions identical, union **109/300**. Net **+4 EM** (104 vs 100). λ=0 costs 5.37e-4 (about **3.1×** retrieve→stop). λ=20 costs 4.14e-4 (about **2.4×**). The two verifies on λ=0 are the gap between those prices (about **1.3×**) and they change **0 answers**.
+- **λ=20 is one recipe on 270/300, and that recipe holds the whole +4.** The sequence is `retrieve, rewrite, rewrite, retrieve, retrieve, stop` (94 correct, net +4 vs retrieve→stop). The other five sequences cover 30 questions and are net 0. Hotpot uses 6 paths, NQ 4. This is not the 16-sequence controller from 2026-10-03.
+- **λ=0 is the preset that branches.** 15 sequences (Hotpot 14, NQ 12). The most common is `retrieve, rewrite, rewrite, retrieve, retrieve, verify, verify, stop` (155). At the first decision, a low score rewrites and a higher score verifies:
+
+| Branch | n | decision-time mean score |
+|---|---:|---|
+| `rewrite` | 192 | 20.4–51.4, median **36.4** |
+| `verify` | 108 | 44.2–108.9, median **56.6** |
+
+  One threshold at **45.4** (rewrite below it, verify at or above it) reproduces **293/300** of those decisions. The branch does not buy a different answer than the λ=20 recipe.
+- **The third retrieve still copies the second.** On λ=0, 292/292. On λ=20 best, 290/291. The second retrieve is the one that moves passages: top-5 changes on 99/292 (λ=0) and 102/291 (λ=20); top-1 on 51 and 50.
+- **λ=20 last spends for the same passages as retrieve→stop.** Predictions and retrieved sets match on 300/300. The second retrieve changes the top-5 on **0/279**. Cost is 4.85e-4, about **2.8×**, for those same passages. Eleven sequences. Validation already ranked this epoch under epoch 16 (0.58515 vs 0.59530).
+- **Verify still does not gate a re-retrieve on the selected λ=0 policy.** After a contradiction the next action is a second verify or stop (**0/28** go back to retrieval). Neutral goes back on 23/104 (22%). Support goes back on 135/468 (29%). λ=20 best barely calls verify (one step in 300, and that step does retrieve). λ=20 last does call it, and a contradiction goes back to retrieval on 11/28, but those extra retrieves copy the first hit, so the answers stay the retrieve→stop answers.
+- **λ=80 is unchanged.** Retrieve→stop on all 20 greedy epochs. Best epoch is 3; the valid-reward span across 20 epochs is about \(3\times10^{-5}\). Predictions match the 2026-10-03 `frontier_act02` v3 file on 300/300.
+
+**Against the 2026-10-03 run** (same config, same index, same seed; only a second draw):
+
+| | 2026-10-03 `_v3` | 2026-10-05 `_v4` |
+|---|---|---|
+| λ=0 best | 0.333 (100/300), 2 sequences, epoch 11, $ 3.11e-4 | **0.347 (104/300)**, **15 sequences**, epoch 20, $ 5.37e-4 |
+| λ=20 best | **0.343 (103/300)**, **16 sequences**, epoch 20, $ 5.31e-4 | **0.347 (104/300)**, **6 sequences** (270/300 one recipe), epoch 16, $ 4.14e-4 |
+| λ=80 best | 0.333 (100/300), retrieve→stop | 0.333 (100/300), retrieve→stop |
+
+v4 λ=20 vs v3 λ=20 is the same prediction on 295/300, with v4 fixing 1 Hotpot answer and breaking 0 (union 104/300). Best EM moved from 103 to 104. That is one answer. **Do not report an accuracy gain.** What did not repeat is the behaviour: the 16-sequence score split (rewrite on weak retrieval, retrieve on strong, threshold 45.7) is a property of that draw. This draw's λ=20 first action is rewrite on 272/300, including scores up to 97.9. The score mainly marks the 8 early stops (85.4–108.9, median 97.0); a stop-vs-rest threshold at 82.7 separates those from the rest on 298/300, with two high-score rewrites (97.9, 87.8) sitting among the stops. The three-seed plan in `IMPLEMENTATION_DECISIONS.md` (2026-10-03) is still open. This file is a second seed-42 run, not that plan.
+
+**Train** (greedy on the 180):
+
+| Preset | Selected epoch | Valid greedy reward / EM / steps / retrieve / verify | Greedy epochs with a non-integer step count | Last sampled EM / steps / verify |
+|---|---:|---|---:|---|
+| `frontier_lambda0` | **20** (= last) | **0.61255 / 0.328 (59/180) / 7.600 / 2.967 / 2.000** | 14 / 20 | 0.378 / 6.33 / 1.52 |
+| `frontier_lambda20` | **16** | **0.59530 / 0.322 (58/180) / 5.900 / 2.911 / 0.028** | **19 / 20** | 0.374 / 5.09 / 0.74 |
+| `frontier_act02` | 3 | 0.56025 / 0.322 (58/180) / 2.000 / 1.000 / 0.000 | 0 / 20 | 0.374 / 2.08 / 0.02 |
+
+λ=20 epoch 20 on the 180 is reward 0.58515, under every earlier greedy epoch that is close to retrieve→stop. The non-integer counts mean both λ=0 and λ=20 branch during training. λ=80 greedy is 2.0 steps on all 20 epochs.
+
+Sources: `learned_frontier_lambda0_v4.json` / `_v4last.json`, `learned_frontier_lambda20_v4.json` / `_v4last.json`, `learned_frontier_act02_v4.json` / `_v4last.json`, `train_policy_curve_frontier_v4_lambda0.json` / `_lambda20.json` / `_act02.json`, and the matching JSONL. Notebook: `notebooks/Frontier_Cost_Pressure_CA_RL_ARAG_v4.ipynb`.
 
 ---
 
@@ -517,6 +690,16 @@ That gap is precisely where a learned policy should win: see `contradiction` / l
 8. **Free-cost sanity (2026-09-13) validates the trainer.** `correctness_only` frozen eval is **8 steps / 3 retrieve / 2 verify on 300/300** (step cap), EM 0.340 (102/300, net +2 vs naive). `lambda_zero` frozen eval is still retrieve→stop 300/300. The loop can learn tools; \(P_{\mathrm{act}}\) is what keeps the ranking row naive.
 9. **λ=80 `act_penalty` sweep did not draw a frontier.** `frontier_act0` / `act005` / `act02` frozen evals are all retrieve→stop 300/300, EM 0.333, identical to naive. Extra max_tools $ at λ=80 is ~0.046 vs ~0.028 quality, so even \(P_{\mathrm{act}}=0\) is still high pressure on average.
 10. **λ=0 / 20 / 80 selected checkpoints are naive; the 0.347 row is the last epoch.** `_best.pt` is epoch 25 (λ=0) and epoch 15 (λ=20), both retrieve→stop, train EM 0.43. The last-epoch λ=0 recipe scores train EM 0.40 and 104/300 on the exam we are not selecting. Each learned policy uses 1 action sequence. Ceilings on the figure: 110, 124, 127. The ranking `learned` row stays the `default` checkpoint.
+11. **Frontier v3 (2026-09-28) selects one λ=0 recipe and leaves λ=20 / λ=80 on retrieve→stop.** Validation pick is epoch 11 for λ=0: `retrieve, rewrite, rewrite, retrieve, retrieve, stop` on 300/300, EM 0.343 (103/300, Hotpot 60 / NQ 43), $ 4.21e-4. Against this run's retrieve→stop that is Hotpot 1/1 and NQ 8/5. The third retrieve copies the second on 300/300. λ=0 last matches retrieve→stop answers after two unused rewrites. λ=20 (epoch 7) and λ=80 (every greedy epoch) are retrieve→stop, EM 0.333 (100/300). Greedy verify is 0. The ranking `learned` row stays `learned_default.json`. **These files were overwritten on 2026-10-03; read them at git `3a2c83c`.**
+12. **The score features were saturated until 2026-10-01, so items 7–11 describe a policy that could not see the retrieval score.** `tanh(score / 5)` returned 1.0 on all 300 questions because top-1 BM25 runs 26–122. Every "the policy does not branch on the score" statement above is true but uninformative: the feature was a constant. The fix standardizes against the training slice and clips to ±3.
+13. **After the fix the policy branches, and it branches on the score (2026-10-03).** Retrained with the only change being the feature scale, λ=20 emits **16 distinct action sequences** on 300 questions, where every previous sweep in this project emitted one. One threshold on the decision-time mean score at **45.7** reproduces **278/300** of its first decisions: weak retrieval gets a rewrite, strong retrieval gets another retrieve. λ=0 stops immediately on exactly the 5 questions with the strongest retrieval (mean ≥ 89.7) and verifies on the other 295. This is the headline claim for the paper, and it is about behaviour, not accuracy.
+14. **Branching bought +3 EM for about 3× the dollars.** λ=20 is 103/300 at 5.31e-4 against this run's retrieve→stop 100/300 at 1.72e-4 (+8 / −5, union 108/300). Best EM is 103 under both observations; it just moved from λ=0 to λ=20. With one run per preset and a ~5-point spread across fixed recipes (2026-09-26), **do not claim an accuracy gain.** The 2026-09-26 oracle headroom is still mostly unclaimed.
+15. **Verify still does not pay, and now we know why.** λ=0's two verifies change **0/300 predictions** and **0/300 retrieved sets** while costing 1.8×: on that path the verify result never feeds back into retrieval, so it cannot move an answer. Item 6's win condition needs verify to *gate a re-retrieve*, which only λ=20 does, and only weakly (contradiction → retrieve 53%, support 27%, neutral 13%, confounded with the score).
+16. **λ=80 is immune to the observation fix**, still retrieve→stop on all 20 greedy epochs. A better input cannot rescue a reward that prices tools below their payoff (item 9).
+17. **Open blocker for any cross-policy table: two indexes.** The `_v3` and `_v4` rows are the 83,120-passage corpus; naive / rule / max_tools and the 110 / 124 / 127 ceilings are the 80,000-passage corpus. Until the frozen baselines are re-scored on 83,120, items 13–19 may only be compared against this run's own retrieve→stop anchor.
+18. **A second 16-d training run (2026-10-05, `v4`) does not reproduce the 16-sequence λ=20 controller.** Same config, same corpus, seed 42, new filenames. Selected λ=0 (epoch 20) and λ=20 (epoch 16) tie at EM 0.347 (104/300, Hotpot 60 / NQ 44) with identical predictions. λ=20 is `retrieve, rewrite, rewrite, retrieve, retrieve, stop` on 270/300, and that recipe holds the whole +4 against this run's retrieve→stop (+9 / −5, union 109/300) at 4.14e-4 (about 2.4×). λ=0 uses 15 sequences and two verifies for the same answers at 5.37e-4. A threshold at 45.4 separates λ=0's first decision (rewrite vs verify) on 293/300, and that branch does not change the answer.
+19. **104 vs 103 is one answer.** v4 λ=20 matches the 2026-10-03 λ=20 file on 295/300 predictions (+1 Hotpot / −0). λ=80 is retrieve→stop on both runs, and the two `act02` files match on 300/300. λ=20 last spends 4.85e-4 to copy the first retrieve (top-5 unchanged on 279/279 questions that retrieve again) and lands on the retrieve→stop answers. Do not move the paper headline from behaviour to accuracy. The three-seed plan is still open; `v4` is a second seed-42 draw, not seeds 43 and 44.
+20. **λ=20 seeds 42, 43, and 44 (2026-10-20) select the same recipe, and the score branch appears in 0 of 3.** After the nominal-latency price card, each seed is a fresh 20-epoch train. Selected epochs are 17 / 14 / 11, all at greedy reward 0.60396. The exam is `rewrite, rewrite, retrieve, stop` on 300/300. EM 0.333 (100/300, Hotpot 52 / NQ 48), $ 2.02e-4. Predictions and retrieved ids match across the three files on 300/300. Against this index's one-shot (100/300, Hotpot 60 / NQ 40, $ 1.72e-4) the comparison is +22 / −22 (Hotpot +5 / −13, NQ +17 / −9), same prediction on 179/300, union 122/300. The second action is rewrite on 300/300 at mean score 0, because the first action is rewrite before any retrieval. Retrieve is never that second action, so none of the three seeds meet the branch rule (both actions at least 15 times, and one threshold matching at least 250). Training curves still differ: epoch-1 train EM is 0.368 / 0.346 / 0.374. The selected controller does not. Measured latency differs (3061 / 3000 / 2956 ms) and the exam reward does not, because the reward uses the nominal table. Sources: `learned_frontier_lambda20_v4s{42,43,44}.json` and `train_policy_curve_frontier_v4_lambda20_s{42,43,44}.json`.
 
 ---
 
@@ -554,6 +737,10 @@ Then update numbers in this file and in `EXPERIMENT_LOG.md` from:
 - `results/metrics/learned_frontier_act*.json` / `frontier_sweep_table.json` / `train_policy_curve_frontier_act*.json` (2026-09-13 failed λ=80 family)
 - `results/metrics/learned_frontier_lambda0.json` / `_lambda20.json` / `_act02.json` and matching 40-epoch curves (2026-09-23/24)
 - `results/metrics/frontier_sweep_table.json` and `results/figs/frontier_em_usd.png` (regenerated 2026-09-24)
+- `results/metrics/learned_frontier_lambda0_v3.json` / `_v3last.json`, `_lambda20_v3.json` / `_v3last.json`, `_act02_v3.json` / `_v3last.json` (2026-09-28)
+- `results/metrics/train_policy_curve_frontier_v3_lambda0.json` / `_lambda20.json` / `_act02.json`
+- `results/metrics/learned_frontier_lambda0_v4.json` / `_v4last.json`, `_lambda20_v4.json` / `_v4last.json`, `_act02_v4.json` / `_v4last.json` (2026-10-05)
+- `results/metrics/train_policy_curve_frontier_v4_lambda0.json` / `_lambda20.json` / `_act02.json`
 - `results/metrics/reward_ablation_table.json` and `reward_ablation_by_dataset.json`
 - `results/metrics/train_policy_curve.json` (`"split": "train"`, n=100)
 - `data/processed/slice_meta.json` (`nq_corpus`, `n_nq_anchor`, `retrieval_diag`)

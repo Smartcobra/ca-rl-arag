@@ -1,0 +1,39 @@
+{
+  "corpus_sha1": "18e880b50e026859f7bfc51476ba4052a48ae5b7",
+  "n_passages": 83120,
+  "files": {
+    "one_shot": "results/trajectories/baseline_default_v4.jsonl",
+    "fixed_recipe": "results/trajectories/fixed_recipe_default_v4.jsonl",
+    "max_tools": "results/trajectories/max_tools_default_v4.jsonl"
+  },
+  "note": "The second pool is the frozen six-step recipe, not a trained lambda0 checkpoint.",
+  "ceilings": [
+    {
+      "name": "naive_hotpot_lambda0_nq",
+      "label": "100",
+      "n_correct": 100,
+      "n_examples": 300,
+      "mean_em": 0.3333333333333333,
+      "mean_total_usd": 0.0003286585000000002,
+      "kind": "ceiling"
+    },
+    {
+      "name": "best_of_naive_or_lambda0",
+      "label": "100",
+      "n_correct": 100,
+      "n_examples": 300,
+      "mean_em": 0.3333333333333333,
+      "mean_total_usd": 0.00017163850000000003,
+      "kind": "ceiling"
+    },
+    {
+      "name": "best_of_naive_lambda0_max_tools",
+      "label": "107",
+      "n_correct": 107,
+      "n_examples": 300,
+      "mean_em": 0.3566666666666667,
+      "mean_total_usd": 0.0001850173333333334,
+      "kind": "ceiling"
+    }
+  ]
+}

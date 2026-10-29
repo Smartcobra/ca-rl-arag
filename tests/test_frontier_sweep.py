@@ -110,13 +110,39 @@ def test_behavior_counts_one_recipe_and_stop_after_contradiction() -> None:
     assert points[2]["n_correct"] == 3
 
 
-def test_best_artifact_suffix_does_not_rename_other_policies() -> None:
+def test_artifact_suffix_forks_every_policy() -> None:
+    """A suffix is how one index is kept off another. It applies to all policies."""
     sys.path.insert(0, str(ROOT / "scripts"))
     from run_pilot import _artifact_stem
 
     assert _artifact_stem("learned", "frontier_lambda0", "best") == "learned_frontier_lambda0_best"
     assert _artifact_stem("learned", "frontier_lambda0", None) == "learned_frontier_lambda0"
-    assert _artifact_stem("rule_based", "default", "best") == "rule_based_default"
+    # Frozen baselines re-run on a rebuilt corpus must not overwrite the old index.
+    assert _artifact_stem("rule_based", "default", "v3") == "rule_based_default_v3"
+    assert _artifact_stem("max_tools", "default", "v3") == "max_tools_default_v3"
+    assert _artifact_stem("baseline", "default", "v3") == "baseline_default_v3"
+    assert _artifact_stem("rule_based", "default", None) == "rule_based_default"
+    assert _artifact_stem("max_tools", "default", None) == "max_tools_default"
+
+
+def test_frontier_tag_refuses_to_mix_indexes() -> None:
+    """A tagged frontier must not fall back to the untagged (other index) files."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from plot_results import _tagged, collect_frontier_table
+
+    assert _tagged("max_tools_default.json", "v3") == "max_tools_default_v3.json"
+    assert _tagged("learned_frontier_lambda0.jsonl", "v3") == "learned_frontier_lambda0_v3.jsonl"
+    assert _tagged("baseline_default.json", None) == "baseline_default.json"
+
+    metrics_dir = ROOT / "results" / "metrics"
+    if not (metrics_dir / "max_tools_default.json").exists():
+        return
+    try:
+        collect_frontier_table(metrics_dir, "nosuchtag")
+    except SystemExit as exc:
+        assert "nosuchtag" in str(exc)
+        return
+    raise AssertionError("expected SystemExit when tagged frozen anchors are missing")
 
 
 def test_episode_stats_helper() -> None:
@@ -139,7 +165,8 @@ def main() -> None:
     test_plot_results_matches_yaml()
     test_default_epochs_are_not_five()
     test_behavior_counts_one_recipe_and_stop_after_contradiction()
-    test_best_artifact_suffix_does_not_rename_other_policies()
+    test_artifact_suffix_forks_every_policy()
+    test_frontier_tag_refuses_to_mix_indexes()
     test_episode_stats_helper()
     print("FRONTIER SWEEP OK")
 

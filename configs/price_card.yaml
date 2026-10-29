@@ -30,7 +30,26 @@ verify:
 
 latency:
   # Soft cost: μ * (latency_ms / 1000) * latency_unit_usd
+  # The reward and the latency budget use the nominal table below.
+  # Logged total_latency_ms stays the measured wall clock.
   latency_unit_usd_per_sec: 0.001
+  # Per-call milliseconds from a non-negative least-squares fit to
+  # total_latency_ms on the 2,100 v4 exam trajectories.
+  # Generate is that fit's 957.89 ms at 2 completion tokens:
+  # 853.9484 + 2 * 51.9733. The 51.9733 ms/token slope is the one-shot
+  # median latency increase from a 1-word answer (1070.80 ms, n=135)
+  # to a 2-word answer (1122.78 ms, n=110).
+  # Verify's own increment is not separable from the draft generate in
+  # those files, so the verifier call itself is 0. The draft is priced
+  # as a generate.
+  nominal_ms_per_call:
+    retrieve: 212.3982
+    rewrite: 999.2325
+    rerank: 143.1998
+    verify: 0.0
+    generate: 853.9484
+  nominal_ms_per_completion_token:
+    generate: 51.9733
 
 actions:
   # Fallback flat prices if detailed metering unavailable

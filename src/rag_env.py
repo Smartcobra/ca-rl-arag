@@ -8,6 +8,8 @@ Reward: trajectory reward assigned at episode end (sparse); optional step shapin
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, Optional, SupportsFloat
 
 import gymnasium as gym
@@ -24,18 +26,79 @@ IDX_TO_ACTION = {i: a for a, i in ACTION_TO_IDX.items()}
 
 # Layout is append-only. legal_mask reads indices 1, 2, 6–9. New features go at the end.
 # No dataset id: that would let the policy copy a Hotpot/NQ switch without reading the situation.
-OBS_DIM = 15
+# 16 = the old 15, plus the minimum of the top-5 scores.
+OBS_DIM = 16
+
+# z-scored BM25 channels. The variance test checks every one of these.
+SCORE_FEATURE_INDEX = {
+    "mean_score": 0,
+    "top1_bm25": 10,
+    "top1_top2_gap": 11,
+    "top5_min": 15,
+}
+SCORE_CLIP = 3.0
+SCORE_NORM_PATH = Path(__file__).resolve().parents[1] / "data" / "processed" / "bm25_score_norm.json"
+_SCORE_NORM_KEYS = ("mean", "top1", "gap", "top5_min")
 
 
-def _bm25_top_features(obs: dict[str, Any]) -> tuple[float, float]:
+def _load_score_norm(path: Path = SCORE_NORM_PATH) -> dict[str, dict[str, float]]:
+    """Mean and population std of the first BM25 top-5 on train_slice.jsonl."""
+    if not path.exists():
+        raise FileNotFoundError(
+            f"missing {path}. The observation standardizes BM25 with the training-slice "
+            "mean and std; those constants live in that file. Frozen policies "
+            "(naive_rag / rule_based / max_tools) do not need it."
+        )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    features = payload["features"]
+    out: dict[str, dict[str, float]] = {}
+    for name in _SCORE_NORM_KEYS:
+        mean = float(features[name]["mean"])
+        std = float(features[name]["std"])
+        if std <= 0.0:
+            raise ValueError(f"{path} has non-positive std for {name}")
+        out[name] = {"mean": mean, "std": std}
+    return out
+
+
+# Loaded on first use, not at import: a frozen-baseline pilot never builds the
+# vector, so a missing constants file must not stop it.
+_SCORE_NORM: dict[str, dict[str, float]] | None = None
+
+
+def score_norm() -> dict[str, dict[str, float]]:
+    global _SCORE_NORM
+    if _SCORE_NORM is None:
+        _SCORE_NORM = _load_score_norm()
+    return _SCORE_NORM
+
+
+def standardize_score(value: float, feature: str) -> float:
+    """(x - train_mean) / train_std, clipped to [-3, 3].
+
+    ``feature`` is one of mean, top1, gap, top5_min. The constants are the
+    100-question training slice, not the 300 eval questions.
+    """
+    stats = score_norm()[feature]
+    z = (float(value) - stats["mean"]) / stats["std"]
+    return float(np.clip(z, -SCORE_CLIP, SCORE_CLIP))
+
+
+def _bm25_top_features(obs: dict[str, Any]) -> tuple[float, float, float]:
+    """Standardized top-1, top-1−top-2 gap, and minimum of the top-5.
+
+    An empty list stays 0. A single score has no gap, so that channel stays 0
+    instead of looking like a real tie (a real gap of 0 is standardized).
+    """
     scores = [float(s) for s in (obs.get("top_scores") or [])]
     if not scores:
-        return 0.0, 0.0
-    top1_norm = float(np.tanh(scores[0] / 5.0))
+        return 0.0, 0.0, 0.0
+    top1_norm = standardize_score(scores[0], "top1")
+    top5_min = standardize_score(min(scores[:5]), "top5_min")
     if len(scores) < 2:
-        return top1_norm, 0.0
+        return top1_norm, 0.0, top5_min
     gap = max(scores[0] - scores[1], 0.0)
-    return top1_norm, float(np.tanh(gap / 5.0))
+    return top1_norm, standardize_score(gap, "gap"), top5_min
 
 
 def _verify_one_hot(verify: dict[str, Any] | None) -> tuple[float, float, float]:
@@ -51,23 +114,33 @@ def _verify_one_hot(verify: dict[str, Any] | None) -> tuple[float, float, float]
 
 
 def vectorize_structured_obs(obs: dict[str, Any], cfg: dict[str, Any]) -> np.ndarray:
-    """15-d vector used by the env and the learned policy head.
+    """16-d vector used by the env and the learned policy head.
 
-    The first 10 dims are the original snapshot. Appended: tanh(top-1 BM25),
-    tanh(top-1 − top-2), then a verify one-hot (support, contradiction, neutral).
+    Score channels (mean, top-1, top-1−top-2 gap, top-5 minimum) are
+    standardized with the training-slice mean and standard deviation and
+    clipped to [-3, 3]. Before any retrieval those channels stay 0.
+
+    The first 10 dims are the original snapshot, with the mean score on the
+    new scale. Then top-1, the gap, a verify one-hot (support, contradiction,
+    neutral), and the top-5 minimum.
     """
     max_steps = float(cfg.get("agent", {}).get("max_steps", 6))
     max_usd = float(cfg.get("budget", {}).get("max_usd", 0.05)) or 0.05
     verify = obs.get("verification") or {}
     mean_score = float(obs.get("mean_score") or 0.0)
-    mean_norm = float(np.tanh(mean_score / 5.0))
+    n_evidence = float(obs.get("n_evidence") or 0)
+    # No passages yet: leave the channel at 0. Do not z-score a missing score.
+    if n_evidence <= 0.0 and mean_score == 0.0:
+        mean_norm = 0.0
+    else:
+        mean_norm = standardize_score(mean_score, "mean")
     counts = obs.get("counts") or {}
-    top1_norm, gap_norm = _bm25_top_features(obs)
+    top1_norm, gap_norm, top5_min_norm = _bm25_top_features(obs)
     oh_support, oh_contra, oh_neutral = _verify_one_hot(verify if obs.get("verification") else None)
     vec = np.array(
         [
             mean_norm,
-            min(float(obs.get("n_evidence") or 0) / 10.0, 1.0),
+            min(n_evidence / 10.0, 1.0),
             max(float(obs.get("remaining_steps") or 0) / max_steps, 0.0),
             min(max(float(obs.get("remaining_usd") or 0) / max_usd, 0.0), 1.0),
             float(verify.get("support") or 0.0),
@@ -81,6 +154,7 @@ def vectorize_structured_obs(obs: dict[str, Any], cfg: dict[str, Any]) -> np.nda
             oh_support,
             oh_contra,
             oh_neutral,
+            top5_min_norm,
         ],
         dtype=np.float32,
     )
@@ -109,10 +183,14 @@ class AgenticRAGEnv(gym.Env):
         self.reward_computer = self.agent.reward_computer
         self.action_space = spaces.Discrete(len(ACTIONS))
         # Compact vector observation for bandit/RL heads (Milestone 3+)
-        # First 10: mean_score, n_evidence/10, remaining_steps/max, remaining_usd/max_usd,
-        # verify_support, verify_contra, retrieve/3, rewrite/2, rerank/2, verify/2.
-        # Then top-1 BM25, top-1−top-2 gap, and verify one-hot (support, contradiction, neutral).
-        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(OBS_DIM,), dtype=np.float32)
+        # First 10: standardized mean_score, n_evidence/10, remaining_steps/max,
+        # remaining_usd/max_usd, verify_support, verify_contra, retrieve/3,
+        # rewrite/2, rerank/2, verify/2.
+        # Then standardized top-1, standardized gap, verify one-hot, standardized top-5 min.
+        # Score channels use [-3, 3]. The other channels sit inside [0, 1].
+        self.observation_space = spaces.Box(
+            low=-SCORE_CLIP, high=SCORE_CLIP, shape=(OBS_DIM,), dtype=np.float32
+        )
 
         self._rng = np.random.default_rng(seed)
         self._example: dict[str, Any] | None = None

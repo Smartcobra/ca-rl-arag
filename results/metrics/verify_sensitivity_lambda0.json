@@ -1,0 +1,73 @@
+{
+  "checkpoint": "learned_policy_frontier_lambda0.pt",
+  "epoch": 40,
+  "actions": [
+    "retrieve",
+    "rewrite",
+    "rerank",
+    "verify",
+    "stop"
+  ],
+  "observation_before": {
+    "n_evidence": 5,
+    "mean_score": 25.362472333586105,
+    "remaining_usd": 0.04981565,
+    "remaining_steps": 4,
+    "counts": {
+      "retrieve": 1,
+      "rewrite": 2,
+      "rerank": 0,
+      "verify": 1
+    }
+  },
+  "raw": {
+    "support": {
+      "retrieve": 0.1058,
+      "rewrite": 0.2799,
+      "rerank": 0.032,
+      "verify": 0.3738,
+      "stop": 0.2085
+    },
+    "contradiction": {
+      "retrieve": 0.0989,
+      "rewrite": 0.2739,
+      "rerank": 0.0357,
+      "verify": 0.3792,
+      "stop": 0.2123
+    },
+    "max_abs_diff": 0.0068,
+    "same_to_two_decimals": false,
+    "argmax_support": "verify",
+    "argmax_contradiction": "verify"
+  },
+  "masked": {
+    "support": {
+      "retrieve": 0.1469,
+      "rewrite": 0.0,
+      "rerank": 0.0444,
+      "verify": 0.5192,
+      "stop": 0.2896
+    },
+    "contradiction": {
+      "retrieve": 0.1362,
+      "rewrite": 0.0,
+      "rerank": 0.0492,
+      "verify": 0.5223,
+      "stop": 0.2923
+    },
+    "max_abs_diff": 0.0106,
+    "same_to_two_decimals": false,
+    "argmax_support": "verify",
+    "argmax_contradiction": "verify"
+  },
+  "provenance": {
+    "script": "scripts/verify_softmax_probe.py",
+    "trajectories": "learned_frontier_lambda0.jsonl",
+    "question_id": "hotpot_eval_5a8b57f25542995d1e6f1371",
+    "step_index": 4,
+    "selection": "first decision whose observation has counts.verify >= 1",
+    "obs_dim": 10,
+    "vectorizer": "src/rag_env.py at commit 23dc131 (pre-15-d), replayed in this script",
+    "note": "v2-family checkpoint. The live observation is 16-d with z-scored BM25 channels, so this number cannot be regenerated through src.rag_env."
+  }
+}

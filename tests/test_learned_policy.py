@@ -26,7 +26,7 @@ from src.policies.learned import (
     learned_checkpoint_path,
     parameter_count,
 )
-from src.rag_env import ACTION_TO_IDX, vectorize_structured_obs
+from src.rag_env import ACTION_TO_IDX, standardize_score, vectorize_structured_obs
 
 _AGENT = {
     "max_steps": 8,
@@ -47,11 +47,11 @@ def _empty_evidence_obs(*, remaining_frac: float = 1.0) -> np.ndarray:
 def test_mlp_shape_and_size() -> None:
     mlp = PolicyMLP(16)
     n = parameter_count(mlp)
-    assert OBS_DIM == 15
-    assert n == 341
+    assert OBS_DIM == 16
+    assert n == 357
     assert n <= MAX_PARAM_COUNT
     wide = parameter_count(PolicyMLP(32))
-    assert wide == 677
+    assert wide == 709
     assert wide <= MAX_PARAM_COUNT
     out = mlp(torch.randn(4, OBS_DIM))
     assert tuple(out.shape) == (4, len(ACTIONS))
@@ -79,6 +79,28 @@ def test_legal_mask_last_step() -> None:
     mask = legal_mask(_empty_evidence_obs(remaining_frac=1.0 / 8.0), _CFG)
     assert mask[ACTION_TO_IDX["stop"]]
     assert mask.sum() == 1
+
+
+def test_same_seed_same_weights_despite_global_rng() -> None:
+    torch.manual_seed(1)
+    first = LearnedPolicy(hidden=16, seed=42)
+    torch.manual_seed(99)
+    second = LearnedPolicy(hidden=16, seed=42)
+    for left, right in zip(first.parameters(), second.parameters()):
+        assert torch.equal(left, right)
+
+
+def test_sample_uses_private_generator() -> None:
+    pol = LearnedPolicy(hidden=16, seed=0)
+    obs = _empty_evidence_obs()
+    pol.reseed_sampler(123)
+    actions_a = [pol.act(obs, cfg=_CFG)[0] for _ in range(8)]
+    pol.reseed_sampler(123)
+    torch.manual_seed(7)
+    expected = torch.random.get_rng_state().clone()
+    actions_b = [pol.act(obs, cfg=_CFG)[0] for _ in range(8)]
+    assert actions_a == actions_b
+    assert torch.equal(torch.random.get_rng_state(), expected)
 
 
 def test_act_deterministic_is_argmax() -> None:
@@ -138,19 +160,25 @@ def test_verify_features_and_no_dataset_id() -> None:
     before = vectorize_structured_obs({**base, "verification": None, "top_scores": []}, cfg)
     assert tuple(support.shape) == (OBS_DIM,)
     assert np.allclose(support[:12], contra[:12])
-    assert list(support[-3:]) == [1.0, 0.0, 0.0]
-    assert list(contra[-3:]) == [0.0, 1.0, 0.0]
-    assert list(neutral[-3:]) == [0.0, 0.0, 1.0]
-    assert list(before[-3:]) == [0.0, 0.0, 0.0]
-    assert before[10] == 0.0 and before[11] == 0.0
-    assert support[10] == np.float32(np.tanh(4.0))
-    assert support[11] == np.float32(np.tanh(3.0))
+    assert np.isclose(support[15], contra[15])
+    assert list(support[12:15]) == [1.0, 0.0, 0.0]
+    assert list(contra[12:15]) == [0.0, 1.0, 0.0]
+    assert list(neutral[12:15]) == [0.0, 0.0, 1.0]
+    assert list(before[12:15]) == [0.0, 0.0, 0.0]
+    assert before[10] == 0.0 and before[11] == 0.0 and before[15] == 0.0
+    assert np.isclose(support[0], np.float32(standardize_score(10.0, "mean")))
+    assert np.isclose(support[10], np.float32(standardize_score(20.0, "top1")))
+    assert np.isclose(support[11], np.float32(standardize_score(15.0, "gap")))
+    assert np.isclose(support[15], np.float32(standardize_score(5.0, "top5_min")))
+    assert abs(float(support[10]) - float(support[11])) > 0.05
     tagged = dict(base)
     tagged["dataset"] = "hotpot_qa"
     assert np.allclose(support, vectorize_structured_obs(tagged, cfg))
     one = vectorize_structured_obs({**base, "top_scores": [8.0]}, cfg)
     assert one[11] == 0.0
-    assert one[10] == np.float32(np.tanh(8.0 / 5.0))
+    assert np.isclose(one[10], np.float32(standardize_score(8.0, "top1")))
+    assert np.isclose(one[15], np.float32(standardize_score(8.0, "top5_min")))
+    assert abs(float(one[10]) - float(support[10])) > 0.05
 
 
 def test_assert_train_only_path() -> None:
@@ -221,6 +249,8 @@ def main() -> None:
     test_legal_mask_empty_evidence()
     test_legal_mask_last_step()
     test_act_respects_mask()
+    test_same_seed_same_weights_despite_global_rng()
+    test_sample_uses_private_generator()
     test_act_deterministic_is_argmax()
     test_reinforce_step_finite()
     test_verify_features_and_no_dataset_id()

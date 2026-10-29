@@ -13,6 +13,54 @@ from typing import Any, Iterable, Iterator
 import numpy as np
 
 
+def configure_deterministic_kernels() -> None:
+    """Pin the CUDA kernels used by temperature-0 fp16 decode.
+
+    Call before the first CUDA op. ``use_deterministic_algorithms(..., warn_only=True)``
+    only prints a warning; flash and memory-efficient attention still change a token.
+    """
+    import os
+
+    # cuBLAS otherwise picks a workspace whose fp16 reduction order changes
+    # between processes. Must be set before the first CUDA call.
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    try:
+        import torch
+    except ImportError:
+        return
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    matmul = getattr(torch.backends.cuda, "matmul", None)
+    if matmul is not None:
+        matmul.allow_tf32 = False
+        if hasattr(matmul, "allow_fp16_reduced_precision_reduction"):
+            matmul.allow_fp16_reduced_precision_reduction = False
+        if hasattr(matmul, "allow_bf16_reduced_precision_reduction"):
+            matmul.allow_bf16_reduced_precision_reduction = False
+    if hasattr(torch.backends.cudnn, "allow_tf32"):
+        torch.backends.cudnn.allow_tf32 = False
+    cuda = torch.backends.cuda
+    if hasattr(cuda, "enable_flash_sdp"):
+        cuda.enable_flash_sdp(False)
+        cuda.enable_mem_efficient_sdp(False)
+        cuda.enable_math_sdp(True)
+
+
+def math_sdp_context():
+    """Force the math attention kernel for one ``generate`` call."""
+    import contextlib
+
+    try:
+        from torch.nn.attention import SDPBackend, sdpa_kernel
+
+        try:
+            return sdpa_kernel([SDPBackend.MATH])
+        except TypeError:
+            return sdpa_kernel(SDPBackend.MATH)
+    except Exception:
+        return contextlib.nullcontext()
+
+
 def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -24,6 +72,7 @@ def set_seed(seed: int) -> None:
             torch.cuda.manual_seed_all(seed)
     except ImportError:
         pass
+    configure_deterministic_kernels()
 
 
 def normalize_answer(s: str) -> str:

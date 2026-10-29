@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from ..metrics import counts_by_dataset
@@ -11,6 +12,17 @@ from .wiki_passages import (
     distinct_single_hop_gold_articles,
     min_distinct_gold_articles,
 )
+
+
+def corpus_fingerprint(corpus: list[dict[str, Any]]) -> dict[str, Any]:
+    """Identify the index a run scored against.
+
+    Merging new gold passages changes BM25 for every question, so two runs are
+    only comparable when this matches. Order-independent: the ids are sorted.
+    """
+    ids = sorted(str(p.get("passage_id") or "") for p in corpus)
+    digest = hashlib.sha1("\n".join(ids).encode("utf-8")).hexdigest()
+    return {"n_passages": len(corpus), "sha1": digest}
 
 
 def ranking_data_errors(

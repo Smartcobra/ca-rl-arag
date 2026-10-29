@@ -1,0 +1,31 @@
+{
+  "source": "data/processed/train_slice.jsonl",
+  "n_questions": 100,
+  "n_by_dataset": {
+    "hotpot_qa": 60,
+    "natural_questions": 40
+  },
+  "corpus_passages": 80000,
+  "top_k": 5,
+  "clip": 3.0,
+  "std": "population (numpy default, ddof=0)",
+  "note": "First BM25 retrieve on each training question. Not the 300 eval questions, and not the 500-question v3 train prefix (that file is not in this checkout).",
+  "features": {
+    "mean": {
+      "mean": 50.95469143111291,
+      "std": 26.84976135534215
+    },
+    "top1": {
+      "mean": 61.471649709710185,
+      "std": 38.59407984705582
+    },
+    "gap": {
+      "mean": 9.538057811070544,
+      "std": 15.131280065945205
+    },
+    "top5_min": {
+      "mean": 46.03727898877013,
+      "std": 23.055316126517408
+    }
+  }
+}

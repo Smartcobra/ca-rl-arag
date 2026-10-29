@@ -1,6 +1,6 @@
 """Tiny MLP action head for Milestone-3 REINFORCE (train-only).
 
-Input is the 15-d vector from ``AgenticRAGEnv._vector_obs``. Output is 5
+Input is the 16-d vector from ``AgenticRAGEnv._vector_obs``. Output is 5
 logits in ``ACTIONS`` order. Hidden width is capped: the train slice is
 too small for a wide net.
 """
@@ -20,13 +20,14 @@ from ..rag_env import IDX_TO_ACTION, OBS_DIM, vectorize_structured_obs
 
 N_ACTIONS = len(ACTIONS)
 MAX_HIDDEN = 32
-# 15→16→5 = 341. 15→32→5 = 677. Tests refuse anything larger.
-MAX_PARAM_COUNT = 700
+# 16→16→5 = 357. 16→32→5 = 709. Tests refuse anything larger.
+MAX_PARAM_COUNT = 720
 
 # Vector layout must match AgenticRAGEnv._vector_obs. Append-only:
 # [mean_score, n_evidence/10, remaining_steps/max, remaining_usd/max_usd,
 #  verify_support, verify_contra, retrieve/3, rewrite/2, rerank/2, verify/2,
-#  top1_bm25, top1_top2_gap, verify_one_hot × 3]
+#  top1_bm25, top1_top2_gap, verify_one_hot × 3, top5_min]
+# Score channels are train-slice z-scores clipped to [-3, 3], not tanh(score/5).
 _IDX_N_EVIDENCE = 1
 _IDX_REMAINING_STEPS = 2
 _IDX_RETRIEVE = 6
@@ -103,7 +104,7 @@ def legal_mask(obs_vec: np.ndarray, cfg: dict[str, Any] | None = None) -> np.nda
 
 
 class PolicyMLP(nn.Module):
-    """15 → hidden → 5. Default hidden=16 is 341 parameters."""
+    """16 → hidden → 5. Default hidden=16 is 357 parameters."""
 
     def __init__(self, hidden: int = 16):
         super().__init__()
@@ -130,10 +131,20 @@ class LearnedPolicy:
         self.hidden = int(hidden)
         self.seed = int(seed)
         self.device = torch.device(device)
-        g = torch.Generator(device="cpu")
-        g.manual_seed(self.seed)
-        self.mlp = PolicyMLP(self.hidden).to(self.device)
+        # Private CPU stream. Categorical.sample() uses the global RNG, so one
+        # extra torch draw anywhere in the episode shifts every later action.
+        self._rng = torch.Generator(device="cpu")
+        self._rng.manual_seed(self.seed)
+        # Weight init must depend on this seed, not on how many draws Qwen's
+        # load took from the global RNG before the policy was built.
+        with torch.random.fork_rng(devices=[]):
+            torch.manual_seed(self.seed)
+            self.mlp = PolicyMLP(self.hidden).to(self.device)
         self.mlp.train()
+
+    def reseed_sampler(self, seed: int) -> None:
+        """Restart the action stream. Called once per training question."""
+        self._rng.manual_seed(int(seed) & 0x7FFFFFFF)
 
     def parameters(self):
         return self.mlp.parameters()
@@ -157,7 +168,8 @@ class LearnedPolicy:
         if deterministic:
             action = dist.probs.argmax(dim=-1)
         else:
-            action = dist.sample()
+            # Same distribution as Categorical.sample(), on self._rng only.
+            action = torch.multinomial(dist.probs, num_samples=1, generator=self._rng).squeeze(-1)
         log_prob = dist.log_prob(action).squeeze()
         entropy = dist.entropy().squeeze()
         return int(action.item()), log_prob, entropy
@@ -197,7 +209,7 @@ class LearnedPolicy:
         if saved_dim is not None and int(saved_dim) != OBS_DIM:
             raise ValueError(
                 f"{path} was trained with obs_dim={saved_dim}; this code expects {OBS_DIM}. "
-                "v2 checkpoints stay on disk. Train a v3 checkpoint."
+                "The 10-d and 15-d checkpoints stay on disk. Train a new checkpoint."
             )
         pol = cls(hidden=int(payload["hidden"]), seed=int(payload.get("seed") or 0), device=device)
         try:
@@ -205,7 +217,7 @@ class LearnedPolicy:
         except RuntimeError as exc:
             raise ValueError(
                 f"{path} does not match OBS_DIM={OBS_DIM}. "
-                "A 10-d v2 checkpoint cannot load into the 15-d head."
+                "A 10-d or 15-d checkpoint cannot load into this head."
             ) from exc
         return pol
 

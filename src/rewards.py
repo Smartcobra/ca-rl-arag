@@ -72,7 +72,11 @@ def claim_support_score(answer: str, evidence: list[dict[str, Any]], verify_out:
     return len(a_toks & e_toks) / len(a_toks)
 
 
-WEAK_MEAN_SCORE = 3.0  # same cutoff the rule policy treats as "not enough to stop"
+# Same cutoff the rule policy treats as "not enough to stop".
+# On this corpus it does not fire: raw top-5 means stay above ~20, and even
+# post-rerank means stay above ~7. Empty evidence and a contradiction label
+# still justify abstain. See IMPLEMENTATION_DECISIONS, 2026-10-01.
+WEAK_MEAN_SCORE = 3.0
 
 
 def _mean_retrieval_score(evidence: list[dict[str, Any]]) -> float:
@@ -160,7 +164,13 @@ class RewardComputer:
 
         mu = float(self.w.get("mu_latency", 0.5))
         unit = float(self.price_card.get("latency", {}).get("latency_unit_usd_per_sec", 0.001))
-        c_lat = mu * (float(cost_summary.get("total_latency_ms", 0.0)) / 1000.0) * unit
+        # Nominal table when the tracker priced this episode. Older summaries
+        # only have the measured clock, and those stay on total_latency_ms.
+        if "nominal_latency_ms" in cost_summary:
+            latency_ms = float(cost_summary.get("nominal_latency_ms") or 0.0)
+        else:
+            latency_ms = float(cost_summary.get("total_latency_ms", 0.0))
+        c_lat = mu * (latency_ms / 1000.0) * unit
 
         # Hallucination penalty
         unsupported = max(0.0, 1.0 - claim_ground) if not abstained else 0.0
