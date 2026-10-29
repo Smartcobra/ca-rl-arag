@@ -32,6 +32,8 @@ SOFT = {
     "recipe": "#9C6644",
     "switch": "#B0B6BC",
     "oracle": "#1F4E79",
+    "adaptive": "#6F2C91",
+    "oracle2": "#C47B2B",
 }
 
 
@@ -140,11 +142,25 @@ def frontier() -> None:
         correct += int(float(pick["em"]) >= 1)
         cost += float(pick["total_usd"])
     oracle = (cost / 300 * 1e4, correct / 300)
+    # Oracle of one-shot and the learned recipe only. Adaptive-RAG is the
+    # question-only router already logged in adaptive_rag_v4.json.
+    pair_correct = 0
+    pair_cost = 0.0
+    learned_rows = load_jsonl(TRAJ / "learned_frontier_lambda20_v4s42.jsonl")
+    for example_id in ids:
+        cands = [one[example_id], learned_rows[example_id]]
+        good = [row for row in cands if float(row["em"]) >= 1]
+        pick = min(good or cands, key=lambda row: float(row["total_usd"]))
+        pair_correct += int(float(pick["em"]) >= 1)
+        pair_cost += float(pick["total_usd"])
+    oracle_pair = (pair_cost / 300 * 1e4, pair_correct / 300)
+    adaptive = summary("adaptive_rag_v4.json")
 
-    fig, ax = plt.subplots(figsize=(7.2, 3.6))
+    fig, ax = plt.subplots(figsize=(7.2, 3.8))
     series = [
         (one_shot, "s", SOFT["one"], "One-shot"),
         (learned, "o", SOFT["learned"], r"Learned $\lambda=20$, three seeds"),
+        (adaptive, "*", SOFT["adaptive"], "Adaptive-RAG"),
         (switch, "o", SOFT["switch"], "Dataset switch, 100"),
         (recipe, "D", SOFT["recipe"], "Six-step recipe"),
         (rule, "s", SOFT["rule"], "Rule"),
@@ -164,6 +180,17 @@ def frontier() -> None:
             label=label,
         )
     ax.scatter(
+        [oracle_pair[0]],
+        [oracle_pair[1]],
+        s=120,
+        marker="D",
+        facecolors="none",
+        edgecolors=SOFT["oracle2"],
+        linewidths=1.8,
+        zorder=4,
+        label=f"Oracle of two, {pair_correct}",
+    )
+    ax.scatter(
         [oracle[0]],
         [oracle[1]],
         s=140,
@@ -172,8 +199,9 @@ def frontier() -> None:
         edgecolors=SOFT["oracle"],
         linewidths=1.8,
         zorder=4,
-        label=f"Oracle, {correct}",
+        label=f"Oracle with max tools, {correct}",
     )
+    ax.annotate(str(pair_correct), oracle_pair, textcoords="offset points", xytext=(8, -2), fontsize=9, color=SOFT["ink"])
     ax.annotate(str(correct), oracle, textcoords="offset points", xytext=(8, -2), fontsize=9, color=SOFT["ink"])
     ax.set_xlim(1.2, 8.6)
     ax.set_ylim(0.30, 0.46)
@@ -184,16 +212,60 @@ def frontier() -> None:
         ax.spines[spine].set_visible(False)
     ax.spines["left"].set_color("#DDDDDD")
     ax.spines["bottom"].set_color("#DDDDDD")
-    ax.legend(frameon=False, fontsize=8, loc="center right")
+    ax.legend(
+        frameon=False,
+        fontsize=8,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.02),
+        ncol=3,
+        borderaxespad=0.2,
+    )
     fig.tight_layout()
-    fig.savefig(OUT / "frontier.png", dpi=200)
-    print("oracle", correct, round(oracle[0], 2))
+    fig.savefig(OUT / "frontier.png", dpi=200, bbox_inches="tight")
+    print("oracle", correct, round(oracle[0], 2), "pair", pair_correct, round(oracle_pair[0], 2))
+
+
+def curves() -> None:
+    """Greedy validation reward for the three λ=20 seeds."""
+    fig, ax = plt.subplots(figsize=(7.2, 3.2))
+    colors = {42: SOFT["one"], 43: SOFT["learned"], 44: SOFT["recipe"]}
+    for seed in (42, 43, 44):
+        blob = json.loads(
+            (ROOT / "results" / "metrics" / f"train_policy_curve_frontier_v4_lambda20_s{seed}.json").read_text()
+        )
+        epochs = [int(row["epoch"]) for row in blob]
+        reward = [float(row["eval_reward"]) for row in blob]
+        ax.plot(epochs, reward, color=colors[seed], linewidth=1.6, label=f"Seed {seed}")
+        best = max(reward)
+        chosen = epochs[reward.index(best)]
+        ax.scatter([chosen], [best], s=40, color=colors[seed], zorder=3)
+        print(f"seed {seed} selected epoch {chosen} eval_reward {best:.5f}")
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Greedy reward on the 180")
+    ax.set_xticks(range(1, 21, 2))
+    ax.tick_params(colors=SOFT["ink"])
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["left"].set_color("#DDDDDD")
+    ax.spines["bottom"].set_color("#DDDDDD")
+    ax.legend(
+        frameon=False,
+        fontsize=8,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.02),
+        ncol=3,
+        borderaxespad=0.2,
+    )
+    fig.tight_layout()
+    fig.savefig(OUT / "train_curves.png", dpi=200, bbox_inches="tight")
+    print("curves")
 
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     repairs()
     frontier()
+    curves()
 
 
 if __name__ == "__main__":

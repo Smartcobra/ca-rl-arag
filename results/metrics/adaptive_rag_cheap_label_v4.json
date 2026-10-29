@@ -1,0 +1,33 @@
+{
+  "summary": {
+    "n_correct": 100,
+    "n": 300,
+    "hotpot_correct": 60,
+    "hotpot_n": 150,
+    "nq_correct": 40,
+    "nq_n": 150,
+    "mean_total_usd": 0.0001716385,
+    "n_routed": {"oneshot": 300, "rewrite_first": 0},
+    "repairs": {"n": 22, "kept": 0},
+    "breaks": {"n": 22, "avoided": 22}
+  },
+  "meta": {
+    "policy": "adaptive_rag_cheap_label",
+    "label": "one-shot if it is correct or if both recipes are wrong; rewrite-first only when it is the only correct recipe",
+    "train_labels": {"oneshot": 467, "rewrite_first": 33},
+    "selected_on": "valid_slice.jsonl",
+    "valid_n_correct": 58,
+    "note": "Every strength from 0.01 to 100 scores 58/180 and sends all 180 validation questions to one-shot. The test copy is one-shot retrieval. The 300 was not used to choose the classifier.",
+    "grid": [
+      {"C": 0.01, "n_correct": 58, "n_oneshot": 180},
+      {"C": 0.1, "n_correct": 58, "n_oneshot": 180},
+      {"C": 1.0, "n_correct": 58, "n_oneshot": 180},
+      {"C": 10.0, "n_correct": 58, "n_oneshot": 180},
+      {"C": 100.0, "n_correct": 58, "n_oneshot": 180}
+    ],
+    "valid_recipes_alone": {
+      "oneshot": {"n_correct": 58, "n": 180, "hotpot": "40/110", "nq": "18/70", "mean_total_usd": 0.00017009333333333333},
+      "rewrite_first": {"n_correct": 59, "n": 180, "hotpot": "36/110", "nq": "23/70", "mean_total_usd": 0.00020221083333333333}
+    }
+  }
+}
