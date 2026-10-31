@@ -354,6 +354,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    print("train_policy start", flush=True)
     cfg = load_config(args.config, reward_preset=args.reward_preset)
     # Write the override back into cfg, not just the local, so the one seed also
     # reaches the stratified --limit draw and the env.
@@ -413,6 +414,9 @@ def main() -> None:
     print("advantage = sampled reward - naive reward on the same question")
 
     retriever = BM25Retriever(corpus)
+    # The retriever keeps its own copy of the passages. Drop the raw list
+    # before Qwen loads, so the two do not sit in RAM together.
+    del corpus
     metrics_dir = ensure_dir(resolve_path(cfg, cfg["logging"]["metrics_dir"]))
     ckpt_path = resolve_path(cfg, ckpt_rel)
     best_path = ckpt_path.with_name(ckpt_path.stem + "_best" + ckpt_path.suffix)
