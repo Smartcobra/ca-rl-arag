@@ -101,7 +101,9 @@ def main() -> None:
         "lambda_zero",
         "high_cost_pressure",
         "frontier_lambda0",
+        "frontier_lambda5",
         "frontier_lambda20",
+        "frontier_lambda80",
         "frontier_act02",
     ]:
         c = load_config(reward_preset=preset)

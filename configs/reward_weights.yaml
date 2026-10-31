@@ -143,6 +143,35 @@ presets:
     quality_gate: 0.5
     unused_budget_bonus: 0.1
 
+  # Retrieve-first cost sweep. Same weights as frontier_lambda20 except λ.
+  # Action penalty stays 0, so a change in behaviour is a change in λ.
+  # frontier_lambda80 is not frontier_act02: that older preset keeps act_penalty 0.02.
+  frontier_lambda5:
+    alpha: 1.0
+    beta: 0.4
+    gamma: 0.15
+    lambda_cost: 5.0
+    mu_latency: 0.5
+    hall_weight: 0.5
+    act_penalty: 0.0
+    bud_penalty: 1.0
+    verify_ignored_extra: 0.15
+    quality_gate: 0.5
+    unused_budget_bonus: 0.1
+
+  frontier_lambda80:
+    alpha: 1.0
+    beta: 0.4
+    gamma: 0.15
+    lambda_cost: 80.0
+    mu_latency: 0.5
+    hall_weight: 0.5
+    act_penalty: 0.0
+    bud_penalty: 1.0
+    verify_ignored_extra: 0.15
+    quality_gate: 0.5
+    unused_budget_bonus: 0.1
+
 # λ / μ sweep grid for quality–cost Pareto (Milestone 3+)
 pareto_sweep:
   lambda_cost: [0.0, 0.5, 1.0, 2.0, 4.0, 8.0]
