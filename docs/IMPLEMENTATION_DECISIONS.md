@@ -511,6 +511,26 @@ Training curves still differ by seed. Epoch-1 train EM is 0.368 / 0.346 / 0.374.
 
 Sources: `learned_frontier_lambda20_v4s{42,43,44}.json` and the matching JSONL and curves.
 
+## 2026-10-31 — Retrieve first, then decide (seeds 42, 43, 44)
+
+`configs/retrieve_first.yaml` forces the first action to retrieve and appends nine features (question length, who/what/when/which/yes-no, capitalized-entity count, draft abstain, draft overlap). Width 16 is 501 parameters, still under 720. No dataset id. Notebook `notebooks/Retrieve_First_Lambda20_Seeds.ipynb`. Preset `frontier_lambda20` only. Artifacts `learned_frontier_lambda20_rfs{42,43,44}` and `train_policy_curve_retrieve_first_lambda20_s{42,43,44}.json`. The `v4s` files stay the paper run.
+
+**Selected exams.** First epoch at the best greedy reward: 17 / 2 / 19, rewards 0.60761 / 0.59038 / 0.59635. First action is retrieve on 300/300.
+
+| Seed | Correct | Hotpot / NQ | $ | Sequence |
+|---|---|---|---:|---|
+| 42 | 103/300 | 60 / 43 | 4.60e-4 | 15 sequences. Most common: retrieve, rewrite, rewrite, retrieve, retrieve, stop (164/300) |
+| 43 | 100/300 | 60 / 40 | 1.72e-4 | retrieve, stop on 300/300 |
+| 44 | 103/300 | 60 / 43 | 5.62e-4 | retrieve, verify, verify, rewrite, rewrite, retrieve, retrieve, stop on 300/300 |
+
+Seed 43 matches `baseline_default_v4` on predictions and on the dollar bill. Seed 42 versus that one-shot is +7 / −4, union 107/300. Seed 44 is +9 / −6, union 109/300.
+
+**The branch.** The second action is the first decision that has seen a score. Seed 42: rewrite 230, retrieve 66, verify 4. Best threshold matches 236/296, under 250. Seed 43: stop 300. Seed 44: verify 300. Rewrite and retrieve are both 0 on those two seeds.
+
+The branch on retrieval strength appears in 0 of 3 seeds.
+
+Report the three exams. Do not report a mean and a standard deviation. The exam returns under λ = 20 are 0.612, 0.598, and 0.604. Do not compare those with the default-weight one-shot reward 0.581.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
@@ -537,3 +557,4 @@ Sources: `learned_frontier_lambda20_v4s{42,43,44}.json` and the matching JSONL a
 | 2026-10-03 | v3 retrained on the 16-d z-scored observation (same config, same 83,120 index; only the feature scale changed) | λ=20 emits **16 distinct action sequences** on 300 questions, where every earlier sweep emitted one; a single threshold on the decision-time mean BM25 at 45.7 reproduces 278/300 of its first decisions. EM 0.343 (103/300) at 5.31e-4 vs this run's retrieve→stop 0.333 (100/300) at 1.72e-4 (+8 / −5, union 108/300). λ=0 stops early on exactly the 5 strongest-retrieval questions; its two verifies change 0/300 predictions at 1.8× the cost. λ=80 unchanged. Overwrote the 2026-09-28 `_v3` files (git `3a2c83c`). | The 2026-09-26 win condition is met: the controller reads the observation. Report behaviour, not accuracy — best EM is 103 under both observations and only changed preset. Verify still needs to gate a re-retrieve to earn its cost. Frozen baselines are **still** on the 80k index, so no `_v3` row may sit beside them. |
 | 2026-10-05 | v4, second seed-42 training run of the same 16-d config (new filenames; `_v3` kept) | Selected λ=0 (epoch 20) and λ=20 (epoch 16) tie at EM 0.347 (104/300) with identical predictions. λ=20 is one 6-step recipe on 270/300 and that recipe holds the +4 vs retrieve→stop (+9 / −5, union 109) at 4.14e-4. λ=0 uses 15 sequences; a threshold at 45.4 separates rewrite vs verify on 293/300, and the two verifies change 0 answers (5.37e-4). λ=20 last copies the first retrieve and matches retrieve→stop. λ=80 unchanged, predictions identical to the 2026-10-03 `act02` file. | The 16-sequence λ=20 controller did not repeat. 104 vs 103 is one answer. Do not move the headline from behaviour to accuracy. This is not seeds 43 and 44. Frozen baselines are still the 80k index, so no `_v4` row may sit beside them. |
 | 2026-10-20 | λ=20 seeds 42, 43, 44 after the nominal-latency fix (`v4s42` / `v4s43` / `v4s44`) | Selected epochs 17 / 14 / 11, same greedy reward 0.60396. Exam is one sequence on 300/300: `rewrite, rewrite, retrieve, stop`. EM 0.333 (100/300, Hotpot 52 / NQ 48) at 2.02e-4 on all three. Predictions and retrieved ids match 300/300. Versus this index's one-shot: +22 / −22 (Hotpot +5 / −13, NQ +17 / −9), union 122/300. Second action is rewrite 300/300, retrieve 0. | The branch on retrieval strength appears in 0 of 3 seeds. Training curves still differ. The selected controller does not. |
+| 2026-10-31 | Retrieve-first λ=20, seeds 42, 43, 44 (`rfs42` / `rfs43` / `rfs44`) | First action retrieve on 300/300. Kept epochs 17 / 2 / 19. Correct counts 103 / 100 / 103. Seed 43 is retrieve→stop and matches one-shot. Seed 42 branches in the raw counts (rewrite 230, retrieve 66) but the best threshold hits 236/296. Seed 44’s second action is verify on 300/300. | The branch on retrieval strength appears in 0 of 3 seeds. Forcing the first retrieve does not by itself produce the score branch. |

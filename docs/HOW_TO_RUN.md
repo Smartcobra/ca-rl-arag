@@ -2,6 +2,8 @@
 
 This guide explains **why** each command exists, **which datasets** are used, **what evaluation metrics** mean, **how to run** each step, and **what output** you get.
 
+The latest scored run is the retrieve-first λ = 20 exam for seeds 42, 43, and 44 (`learned_frontier_lambda20_rfs42`, `rfs43`, `rfs44`). Correct counts are 103 / 100 / 103 on the locked 300, and the score branch is 0 of 3. Figures are in `results/figs/retrieve_first_*.png`. The write-up is `docs/RESULTS.md` item 21. The commands below are the older pipeline; they do not retrain that exam.
+
 Work from the project folder:
 
 ```bash

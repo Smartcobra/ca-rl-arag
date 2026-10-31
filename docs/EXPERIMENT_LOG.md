@@ -452,3 +452,29 @@ Against 2026-10-03, v4 λ=20 is the same prediction on 295/300 (+1 Hotpot / −0
 The sequence is `rewrite, rewrite, retrieve, stop` on 300/300. Against `baseline_default_v4` (100/300, Hotpot 60 / NQ 40, $ 1.72e-4): same prediction on 179/300, +22 / −22 (Hotpot +5 / −13, NQ +17 / −9), union 122/300.
 
 **Branch count: 0 of 3.** The second action is rewrite on 300/300, at mean score 0, because the first action is rewrite before any retrieval. Retrieve appears 0 times as that second action. The rule requires both actions at least 15 times and one score threshold matching at least 250 questions. Epoch-1 train EM still differs (0.368 / 0.346 / 0.374). The selected exam does not. Full write-up: [`RESULTS.md`](RESULTS.md) §10 item 20.
+
+## 2026-10-31 — retrieve-first λ=20, seeds 42, 43, 44
+
+**Run:** `configs/retrieve_first.yaml`, preset `frontier_lambda20`, 20 epochs, seeds 42, 43, 44. First action forced to retrieve. Observation is 25-d (the paper’s 16 numbers, plus question length, question word, capitalized-entity count, draft abstain, and draft overlap). Same 500 / 180 / 300 split. Artifacts `learned_frontier_lambda20_rfs{42,43,44}`. Curves `train_policy_curve_retrieve_first_lambda20_s{42,43,44}.json`. These files do not replace the `v4s` exams above.
+
+**Valid greedy** (n=180). The selected epoch is the first time the curve reaches its best `eval_reward`.
+
+| Seed | Selected epoch | Greedy reward |
+|---|---:|---:|
+| 42 | 17 | 0.60761 |
+| 43 | 2 | 0.59038 |
+| 44 | 19 | 0.59635 |
+
+**Eval** (frozen argmax of `_best.pt`, n=300). First action is retrieve on 300/300 in every file.
+
+| Seed | EM | n_correct | Hotpot / NQ | $ | steps / retrieve / rewrite / verify | sequences | Second action |
+|---|---:|---:|---|---:|---|---:|---|
+| 42 | 0.343 | 103/300 | 60 / 43 | 4.60e-4 | 6.51 / 2.91 / 2.00 / 0.61 | 15 | rewrite 230, retrieve 66, verify 4 |
+| 43 | 0.333 | 100/300 | 60 / 40 | 1.72e-4 | 2 / 1 / 0 / 0 | 1 | stop 300 |
+| 44 | 0.343 | 103/300 | 60 / 43 | 5.62e-4 | 8 / 3 / 2 / 2 | 1 | verify 300 |
+
+Seed 42’s most common path is `retrieve, rewrite, rewrite, retrieve, retrieve, stop` on 164/300. Seed 43 is `retrieve, stop` on 300/300, and its predictions and dollar bill match `baseline_default_v4`. Seed 44 is `retrieve, verify, verify, rewrite, rewrite, retrieve, retrieve, stop` on 300/300.
+
+Against `baseline_default_v4` (100/300, Hotpot 60 / NQ 40, $ 1.72e-4): seed 42 is +7 / −4 (Hotpot +1 / −1, NQ +6 / −3), union 107/300. Seed 43 is +0 / −0. Seed 44 is +9 / −6 (Hotpot +1 / −1, NQ +8 / −5), union 109/300.
+
+**Branch count: 0 of 3.** Seed 42 has both rewrite and retrieve above 15 as the second action, and the best mean-score threshold matches 236 of 296. 236 is under 250. Seeds 43 and 44 never use rewrite or retrieve as that second action. Full write-up: [`RESULTS.md`](RESULTS.md) §10 item 21. Figures: `results/figs/retrieve_first_exams_table.png`, `retrieve_first_vs_oneshot_table.png`, `retrieve_first_em_usd.png`, `retrieve_first_second_action.png`.
