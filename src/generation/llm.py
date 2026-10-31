@@ -388,25 +388,17 @@ class HuggingFaceGenerator:
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        load_kwargs: dict[str, Any] = {
-            "trust_remote_code": True,
-            # Stream weights onto the device. A full CPU copy plus a GPU copy
-            # is what gets the process killed (SIGKILL) on a 12 GB machine.
-            "low_cpu_mem_usage": True,
-        }
+        load_kwargs: dict[str, Any] = {"trust_remote_code": True}
         if dtype is not None:
             # Transformers >=4.56 / 5.x: `dtype`. Older releases: `torch_dtype`.
             load_kwargs["dtype"] = dtype
-        # device_map needs accelerate; never combine it with model.to(...).
-        if self.device == "cuda":
-            load_kwargs["device_map"] = "auto" if torch.cuda.device_count() > 1 else {"": 0}
+        # device_map="auto" needs accelerate; never combine it with model.to(...).
+        if self.device == "cuda" and torch.cuda.device_count() > 1:
+            load_kwargs["device_map"] = "auto"
             self._uses_device_map = True
-        print(
-            f"loading {model_name} on {self.device} dtype={dtype} device_map={load_kwargs.get('device_map')}",
-            flush=True,
-        )
-        self.model = self._from_pretrained(AutoModelForCausalLM, model_name, load_kwargs)
-        if not self._uses_device_map:
+            self.model = self._from_pretrained(AutoModelForCausalLM, model_name, load_kwargs)
+        else:
+            self.model = self._from_pretrained(AutoModelForCausalLM, model_name, load_kwargs)
             self.model.to(self.device)
         self.model.eval()
         self.model.requires_grad_(False)
