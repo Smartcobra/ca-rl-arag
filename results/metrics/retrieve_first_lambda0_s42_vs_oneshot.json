@@ -1,0 +1,39 @@
+{
+  "label": "retrieve-first \u03bb=0 seed 42",
+  "trajectory": "results/trajectories/learned_frontier_lambda0_rf0s42.jsonl",
+  "n": 300,
+  "n_correct": 104,
+  "em": 0.3466666666666667,
+  "em_ci95": [
+    0.29333333333333333,
+    0.4033333333333333
+  ],
+  "n_correct_ci95": [
+    88.0,
+    121.0
+  ],
+  "repairs": 10,
+  "breaks": 6,
+  "both_correct": 94,
+  "both_wrong": 190,
+  "sign_test_p": 0.454498291015625,
+  "by_dataset": {
+    "hotpot_qa": {
+      "repairs": 1,
+      "breaks": 1
+    },
+    "natural_questions": {
+      "repairs": 9,
+      "breaks": 5
+    }
+  },
+  "method": "Repairs are questions one-shot got wrong and this row got right. Breaks are the reverse. The paired sign test is an exact two-sided binomial test on those discordant questions, success probability 1/2. The 95% interval is a percentile bootstrap of exact match: 10000 draws with replacement from these questions, seed 42, percentiles 2.5 and 97.5.",
+  "n_boot": 10000,
+  "boot_seed": 42,
+  "mean_total_usd": 0.0004819445,
+  "mean_total_latency_ms": 4382.666316766723,
+  "hotpot_correct": 60.0,
+  "nq_correct": 44.0,
+  "selected_epoch": 18,
+  "valid_greedy_reward": 0.6188789146571543
+}
