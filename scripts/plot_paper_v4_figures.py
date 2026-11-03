@@ -34,6 +34,7 @@ SOFT = {
     "oracle": "#1F4E79",
     "adaptive": "#6F2C91",
     "oracle2": "#C47B2B",
+    "retrieve": "#9B2226",
 }
 
 
@@ -155,11 +156,22 @@ def frontier() -> None:
         pair_cost += float(pick["total_usd"])
     oracle_pair = (pair_cost / 300 * 1e4, pair_correct / 300)
     adaptive = summary("adaptive_rag_v4.json")
+    # Retrieve-first controller, same 83,120-passage index. Seed 42 is the
+    # cost sweep. Seeds 43 and 44 are the other two λ=20 exams.
+    retrieve_first = [
+        (0, "learned_frontier_lambda0_rf0s42.json", "42"),
+        (5, "learned_frontier_lambda5_rf5s42.json", "42"),
+        (20, "learned_frontier_lambda20_rfs42.json", "42"),
+        (20, "learned_frontier_lambda20_rfs43.json", "43"),
+        (20, "learned_frontier_lambda20_rfs44.json", "44"),
+        (80, "learned_frontier_lambda80_rf80s42.json", "42"),
+    ]
+    rf_points = [(lam, seed, summary(name)) for lam, name, seed in retrieve_first]
 
-    fig, ax = plt.subplots(figsize=(7.2, 3.8))
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
     series = [
         (one_shot, "s", SOFT["one"], "One-shot"),
-        (learned, "o", SOFT["learned"], r"Learned $\lambda=20$, three seeds"),
+        (learned, "o", SOFT["learned"], r"Rewrite-first $\lambda=20$"),
         (adaptive, "*", SOFT["adaptive"], "Adaptive-RAG"),
         (switch, "o", SOFT["switch"], "Dataset switch, 100"),
         (recipe, "D", SOFT["recipe"], "Six-step recipe"),
@@ -203,6 +215,32 @@ def frontier() -> None:
     )
     ax.annotate(str(pair_correct), oracle_pair, textcoords="offset points", xytext=(8, -2), fontsize=9, color=SOFT["ink"])
     ax.annotate(str(correct), oracle, textcoords="offset points", xytext=(8, -2), fontsize=9, color=SOFT["ink"])
+    labeled = False
+    # λ=80 and λ=20 seed 43 share the one-shot point. Leave them unlabeled.
+    offsets = {
+        (0, "42"): (8, 4),
+        (5, "42"): (8, -8),
+        (20, "42"): (-28, 8),
+        (20, "44"): (8, 4),
+    }
+    for lam, seed, (x, y) in rf_points:
+        on_oneshot = abs(x - one_shot[0]) < 0.05 and abs(y - one_shot[1]) < 0.002
+        ax.scatter(
+            [x],
+            [y],
+            s=110 if on_oneshot else 70,
+            marker="h",
+            facecolors="none" if on_oneshot else SOFT["retrieve"],
+            edgecolors=SOFT["retrieve"],
+            linewidths=1.8 if on_oneshot else 1.2,
+            zorder=5,
+            label="Retrieve-first" if not labeled else None,
+        )
+        labeled = True
+        if (lam, seed) in offsets:
+            tag = rf"$\lambda={lam}$" if seed == "42" else rf"$\lambda={lam}$, seed {seed}"
+            ax.annotate(tag, (x, y), textcoords="offset points", xytext=offsets[(lam, seed)], fontsize=8, color=SOFT["ink"])
+        print(f"retrieve-first λ={lam} seed {seed}", round(x, 2), round(y, 3))
     ax.set_xlim(1.2, 8.6)
     ax.set_ylim(0.30, 0.46)
     ax.set_xlabel(r"Mean dollars per question ($\times 10^{-4}$)")

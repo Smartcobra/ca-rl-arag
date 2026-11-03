@@ -25,20 +25,15 @@
 \maketitle
 
 \begin{abstract}
-Tools help on some questions and hurt on others, so the average can stay flat. We price retrieve, rewrite, rerank, verify, and stop in one episode and train a 357-parameter controller with REINFORCE. On 150 HotpotQA and 150 Natural Questions items, on an index of 83{,}120 passages, one-shot retrieval scores 60/150 and 40/150. Max tools scores 62/150 and 43/150, five more answers, and the reward falls from 0.581 to 0.503. Three seeds at dollar weight 20 select rewrite, rewrite, retrieve, stop, scoring 52/150 and 48/150. The two recipes cover 122 questions. A question-only classifier scores 55/150 and 45/150 at \(1.96\times 10^{-4}\) dollars. Labeling a double miss as one-shot makes the classifier copy one-shot retrieval. An oracle with max tools scores 126/300 at \(1.81\times 10^{-4}\) dollars. No seed branches on the retrieval score.
+On one index of 83{,}120 passages, a flat action charge decides tool use: max tools scores 105/300 against 100/300 for one-shot retrieval, and the reward falls from 0.581 to 0.503. The per-question gap is 26 answers, from 100/300 to an oracle of 126/300, and neither a fixed recipe nor a question-only router captures it. A controller that must retrieve before it rewrites, so the next action sees a score, still misses that gap. Three seeds at dollar weight 20 score 103, 100, and 103, and the score branch appears in 0 of 3. One seed at weights 0, 5, 20, and 80 scores 104, 100, 103, and 100. A paired sign test does not separate any of these rows from one-shot retrieval. The paper is a diagnosis of the reward and of that gap.
 \end{abstract}
 
 \section{Introduction}
 On the Natural Questions item ``what is the name of wonder womans mother,'' one-shot retrieval returns passages titled Seoul Korea Temple and Flash in other media, and the generator answers Stevie Wonder. Two rewrites, together \(2.4\times 10^{-5}\) dollars, change the query to ``mother of wonder woman.'' The next search returns Wonder Girl and Duke of Deception, and the answer is Queen Hippolyta. The episode costs \(2.06\times 10^{-4}\) dollars, against \(1.83\times 10^{-4}\) for one-shot retrieval. On this question the rewrite pays. On others it does not.
 
-That is the story. Tools help per question, not on average. The reward decides which tools survive. A small controller can lock onto one recipe and still miss the per-question choice.
+That is one question. Figure~\ref{fig:pipeline} is the whole pipeline. The generator and the retriever are frozen. Every number below is on one index of 83{,}120 passages.
 
-Figure~\ref{fig:pipeline} is the whole pipeline. The generator and the retriever are frozen. Every number below is on one index of 83{,}120 passages.
-\begin{itemize}
-\item The reward decides which tools survive. Max tools scores 62/150 on HotpotQA and 43/150 on Natural Questions, against 60/150 and 40/150 for one-shot retrieval. Five more answers, and the reward falls from 0.581 to 0.503, because the action charge rises by 0.10 and the weighted quality terms rise by about 0.025.
-\item The help is per question. The learned recipe and one-shot retrieval each score 100/300. The recipe is 52/150 and 48/150. One-shot retrieval is 60/150 and 40/150. The recipe repairs 5 HotpotQA answers and breaks 13, and repairs 17 Natural Questions answers and breaks 9. The union is 122/300. A question-only classifier scores 55/150 and 45/150, again 100/300, at \(1.96\times 10^{-4}\) dollars. Labeling a miss by both recipes as one-shot copies one-shot retrieval. An oracle over one-shot retrieval, max tools, and the learned recipe, keeping the cheapest correct trajectory, scores 126/300 at \(1.81\times 10^{-4}\) dollars. The six-step recipe adds no question one-shot retrieval missed.
-\item The controller finds a stable recipe and does not learn that choice. Seeds 42, 43, and 44 at \(\lambda{=}20\) each emit rewrite, rewrite, retrieve, stop on all 300 questions. The second action still sees a retrieval score of 0. The branch on retrieval strength appears in 0 of 3 seeds.
-\end{itemize}
+The flat action charge decides tool use: max tools scores 105/300 against 100/300 for one-shot retrieval, and the reward falls from 0.581 to 0.503 because the charge rises by 0.10 while the weighted quality terms rise by about 0.025. The per-question gap is 26 answers, from 100/300 to an oracle of 126/300, and neither the fixed recipes nor a question-only router captures it: both stay at 100/300. A controller that must retrieve before it rewrites, so the next action sees a score, still misses that gap: three seeds at \(\lambda{=}20\) score 103, 100, and 103 with the score branch in 0 of 3, and one seed at \(\lambda{=}0\), 5, 20, and 80 scores 104, 100, 103, and 100, none separated from one-shot retrieval by a paired sign test, so the paper is a diagnosis of the charge and of the gap.
 
 \section{Related Work}
 Retrieval-augmented generation conditions a generator on retrieved text \cite{lewis2020rag}. Agentic controllers interleave that retrieval with other tools. ReAct alternates reasoning traces and actions \cite{yao2023react}. The five systems in Table~\ref{tab:related} are the ones a reader will set this paper against. Each decides something about retrieval. None prices rewrite, rerank, and verify in dollars inside a closed loop.
@@ -93,7 +88,7 @@ The observation is 16 numbers. Four of them are retrieval scores: the mean of th
 
 The policy is a multilayer perceptron with one hidden layer of width 16, which is 357 parameters. Width above 32 is rejected. We train with REINFORCE \cite{williams1992reinforce} for 20 epochs. The return is the terminal reward below. The advantage on a training question is that question's sampled reward minus the reward of one-shot retrieval on the same question. The entropy bonus coefficient is 0.01, the optimizer is Adam, and the learning rate is 0.003. Training uses 500 questions, 300 from HotpotQA and 200 from Natural Questions. After each epoch we roll out the mode on a held-out 180, 110 HotpotQA and 70 Natural Questions. The checkpoint we report is the first epoch that attains the highest greedy reward on that 180. It is chosen before the test set is opened. The test action is the mode of the masked softmax.
 
-The exam below is three trainings at \(\lambda{=}20\) and \(\rho{=}0\), seeds 42, 43, and 44. We report the three exams, not a mean and a standard deviation. The generator seed is temperature 0. The policy seed sets the initial weights and the per-question action sample during training.
+The rewrite-first exam below is three trainings at \(\lambda{=}20\) and \(\rho{=}0\), seeds 42, 43, and 44. We report the three exams, not a mean and a standard deviation. A second controller forces the first action to be retrieve and is scored in Table~\ref{tab:rf} and Table~\ref{tab:sweep}. The generator seed is temperature 0. The policy seed sets the initial weights and the per-question action sample during training.
 
 \subsection{Reward}
 The terminal reward is
@@ -158,7 +153,7 @@ Figure~\ref{fig:frontier} plots exact match against dollars. An oracle keeps the
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.92\textwidth]{paper_v4/figures/frontier.png}
-\caption{Exact match against mean dollars per question on the 83{,}120-passage index. Squares are one-shot retrieval and the rule. The triangle is max tools. The diamond is the six-step recipe. The filled circle is the learned \(\lambda{=}20\) exam; seeds 42, 43, and 44 sit on the same point. The star is Adaptive-RAG. The gray circle is the dataset switch, which scores 100. The open diamond is the oracle of one-shot retrieval and the learned recipe, 122. The open circle adds max tools and scores 126. The cheap-label classifier sits on the one-shot point. The legend is outside the axes.}
+\caption{Exact match against mean dollars per question on the 83{,}120-passage index. Squares are one-shot retrieval and the rule. The triangle is max tools. The diamond is the six-step recipe. The filled circle is the rewrite-first \(\lambda{=}20\) exam; seeds 42, 43, and 44 sit on the same point. Filled hexagons are the retrieve-first controller. The labeled ones are seed 42 at \(\lambda{=}0\), 5, and 20, and seed 44 at \(\lambda{=}20\). The open hexagon on the one-shot square is \(\lambda{=}80\) and seed 43 at \(\lambda{=}20\). The star is Adaptive-RAG. The gray circle is the dataset switch, which scores 100. The open diamond is the oracle of one-shot retrieval and the rewrite-first recipe, 122. The open circle adds max tools and scores 126. The cheap-label classifier sits on the one-shot point. The legend is outside the axes.}
 \label{fig:frontier}
 \end{figure*}
 
@@ -228,23 +223,73 @@ Oracle + max & \textbf{67/150} & \textbf{59/150} & \textbf{126/300} & 1.81 \\
 \end{table}
 
 \subsection{Diagnostics}
-An earlier observation passed the mean BM25 score through \(\tanh(\mathrm{score}/5)\). Top-1 scores on this corpus run from about 26 to 122, so that feature was 1.0 on all 300 questions and a policy could not branch on it. Standardizing the score makes a branch expressible. The three seeds do not use it. The first action is chosen before any score exists, and the selected string spends both rewrites before the first retrieve. The earlier saturated feature is the reason the branch had to be defined, not a second result.
+An earlier observation passed the mean BM25 score through \(\tanh(\mathrm{score}/5)\). Top-1 scores on this corpus run from about 26 to 122, so that feature was 1.0 on all 300 questions and a policy could not branch on it. Standardizing the score makes a branch expressible. The three rewrite-first seeds do not use it. The first action is chosen before any score exists, and the selected string spends both rewrites before the first retrieve. The earlier saturated feature is the reason the branch had to be defined, not a second result.
+
+\subsection{Seeing the Score Still Misses the Gap}
+The rewrite-first recipe spends both rewrites before any passage exists. The next controller forces the first action to be retrieve, then chooses rewrite, retrieve, rerank, verify, or stop after the BM25 scores are in the observation. Nine features are appended to the 16 numbers: question length, the words who, what, when, and which, a yes/no bit, a capitalized-entity count, whether the draft abstained, and the word overlap of the draft with the top passage. The observation is 25 numbers. The hidden layer stays width 16, which is 501 parameters. There is still no dataset indicator. The split is the same 500, 180, and 300, and the checkpoint is still the first epoch with the highest greedy reward on the 180. The action charge stays off.
+
+Table~\ref{tab:rf} is three seeds at \(\lambda{=}20\). The first action is retrieve on 300/300 in every file. Correct counts are 103, 100, and 103. Seed 43 is retrieve, then stop, on 300/300. Its predictions and its dollar bill match one-shot retrieval. Seed 42 uses 15 action strings. The common one is retrieve, rewrite, rewrite, retrieve, retrieve, stop, on 164/300. Seed 44 uses one string on 300/300: retrieve, verify, verify, rewrite, rewrite, retrieve, retrieve, stop.
+
+Repairs are questions one-shot retrieval got wrong and this row got right. Breaks are the reverse. The paired sign test is an exact two-sided binomial test on those discordant questions, success probability 1/2. The 95\% interval is a percentile bootstrap of exact match: 10000 draws with replacement from these questions, seed 42, percentiles 2.5 and 97.5. One-shot retrieval on this file scores 100/300 at \(1.72\times 10^{-4}\) dollars, with measured latency 1196 ms and interval 0.280--0.387. Seed 42 repairs 7 and breaks 4, HotpotQA \(+1\) and \(-1\), Natural Questions \(+6\) and \(-3\), sign-test \(p{=}0.549\). Seed 44 repairs 9 and breaks 6, HotpotQA \(+1\) and \(-1\), Natural Questions \(+8\) and \(-5\), \(p{=}0.607\). Seed 43 repairs 0 and breaks 0. None of the three tests separates the row from one-shot retrieval. The returns under \(\lambda{=}20\) and \(\rho{=}0\) are 0.612, 0.598, and 0.604. Those numbers use a different weight vector from the 0.581 in Table~\ref{tab:terms}.
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lcccccccc@{}}
+\toprule
+Seed & Epoch & Correct & \$ & ms & Rep. & Br. & \(p\) & EM 95\% \\
+\midrule
+42 & 17 & 103/300 & 4.60 & 4533 & 7 & 4 & 0.549 & 0.290--0.397 \\
+43 & 2 & 100/300 & 1.72 & 1226 & 0 & 0 & 1.000 & 0.280--0.387 \\
+44 & 19 & 103/300 & 5.62 & 5285 & 9 & 6 & 0.607 & 0.290--0.400 \\
+\bottomrule
+\end{tabular}
+\caption{Retrieve-first controller at \(\lambda{=}20\), three seeds, on the 83{,}120-passage index. Dollars are times \(10^{-4}\). The millisecond column is measured latency. Repairs, breaks, the sign-test \(p\), and the exact-match interval are against one-shot retrieval on the same index. We report the three rows, not a mean.}
+\label{tab:rf}
+\end{table}
+
+The branch rule is unchanged. A seed counts only when the second action is rewrite at least 15 times and retrieve at least 15 times, and one threshold on the mean score matches at least 250 of those questions. Seed 42's second action is rewrite 230, retrieve 66, and verify 4. The best threshold matches 236 of 296, which is under 250. Seed 43's second action is stop on 300/300. Seed 44's second action is verify on 300/300. The count is 0 of 3.
+
+Table~\ref{tab:sweep} is the same controller at four dollar weights, seed 42 only, with the action charge held at 0. The \(\lambda{=}20\) row is the seed-42 exam above. \(\lambda{=}5\) and \(\lambda{=}80\) match one-shot retrieval on all 300 predictions. \(\lambda{=}80\) also matches the dollar bill, at a measured latency of 1288 ms beside 1196 ms. \(\lambda{=}0\) scores 104/300, HotpotQA 60/150 and Natural Questions 44/150, repairs 10 and breaks 6, HotpotQA \(+1\) and \(-1\), Natural Questions \(+9\) and \(-5\), \(p{=}0.454\). Four answers is the largest move in the table. The sign test does not separate it from one-shot retrieval, so it is not a captured piece of the 26-answer gap. The returns under these four presets are 0.626, 0.601, 0.612, and 0.588, and they are not comparable to 0.581.
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lcccccccc@{}}
+\toprule
+\(\lambda\) & Epoch & Correct & \$ & ms & Rep. & Br. & \(p\) & EM 95\% \\
+\midrule
+0 & 18 & 104/300 & 4.82 & 4383 & 10 & 6 & 0.454 & 0.293--0.403 \\
+5 & 7 & 100/300 & 2.60 & 1655 & 0 & 0 & 1.000 & 0.280--0.387 \\
+20 & 17 & 103/300 & 4.60 & 4533 & 7 & 4 & 0.549 & 0.290--0.397 \\
+80 & 4 & 100/300 & 1.72 & 1288 & 0 & 0 & 1.000 & 0.280--0.387 \\
+\bottomrule
+\end{tabular}
+\caption{Retrieve-first cost sweep, seed 42, on the same index. Dollars are times \(10^{-4}\). The millisecond column is measured latency. The paired test is the one stated for Table~\ref{tab:rf}. One-shot retrieval is 100/300 at 1.72 and 1196 ms.}
+\label{tab:sweep}
+\end{table}
+
+\(\lambda{=}0\) is the one sweep seed whose second action is both rewrite and retrieve often enough to meet the count: rewrite 282, retrieve 18, and a threshold of 109.9 matches 282 of 300. That threshold sits above every mean score in the file, and the match is the rewrite majority. The 18 retrieves have mean scores 20.4--34.5, inside the rewrite range 22.4--108.9. The three-seed count at \(\lambda{=}20\) stays 0 of 3. This sweep is one seed per weight.
+
+Dollars and milliseconds put \(\lambda{=}80\) with one-shot retrieval at the cheap end and \(\lambda{=}0\) with \(\lambda{=}20\) at the expensive end. Between those two, \(\lambda{=}20\) has the smaller bill, \(4.60\times 10^{-4}\) against \(4.82\times 10^{-4}\), and the longer clock, 4533 ms against 4383 ms. \(\lambda{=}5\) sits between them on both, at \(2.60\times 10^{-4}\) and 1655 ms. The reward uses the nominal latency table. The millisecond column is the wall clock.
 
 \section{Limitations}
 There are three limits on what these results support.
 
-First, the controller never reads passage text. This is a study of the reward and of credit assignment in a small policy, not a fine-tune of the generator. The first action is the same on every question, because the observation before retrieval does not contain the question. The selected recipe rewrites twice before it retrieves, so the second action is still blind to the retrieval score. Adaptivity that depends on a score can start only after a retrieve.
+First, the controller never reads passage text. This is a study of the reward and of credit assignment in a small policy, not a fine-tune of the generator. On the rewrite-first controller the observation before retrieval does not contain the question, so the first action is the same on every question and the selected recipe rewrites twice before it retrieves. The retrieve-first controller is the test of the other order. Its second action sees a real BM25 score, and the score branch still appears in 0 of 3 seeds at \(\lambda{=}20\).
 
-Second, the three seeds are \(\lambda{=}20\) with the action charge off. They are three values of one setting. They are not a sweep of \(\lambda\), and they are not a standard deviation. The frozen rows in Table~\ref{tab:frozen} are one pass each, at temperature 0.
+Second, the rewrite-first exam is three seeds at one setting, \(\lambda{=}20\) with the action charge off. The retrieve-first sweep is one seed at each of \(\lambda{=}0\), 5, 20, and 80, again with the charge off. We report each row. We do not report a mean or a standard deviation. The frozen rows in Table~\ref{tab:frozen} are one pass each, at temperature 0.
 
 Third, the verifier and the reranker are lexical, and the price card is a scale for a local model. A neural verifier, a dense retriever, or a generator-sized policy could move the 26-answer gap and the dollar weight at which extra tools stop paying. That comparison was not run. Self-RAG, CRAG, Search-R1, and GRASP are not reimplemented. Adaptive-RAG in Table~\ref{tab:adaptive} is the two-recipe classifier.
 
 \section{Conclusion}
-On one index, extra tools buy five exact-match answers and lose reward. Max tools scores 105/300 against 100/300 for one-shot retrieval, and the reward falls from 0.581 to 0.503 because the action charge rises by more than the quality terms.
+On one index, the flat action charge decides tool use. Max tools scores 105/300 against 100/300 for one-shot retrieval, and the reward falls from 0.581 to 0.503 because the charge rises by more than the quality terms.
 
-The per-question ceiling among the trajectories we logged is 126/300, at \(1.81\times 10^{-4}\) dollars, near the one-shot price, because the oracle pays for a more expensive trajectory only on the 26 answers one-shot retrieval missed. A frozen six-step recipe does not add a question. Three seeds of the learned policy select one four-step recipe, score 100/300, and disagree with one-shot retrieval on 44 questions. Choosing between those two recipes from the question alone still scores 100/300. The labeling that sends misses to the rewrite-first recipe costs \(1.96\times 10^{-4}\) dollars and keeps 17 of 22 repairs. The labeling that sends misses to one-shot copies one-shot retrieval. The branch on retrieval strength appears in 0 of 3 seeds, because that recipe rewrites before it ever sees a score.
+The per-question gap among the trajectories we logged is 26 answers, 126/300 against 100/300, at \(1.81\times 10^{-4}\) dollars. A frozen six-step recipe does not add a question. Three seeds of the rewrite-first policy select one four-step recipe, score 100/300, and disagree with one-shot retrieval on 44 questions. Choosing between those two recipes from the question alone still scores 100/300. The labeling that sends misses to the rewrite-first recipe costs \(1.96\times 10^{-4}\) dollars and keeps 17 of 22 repairs. The labeling that sends misses to one-shot copies one-shot retrieval.
 
-A next controller has to read the question, or the passages, before it spends a rewrite. Three changes would test that. A neural verifier could replace the lexical check that currently changes no answer. A policy that reads the passage text could choose the second action from the evidence, not from a score of 0. GRPO, which compares several rollouts of the same question, is a closer trainer to GRASP than the one-sample REINFORCE update used here \cite{shao2024deepseekmath,gandhi2026grasp}. None of the three was run.
+Forcing the first action to be retrieve, so the second action sees a score, does not take that gap. Three seeds at \(\lambda{=}20\) score 103, 100, and 103, and the score branch appears in 0 of 3. One seed at \(\lambda{=}0\), 5, 20, and 80 scores 104, 100, 103, and 100. The largest row is four answers above one-shot retrieval, and the paired sign test does not separate it. The paper is a diagnosis of the charge and of the 26-answer gap. A neural verifier, a policy that reads the passage text, and GRPO were not run \cite{shao2024deepseekmath,gandhi2026grasp}.
 
 \section*{AI Use}
 A language model was used to revise sentences and to check bibliography entries against paper abstracts. An image model drafted Figure~\ref{fig:pipeline}. The plots were drawn from the logged numbers. The tables are LaTeX, and every cell was checked against those numbers. No model output is reported as a measurement.
@@ -263,7 +308,7 @@ Pricing a tool can refuse a search that would have changed the answer, and the u
 
 \appendix
 \section{Reward Weights and the Price Card}
-Table~\ref{tab:presets} is every preset in \texttt{configs/reward\_weights.yaml}. The frozen rows use \texttt{default}. The three-seed exam uses \texttt{frontier\_lambda20}. The unused-budget bonus is paid only when \(Q_{\mathrm{ans}}\) clears the quality gate.
+Table~\ref{tab:presets} is every preset in \texttt{configs/reward\_weights.yaml}. The frozen rows use \texttt{default}. The rewrite-first exam uses \texttt{frontier\_lambda20}. The retrieve-first sweep uses \texttt{frontier\_lambda0}, \texttt{frontier\_lambda5}, \texttt{frontier\_lambda20}, and \texttt{frontier\_lambda80}, with the action charge at 0. \texttt{frontier\_act02} is the older \(\lambda{=}80\) preset and keeps the charge at 0.02. The unused-budget bonus is paid only when \(Q_{\mathrm{ans}}\) clears the quality gate.
 
 \begin{table*}[t]
 \centering
@@ -279,7 +324,9 @@ correctness\_faithfulness\_cost & 1 & 0.4 & 0 & 2 & 0.5 & 0.5 & 0.02 & 1 & 0.5 &
 lambda\_zero & 1 & 0.4 & 0.15 & 0 & 0 & 0.5 & 0.02 & 1 & 0.5 & 0.1 \\
 high\_cost\_pressure & 1 & 0.4 & 0.2 & 8 & 2 & 0.5 & 0.05 & 1 & 0.5 & 0.2 \\
 frontier\_lambda0 & 1 & 0.4 & 0.15 & 0 & 0.5 & 0.5 & 0 & 1 & 0.5 & 0.1 \\
+frontier\_lambda5 & 1 & 0.4 & 0.15 & 5 & 0.5 & 0.5 & 0 & 1 & 0.5 & 0.1 \\
 frontier\_lambda20 & 1 & 0.4 & 0.15 & 20 & 0.5 & 0.5 & 0 & 1 & 0.5 & 0.1 \\
+frontier\_lambda80 & 1 & 0.4 & 0.15 & 80 & 0.5 & 0.5 & 0 & 1 & 0.5 & 0.1 \\
 frontier\_act02 & 1 & 0.4 & 0.15 & 80 & 0.5 & 0.5 & 0.02 & 1 & 0.5 & 0.1 \\
 \bottomrule
 \end{tabular}
@@ -290,7 +337,7 @@ frontier\_act02 & 1 & 0.4 & 0.15 & 80 & 0.5 & 0.5 & 0.02 & 1 & 0.5 & 0.1 \\
 The price card meters local tokens at \$0.15 per million input tokens and \$0.60 per million output tokens. BM25 is \(5\times 10^{-5}\) dollars per call. The latency term uses a fixed table, not the wall clock: 212.4 ms per retrieve, 999.2 ms per rewrite, 143.2 ms per rerank, 0 ms per verify, and 853.9 ms plus 52.0 ms per completion token for a generation. The latency weight is 0.5 and the unit is \(10^{-3}\) dollars per second. Logged latency remains the measured time.
 
 \section{Observation}
-The policy reads 16 numbers. There is no question text, no dataset indicator, and no passage text. Before any retrieval the four score channels are 0.
+The rewrite-first policy reads 16 numbers. There is no question text, no dataset indicator, and no passage text. Before any retrieval the four score channels are 0. The retrieve-first controller appends nine numbers after these sixteen: question length, who, what, when, which, a yes/no bit, a capitalized-entity count, draft abstention, and draft overlap with the top passage.
 \begin{enumerate}
 \item Mean of the top-five BM25 scores, z-scored on the training slice and clipped to \([-3, 3]\).
 \item Evidence count, divided by 10 and clipped to 1.

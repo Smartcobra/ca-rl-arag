@@ -183,11 +183,11 @@ Trained at λ = 20, seeds 42, 43, and 44, on `configs/retrieve_first.yaml`. Same
 
 The first action is retrieve on 300/300 in every file. **The branch appears in 0 of 3 seeds.** Report the three correct counts. Do not report a mean and a standard deviation.
 
-| Seed | Kept epoch | Greedy reward on the 180 | Hotpot | NQ | Correct | Dollars | Steps | Sequences | Second action | Branch |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 42 | 17 | 0.608 | 60/150 | 43/150 | 103/300 | 4.60×10⁻⁴ | 6.51 | 15 | rewrite 230, retrieve 66, verify 4 | no, 236/296 |
-| 43 | 2 | 0.590 | 60/150 | 40/150 | 100/300 | 1.72×10⁻⁴ | 2 | 1 | stop 300 | no |
-| 44 | 19 | 0.596 | 60/150 | 43/150 | 103/300 | 5.62×10⁻⁴ | 8 | 1 | verify 300 | no |
+| Seed | Kept epoch | Greedy reward on the 180 | Hotpot | NQ | Correct | Dollars | Latency ms | Steps | Sequences | Second action | Branch |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 42 | 17 | 0.608 | 60/150 | 43/150 | 103/300 | 4.60×10⁻⁴ | 4533 | 6.51 | 15 | rewrite 230, retrieve 66, verify 4 | no, 236/296 |
+| 43 | 2 | 0.590 | 60/150 | 40/150 | 100/300 | 1.72×10⁻⁴ | 1226 | 2 | 1 | stop 300 | no |
+| 44 | 19 | 0.596 | 60/150 | 43/150 | 103/300 | 5.62×10⁻⁴ | 5285 | 8 | 1 | verify 300 | no |
 
 Seed 42’s common path is retrieve, rewrite, rewrite, retrieve, retrieve, stop (164/300). Rewrite and retrieve both clear 15 as the second action, and the best mean-score threshold matches 236 of 296. That is under 250.
 
@@ -195,6 +195,38 @@ Seed 43 is retrieve, then stop, on 300/300. Predictions and the dollar bill matc
 
 Seed 44 is one sequence on 300/300: retrieve, verify, verify, rewrite, rewrite, retrieve, retrieve, stop. The second action is verify, so the rewrite/retrieve counts are 0 and 0.
 
-Against that one-shot file: seed 42 is +7 / −4 (Hotpot +1 / −1, NQ +6 / −3), union 107/300. Seed 43 is +0 / −0. Seed 44 is +9 / −6 (Hotpot +1 / −1, NQ +8 / −5), union 109/300.
+Against that one-shot file: seed 42 is +7 / −4 (Hotpot +1 / −1, NQ +6 / −3), union 107/300. Seed 43 is +0 / −0. Seed 44 is +9 / −6 (Hotpot +1 / −1, NQ +8 / −5), union 109/300. One-shot’s measured latency is 1196 ms. Its exact-match interval, from the method below, is 0.280–0.387.
 
-Figures: `results/figs/retrieve_first_exams_table.png`, `retrieve_first_vs_oneshot_table.png`, `retrieve_first_em_usd.png`, `retrieve_first_second_action.png`. Rebuild them with `python scripts/plot_retrieve_first_exams.py`.
+Repairs are questions one-shot got wrong and this row got right. Breaks are the reverse. The paired sign test is an exact two-sided binomial test on those discordant questions, success probability 1/2. The 95% interval is a percentile bootstrap of exact match: 10000 draws with replacement from these questions, seed 42, percentiles 2.5 and 97.5.
+
+| Seed | Repairs | Breaks | Sign p | EM 95% | Dollars | Latency ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| 42 | 7 | 4 | 0.549 | 0.290–0.397 | 4.60×10⁻⁴ | 4533 |
+| 43 | 0 | 0 | 1.000 | 0.280–0.387 | 1.72×10⁻⁴ | 1226 |
+| 44 | 9 | 6 | 0.607 | 0.290–0.400 | 5.62×10⁻⁴ | 5285 |
+
+Figures: `results/figs/retrieve_first_exams_table.png`, `retrieve_first_vs_oneshot_table.png`, `retrieve_first_em_usd.png`, `retrieve_first_second_action.png`. Rebuild them with `python scripts/plot_retrieve_first_exams.py`. Comparison files: `results/metrics/retrieve_first_lambda20_s42_vs_oneshot.json`, `s43`, and `s44`.
+
+## Cost sweep at seed 42
+
+Same controller, one seed, four presets with action penalty 0: `frontier_lambda0`, `frontier_lambda5`, `frontier_lambda20`, `frontier_lambda80`. λ = 20 is the seed-42 exam above. The other files are `learned_frontier_lambda0_rf0s42`, `learned_frontier_lambda5_rf5s42`, and `learned_frontier_lambda80_rf80s42`. Notebook `notebooks/Retrieve_First_Lambda_Sweep.ipynb`.
+
+Repairs are questions one-shot got wrong and this row got right. Breaks are the reverse. The paired sign test is an exact two-sided binomial test on those discordant questions, success probability 1/2. The 95% interval is a percentile bootstrap of exact match: 10000 draws with replacement from these questions, seed 42, percentiles 2.5 and 97.5.
+
+| λ | Epoch | Correct | Hotpot / NQ | Dollars | Latency ms | Repairs | Breaks | Sign p | EM 95% | Second action | Branch |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 0 | 18 | 104/300 | 60 / 44 | 4.82×10⁻⁴ | 4383 | 10 | 6 | 0.454 | 0.293–0.403 | rewrite 282, retrieve 18 | yes, 282/300 |
+| 5 | 7 | 100/300 | 60 / 40 | 2.60×10⁻⁴ | 1655 | 0 | 0 | 1.000 | 0.280–0.387 | verify 180, stop 111, rewrite 9 | no |
+| 20 | 17 | 103/300 | 60 / 43 | 4.60×10⁻⁴ | 4533 | 7 | 4 | 0.549 | 0.290–0.397 | rewrite 230, retrieve 66, verify 4 | no, 236/296 |
+| 80 | 4 | 100/300 | 60 / 40 | 1.72×10⁻⁴ | 1288 | 0 | 0 | 1.000 | 0.280–0.387 | stop 300 | no |
+| one-shot |  | 100/300 | 60 / 40 | 1.72×10⁻⁴ | 1196 |  |  |  | 0.280–0.387 |  |  |
+
+λ = 0’s common path is retrieve, rewrite, rewrite, retrieve, retrieve, verify, verify, stop, on 119 of 300 questions. The best threshold is 109.9. It sits above every mean score, and calling every second action rewrite matches 282 of 300. The 18 retrieves have scores 20.4–34.5. Rewrite covers 22.4–108.9. The written rule counts this seed. Same prediction as one-shot on 261/300. Hotpot +1 / −1, NQ +9 / −5, union 110/300. Exam reward 0.626.
+
+λ = 5’s common path is retrieve, verify, verify, stop, on 112 of 300. Predictions match one-shot on 300/300. Exam reward 0.601. λ = 80 is retrieve, then stop, on 300/300. Predictions and the dollar bill match one-shot. The clock is 1288 ms. Exam reward 0.588.
+
+The three-seed count above stays 0 of 3. This table is one seed per λ, and only λ = 0 meets the rule.
+
+Dollars and milliseconds put λ = 80 with one-shot at the cheap end and λ = 0 with λ = 20 at the expensive end. Between those two, λ = 20 has the smaller bill and the longer clock. λ = 5 sits between them on both. The millisecond column is the measured wall clock, `mean_total_latency_ms`. The reward uses the nominal latency table.
+
+Combined file: `results/metrics/retrieve_first_lambda_sweep.json`. Figures: `results/figs/retrieve_first_lambda_sweep_table.png`, `retrieve_first_lambda_sweep_em_usd.png`. Rebuild with `python scripts/compare_to_oneshot.py --sweep --require-all`.

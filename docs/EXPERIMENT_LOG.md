@@ -475,6 +475,37 @@ The sequence is `rewrite, rewrite, retrieve, stop` on 300/300. Against `baseline
 
 Seed 42’s most common path is `retrieve, rewrite, rewrite, retrieve, retrieve, stop` on 164/300. Seed 43 is `retrieve, stop` on 300/300, and its predictions and dollar bill match `baseline_default_v4`. Seed 44 is `retrieve, verify, verify, rewrite, rewrite, retrieve, retrieve, stop` on 300/300.
 
-Against `baseline_default_v4` (100/300, Hotpot 60 / NQ 40, $ 1.72e-4): seed 42 is +7 / −4 (Hotpot +1 / −1, NQ +6 / −3), union 107/300. Seed 43 is +0 / −0. Seed 44 is +9 / −6 (Hotpot +1 / −1, NQ +8 / −5), union 109/300.
+Against `baseline_default_v4` (100/300, Hotpot 60 / NQ 40, $ 1.72e-4, measured latency 1196 ms): seed 42 is +7 / −4 (Hotpot +1 / −1, NQ +6 / −3), union 107/300. Seed 43 is +0 / −0. Seed 44 is +9 / −6 (Hotpot +1 / −1, NQ +8 / −5), union 109/300.
 
-**Branch count: 0 of 3.** Seed 42 has both rewrite and retrieve above 15 as the second action, and the best mean-score threshold matches 236 of 296. 236 is under 250. Seeds 43 and 44 never use rewrite or retrieve as that second action. Full write-up: [`RESULTS.md`](RESULTS.md) §10 item 21. Figures: `results/figs/retrieve_first_exams_table.png`, `retrieve_first_vs_oneshot_table.png`, `retrieve_first_em_usd.png`, `retrieve_first_second_action.png`.
+Repairs are questions one-shot got wrong and this row got right. Breaks are the reverse. The paired sign test is an exact two-sided binomial test on those discordant questions, success probability 1/2. The 95% interval is a percentile bootstrap of exact match: 10000 draws with replacement from these questions, seed 42, percentiles 2.5 and 97.5. One-shot’s own interval on this file is 0.280–0.387.
+
+| Seed | Repairs | Breaks | Sign p | EM 95% | $ | Latency ms |
+|---|---:|---:|---:|---|---:|---:|
+| 42 | 7 | 4 | 0.549 | 0.290–0.397 | 4.60e-4 | 4533 |
+| 43 | 0 | 0 | 1.000 | 0.280–0.387 | 1.72e-4 | 1226 |
+| 44 | 9 | 6 | 0.607 | 0.290–0.400 | 5.62e-4 | 5285 |
+
+**Branch count: 0 of 3.** Seed 42 has both rewrite and retrieve above 15 as the second action, and the best mean-score threshold matches 236 of 296. 236 is under 250. Seeds 43 and 44 never use rewrite or retrieve as that second action. Full write-up: [`RESULTS.md`](RESULTS.md) §10 item 21. Figures: `results/figs/retrieve_first_exams_table.png`, `retrieve_first_vs_oneshot_table.png`, `retrieve_first_em_usd.png`, `retrieve_first_second_action.png`. Comparison files: `retrieve_first_lambda20_s{42,43,44}_vs_oneshot.json`.
+
+## 2026-11-03 — retrieve-first cost sweep, seed 42
+
+**Run:** `configs/retrieve_first.yaml`, seed 42, one training each at `frontier_lambda0`, `frontier_lambda5`, `frontier_lambda20`, and `frontier_lambda80`. Action penalty is 0 on all four. λ = 20 reuses `learned_frontier_lambda20_rfs42` from the 2026-10-31 exam. The other artifacts are `learned_frontier_lambda0_rf0s42`, `learned_frontier_lambda5_rf5s42`, and `learned_frontier_lambda80_rf80s42`. Notebook `notebooks/Retrieve_First_Lambda_Sweep.ipynb`.
+
+Repairs are questions one-shot got wrong and this row got right. Breaks are the reverse. The paired sign test is an exact two-sided binomial test on those discordant questions, success probability 1/2. The 95% interval is a percentile bootstrap of exact match: 10000 draws with replacement from these questions, seed 42, percentiles 2.5 and 97.5. The anchor is `baseline_default_v4`: 100/300, Hotpot 60 / NQ 40, $ 1.72e-4, 1196 ms, interval 0.280–0.387.
+
+| λ | Epoch | Valid reward | EM | Hotpot / NQ | $ | Latency ms | steps / ret / rew / ver | Repairs | Breaks | Sign p | EM 95% |
+|---:|---:|---:|---:|---|---:|---:|---|---:|---:|---:|---|
+| 0 | 18 | 0.61888 | 0.347 | 60 / 44 | 4.82e-4 | 4383 | 6.67 / 2.68 / 2.00 / 1.00 | 10 | 6 | 0.454 | 0.293–0.403 |
+| 5 | 7 | 0.59457 | 0.333 | 60 / 40 | 2.60e-4 | 1655 | 3.09 / 1.00 / 0.09 / 1.00 | 0 | 0 | 1.000 | 0.280–0.387 |
+| 20 | 17 | 0.60761 | 0.343 | 60 / 43 | 4.60e-4 | 4533 | 6.51 / 2.91 / 2.00 / 0.61 | 7 | 4 | 0.549 | 0.290–0.397 |
+| 80 | 4 | 0.58017 | 0.333 | 60 / 40 | 1.72e-4 | 1288 | 2 / 1 / 0 / 0 | 0 | 0 | 1.000 | 0.280–0.387 |
+
+λ = 0’s common path is `retrieve, rewrite, rewrite, retrieve, retrieve, verify, verify, stop` on 119/300 (12 sequences). Second action: rewrite 282, retrieve 18. Best threshold 109.9 matches 282/300 by sitting above every score and calling the second action rewrite. Retrieve scores are 20.4–34.5; rewrite covers 22.4–108.9. The written rule counts this one seed. Same prediction as one-shot on 261/300. Hotpot +1 / −1, NQ +9 / −5, union 110/300. Exam reward 0.626.
+
+λ = 5’s common path is `retrieve, verify, verify, stop` on 112/300 (8 sequences). Second action: verify 180, stop 111, rewrite 9, retrieve 0. The branch rule fails. Predictions match one-shot on 300/300. Exam reward 0.601.
+
+λ = 80 is `retrieve, stop` on 300/300. Predictions and the dollar bill match one-shot. Measured latency is 1288 ms beside one-shot’s 1196 ms. Exam reward 0.588.
+
+The 2026-10-31 branch count stays **0 of 3**. This sweep is one seed per λ. Only λ = 0 meets the rule.
+
+Dollars and milliseconds put λ = 80 with one-shot at the cheap end and λ = 0 with λ = 20 at the expensive end. Between those two, λ = 20 has the smaller bill and the longer clock. λ = 5 sits between them on both. The reward uses the nominal latency table. The millisecond column is the measured wall clock. Combined file: `results/metrics/retrieve_first_lambda_sweep.json`. Figures: `results/figs/retrieve_first_lambda_sweep_table.png`, `retrieve_first_lambda_sweep_em_usd.png`. Full write-up: [`RESULTS.md`](RESULTS.md) §10 item 22.

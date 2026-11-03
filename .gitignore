@@ -5,7 +5,7 @@ __pycache__/
 *$py.class
 agentic_rag_rl_colab.zip
 
-# LaTeX intermediates. paper/paper.pdf and paper/figures/ stay tracked.
+# LaTeX intermediates. paper/paper_bkp.pdf and paper/figures/ stay tracked.
 paper/*.aux
 paper/*.bbl
 paper/*.blg

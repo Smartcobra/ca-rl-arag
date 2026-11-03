@@ -2,7 +2,7 @@
 
 This guide explains **why** each command exists, **which datasets** are used, **what evaluation metrics** mean, **how to run** each step, and **what output** you get.
 
-The latest scored run is the retrieve-first λ = 20 exam for seeds 42, 43, and 44 (`learned_frontier_lambda20_rfs42`, `rfs43`, `rfs44`). Correct counts are 103 / 100 / 103 on the locked 300, and the score branch is 0 of 3. Figures are in `results/figs/retrieve_first_*.png`. The write-up is `docs/RESULTS.md` item 21. The commands below are the older pipeline; they do not retrain that exam.
+The latest scored runs are the retrieve-first exams. At λ = 20, seeds 42, 43, and 44 (`learned_frontier_lambda20_rfs42`, `rfs43`, `rfs44`) score 103 / 100 / 103 on the locked 300, and the score branch is 0 of 3. The seed-42 cost sweep (`frontier_lambda0`, `frontier_lambda5`, `frontier_lambda20`, `frontier_lambda80`) scores 104 / 100 / 103 / 100. Each learned row carries repairs, breaks, a paired sign test, an exact-match 95% interval, the priced dollars, and the measured latency in milliseconds. Figures are in `results/figs/retrieve_first_*.png`. The write-up is `docs/RESULTS.md` items 21 and 22. The commands below are the older pipeline; they do not retrain those exams.
 
 Work from the project folder:
 

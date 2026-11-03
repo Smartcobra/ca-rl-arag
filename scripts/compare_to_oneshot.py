@@ -226,7 +226,9 @@ def one_row(label: str, learned_traj: Path, learned_metrics: Path | None, curve:
     return row
 
 
-def _fmt_p(p: float) -> str:
+def _fmt_p(p: float | None) -> str:
+    if p is None:
+        return ""
     if p < 0.001:
         return "<0.001"
     return f"{p:.3f}"
