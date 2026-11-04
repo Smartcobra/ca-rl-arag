@@ -2,10 +2,10 @@
 \usepackage{aaai2027}  % DO NOT CHANGE THIS
 \usepackage[hyphens]{url}  % DO NOT CHANGE THIS
 \usepackage{graphicx} % DO NOT CHANGE THIS
-\graphicspath{{figures/}{paper_v4/figures/}}
 \urlstyle{rm} % DO NOT CHANGE THIS
 \def\UrlFont{\rm}  % DO NOT CHANGE THIS
 \usepackage{natbib}  % DO NOT CHANGE THIS AND DO NOT ADD ANY OPTIONS TO IT
+\InputIfFileExists{early-cites.tex}{}{\input{paper_v4/early-cites.tex}}
 \usepackage{caption} % DO NOT CHANGE THIS AND DO NOT ADD ANY OPTIONS TO IT
 \frenchspacing  % DO NOT CHANGE THIS
 \usepackage{amsmath}
@@ -71,7 +71,7 @@ Figure~\ref{fig:pipeline} is the protocol. An episode is one question. The contr
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=\textwidth]{pipeline.png}
+\includegraphics[width=\textwidth]{paper_v4/figures/pipeline.png}
 \caption{The episode. HotpotQA and Natural Questions share an index of 83{,}120 passages. The controller loops from an observation through one of five actions and back. The price card feeds the reward, REINFORCE carries that reward to the policy, and the 300 test questions feed the frontier.}
 \label{fig:pipeline}
 \end{figure*}
@@ -152,7 +152,7 @@ Figure~\ref{fig:frontier} plots exact match against dollars. An oracle keeps the
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.92\textwidth]{frontier.png}
+\includegraphics[width=0.92\textwidth]{paper_v4/figures/frontier.png}
 \caption{Exact match against mean dollars per question on the 83{,}120-passage index. Squares are one-shot retrieval and the rule. The triangle is max tools. The diamond is the six-step recipe. The filled circle is the rewrite-first \(\lambda{=}20\) exam; seeds 42, 43, and 44 sit on the same point. Filled hexagons are the retrieve-first controller. The labeled ones are seed 42 at \(\lambda{=}0\), 5, and 20, and seed 44 at \(\lambda{=}20\). The open hexagon on the one-shot square is \(\lambda{=}80\) and seed 43 at \(\lambda{=}20\). The star is Adaptive-RAG. The gray circle is the dataset switch, which scores 100. The open diamond is the oracle of one-shot retrieval and the rewrite-first recipe, 122. The open circle adds max tools and scores 126. The cheap-label classifier sits on the one-shot point. The legend is outside the axes.}
 \label{fig:frontier}
 \end{figure*}
@@ -164,7 +164,7 @@ Against one-shot retrieval the recipe agrees on 179 of 300 predictions. Of the 1
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.50\textwidth]{repairs.png}
+\includegraphics[width=0.95\textwidth]{paper_v4/figures/repairs.png}
 \caption{One-shot retrieval against the learned recipe. Each bar is 150 questions. HotpotQA is 47 both correct, 5 repaired, 13 broken, and 85 both wrong. Natural Questions is 31, 17, 9, and 93.}
 \label{fig:repairs}
 \end{figure*}
@@ -270,7 +270,14 @@ A language model was used to revise sentences and to check bibliography entries 
 \section*{Ethical Statement}
 Pricing a tool can refuse a search that would have changed the answer, and the user is not told. Fixed recipes score 97 to 105 out of 300, and an oracle over one-shot retrieval, max tools, and the learned recipe reaches 126 near the one-shot price. The learned recipe and one-shot retrieval each score 100 and disagree on 44 questions. The abstention bonus does not fire on this corpus. The rewrite-first checkpoints never call the verifier. Retrieve-first seed 44 calls it twice on every question. The dollars are a scale for a local 3B model, not a bill a person pays. The questions and passages are public benchmarks with no human subjects, and the checkpoints are not a serving policy.
 
-\bibliography{references}
+\FloatBarrier
+\begingroup
+\raggedright
+\setlength{\bibhang}{1em}
+\setlength{\bibsep}{3pt}
+\raggedbottom
+\InputIfFileExists{included-bib.tex}{}{\input{paper_v4/included-bib.tex}}
+\endgroup
 
 \appendix
 \section{Reward Weights and the Price Card}
@@ -350,14 +357,14 @@ Seed & Epoch & HotpotQA & NQ & Correct & Steps & \$ \(\times 10^{-4}\) \\
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\columnwidth]{train_curves.png}
+\includegraphics[width=\columnwidth]{paper_v4/figures/train_curves.png}
 \caption{Greedy reward on the 180 for the three rewrite-first \(\lambda{=}20\) seeds. The marker is the first epoch of the maximum.}
 \label{fig:curves}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\columnwidth]{train_curves_retrieve_first.png}
+\includegraphics[width=\columnwidth]{paper_v4/figures/train_curves_retrieve_first.png}
 \caption{Greedy reward on the 180 for the six retrieve-first runs. The marker is the first epoch of the maximum. The \(\lambda{=}20\) seed-42 curve is the sweep's \(\lambda{=}20\) row.}
 \label{fig:rfcurves}
 \end{figure}
