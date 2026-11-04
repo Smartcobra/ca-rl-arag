@@ -299,11 +299,54 @@ def curves() -> None:
     print("curves")
 
 
+def retrieve_first_curves() -> None:
+    """Greedy validation reward for the six retrieve-first runs."""
+    jobs = (
+        (20, 42, "train_policy_curve_retrieve_first_lambda20_s42.json", "#1F4E79", "λ=20, seed 42"),
+        (20, 43, "train_policy_curve_retrieve_first_lambda20_s43.json", "#4C9BD4", "λ=20, seed 43"),
+        (20, 44, "train_policy_curve_retrieve_first_lambda20_s44.json", "#9C6644", "λ=20, seed 44"),
+        (0, 42, "train_policy_curve_retrieve_first_lambda0_s42.json", "#6A994E", "λ=0, seed 42"),
+        (5, 42, "train_policy_curve_retrieve_first_lambda5_s42.json", "#E07A3D", "λ=5, seed 42"),
+        (80, 42, "train_policy_curve_retrieve_first_lambda80_s42.json", "#9B2226", "λ=80, seed 42"),
+    )
+    fig, ax = plt.subplots(figsize=(7.2, 3.6))
+    metrics = ROOT / "results" / "metrics"
+    for _lam, _seed, name, color, label in jobs:
+        blob = json.loads((metrics / name).read_text())
+        epochs = [int(row["epoch"]) for row in blob]
+        reward = [float(row["eval_reward"]) for row in blob]
+        ax.plot(epochs, reward, color=color, linewidth=1.5, label=label)
+        best = max(reward)
+        chosen = epochs[reward.index(best)]
+        ax.scatter([chosen], [best], s=36, color=color, zorder=3)
+        print(f"{label} selected epoch {chosen} eval_reward {best:.5f}")
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Greedy reward on the 180")
+    ax.set_xticks(range(1, 21, 2))
+    ax.tick_params(colors=SOFT["ink"])
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["left"].set_color("#DDDDDD")
+    ax.spines["bottom"].set_color("#DDDDDD")
+    ax.legend(
+        frameon=False,
+        fontsize=7.5,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.02),
+        ncol=3,
+        borderaxespad=0.2,
+    )
+    fig.tight_layout()
+    fig.savefig(OUT / "train_curves_retrieve_first.png", dpi=200, bbox_inches="tight")
+    print("retrieve-first curves")
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     repairs()
     frontier()
     curves()
+    retrieve_first_curves()
 
 
 if __name__ == "__main__":
