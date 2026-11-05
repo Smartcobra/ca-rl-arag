@@ -29,6 +29,9 @@ class AgentState:
     stop_mode: str = "answer"  # answer | abstain | escalate
     last_flags: dict[str, Any] = field(default_factory=dict)
     counts: dict[str, int] = field(default_factory=lambda: {"retrieve": 0, "rewrite": 0, "rerank": 0, "verify": 0})
+    # Queries already passed to BM25. A later retrieve of one of these strings
+    # returns the same passages, so the inert-action mask can block it.
+    retrieved_queries: set[str] = field(default_factory=set)
 
     def observation(self, tracker: CostTracker, cfg: dict[str, Any]) -> dict[str, Any]:
         budget = cfg.get("budget", {})
@@ -61,6 +64,7 @@ class AgentState:
             "remaining_steps": max_steps - self.step,
             "last_flags": dict(self.last_flags),
             "done": self.done,
+            "query_already_searched": self.current_query in self.retrieved_queries,
         }
 
 
@@ -113,6 +117,7 @@ class AgenticRAG:
         info: dict[str, Any] = {"action": action, "step": state.step}
 
         if action == "retrieve":
+            state.retrieved_queries.add(state.current_query)
             t0 = timed()
             pool = self.retriever.search(state.current_query, top_k=self.pool_size)
             tracker.price_retrieve(ms_since(t0))

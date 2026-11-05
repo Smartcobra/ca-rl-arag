@@ -206,12 +206,26 @@ def _rollout(
     reward = 0.0
     while not done:
         obs_before = obs
-        action_idx, logp, ent = policy.act(obs, cfg=cfg, deterministic=deterministic)
+        state = env._state
+        already_searched = bool(
+            state is not None and state.current_query in state.retrieved_queries
+        )
+        action_idx, logp, ent = policy.act(
+            obs,
+            cfg=cfg,
+            deterministic=deterministic,
+            query_already_searched=already_searched,
+        )
         obs, r, term, trunc, info = env.step(action_idx)
         executed_name = str(info.get("action") or "")
         executed_idx = ACTION_TO_IDX.get(executed_name, action_idx)
         if executed_idx != action_idx:
-            logp, ent = policy.log_prob_action(obs_before, executed_idx, cfg=cfg)
+            logp, ent = policy.log_prob_action(
+                obs_before,
+                executed_idx,
+                cfg=cfg,
+                query_already_searched=already_searched,
+            )
         if not deterministic:
             log_probs.append(logp)
             entropies.append(ent)

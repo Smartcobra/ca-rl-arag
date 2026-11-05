@@ -84,6 +84,15 @@ def test_legal_mask_last_step() -> None:
     assert mask.sum() == 1
 
 
+def _evidence_obs(*, remaining_frac: float = 1.0, n_verify: float = 0.0) -> np.ndarray:
+    obs = np.zeros(OBS_DIM, dtype=np.float32)
+    obs[1] = 0.5
+    obs[2] = remaining_frac
+    obs[6] = 1.0 / 3.0
+    obs[9] = n_verify / 2.0
+    return obs
+
+
 def test_force_first_retrieve_mask() -> None:
     forced = {"agent": {**_AGENT, "force_first_retrieve": True}}
     mask = legal_mask(_empty_evidence_obs(), forced)
@@ -102,6 +111,95 @@ def test_force_first_retrieve_mask() -> None:
     assert after[ACTION_TO_IDX["retrieve"]]
     assert after[ACTION_TO_IDX["rewrite"]]
     assert after[ACTION_TO_IDX["stop"]]
+
+
+def test_inert_mask_blocks_repeated_retrieve_second_verify_and_last_rewrite() -> None:
+    blocked = {"agent": {**_AGENT, "force_first_retrieve": True, "block_inert_actions": True}}
+    seen = _evidence_obs()
+    # The flag is off: a query already searched is still a legal retrieve.
+    open_mask = legal_mask(seen, {"agent": {**_AGENT, "block_inert_actions": False}}, query_already_searched=True)
+    assert open_mask[ACTION_TO_IDX["retrieve"]]
+    same_query = legal_mask(seen, blocked, query_already_searched=True)
+    assert not same_query[ACTION_TO_IDX["retrieve"]]
+    assert same_query[ACTION_TO_IDX["rewrite"]]
+    assert same_query[ACTION_TO_IDX["verify"]]
+    fresh_query = legal_mask(seen, blocked, query_already_searched=False)
+    assert fresh_query[ACTION_TO_IDX["retrieve"]]
+    second_verify = legal_mask(_evidence_obs(n_verify=1.0), blocked, query_already_searched=False)
+    assert not second_verify[ACTION_TO_IDX["verify"]]
+    first_verify = legal_mask(_evidence_obs(n_verify=0.0), blocked, query_already_searched=False)
+    assert first_verify[ACTION_TO_IDX["verify"]]
+    # Two steps left: this action, then the forced stop. A rewrite cannot be retrieved.
+    last_slot = legal_mask(_evidence_obs(remaining_frac=2.0 / 8.0), blocked, query_already_searched=False)
+    assert not last_slot[ACTION_TO_IDX["rewrite"]]
+    assert last_slot[ACTION_TO_IDX["retrieve"]]
+    assert last_slot[ACTION_TO_IDX["stop"]]
+    earlier = legal_mask(_evidence_obs(remaining_frac=3.0 / 8.0), blocked, query_already_searched=False)
+    assert earlier[ACTION_TO_IDX["rewrite"]]
+    # Same query, last slot, verify already used: stop is the fallback.
+    stuck = legal_mask(
+        _evidence_obs(remaining_frac=2.0 / 8.0, n_verify=1.0),
+        blocked,
+        query_already_searched=True,
+    )
+    assert stuck[ACTION_TO_IDX["stop"]]
+    assert not stuck[ACTION_TO_IDX["retrieve"]]
+    assert not stuck[ACTION_TO_IDX["rewrite"]]
+    assert not stuck[ACTION_TO_IDX["verify"]]
+    empty = _empty_evidence_obs(remaining_frac=2.0 / 8.0)
+    empty[6] = 1.0 / 3.0
+    empty_last = legal_mask(empty, blocked, query_already_searched=True)
+    assert empty_last[ACTION_TO_IDX["stop"]]
+    assert int(empty_last.sum()) == 1
+    # Step 0 stays retrieve. The inert rules do not open the first action.
+    first = legal_mask(_empty_evidence_obs(), blocked, query_already_searched=False)
+    assert first[ACTION_TO_IDX["retrieve"]]
+    assert int(first.sum()) == 1
+
+
+def test_act_respects_inert_mask() -> None:
+    cfg = {"agent": {**_AGENT, "block_inert_actions": True}}
+    pol = LearnedPolicy(hidden=16, seed=1)
+    obs = _evidence_obs(remaining_frac=2.0 / 8.0, n_verify=1.0)
+    for _ in range(30):
+        action, logp, ent = pol.act(obs, cfg=cfg, query_already_searched=True)
+        assert action in {ACTION_TO_IDX["rerank"], ACTION_TO_IDX["stop"]}
+        assert torch.isfinite(logp)
+        assert torch.isfinite(ent)
+
+
+def test_retrieved_query_is_marked_searched() -> None:
+    from src.agentic_rag import AgentState, AgenticRAG
+    from src.cost import CostTracker
+    from src.rewards import RewardComputer
+
+    tracker = CostTracker({})
+    state = AgentState(question="q", current_query="q")
+    cfg = {"agent": {"max_steps": 8}, "budget": {"max_usd": 0.05}}
+    assert state.observation(tracker, cfg)["query_already_searched"] is False
+
+    class _Retriever:
+        def search(self, query: str, top_k: int = 5):
+            assert query == "q"
+            return [{"passage_id": "p", "title": "t", "text": "body", "score": 1.0}]
+
+    agent = AgenticRAG(
+        {
+            "retrieval": {},
+            "verification": {"backend": "lexical_nli"},
+            "agent": {"max_steps": 8},
+            "budget": {},
+            "price_card": {"retrieval": {"bm25_per_call": 5e-5}},
+        },
+        _Retriever(),
+        reward_computer=RewardComputer({}),
+        generator=object(),
+    )
+    state, _info = agent.step(state, "retrieve", CostTracker(agent.cfg["price_card"]))
+    assert "q" in state.retrieved_queries
+    assert state.observation(tracker, cfg)["query_already_searched"] is True
+    state.current_query = "rewritten q"
+    assert state.observation(tracker, cfg)["query_already_searched"] is False
 
 
 def test_same_seed_same_weights_despite_global_rng() -> None:
@@ -309,6 +407,9 @@ def main() -> None:
     test_legal_mask_empty_evidence()
     test_legal_mask_last_step()
     test_force_first_retrieve_mask()
+    test_inert_mask_blocks_repeated_retrieve_second_verify_and_last_rewrite()
+    test_act_respects_inert_mask()
+    test_retrieved_query_is_marked_searched()
     test_act_respects_mask()
     test_same_seed_same_weights_despite_global_rng()
     test_sample_uses_private_generator()

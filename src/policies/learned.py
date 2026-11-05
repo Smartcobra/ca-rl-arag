@@ -54,8 +54,43 @@ def parameter_count(module: nn.Module) -> int:
     return int(sum(p.numel() for p in module.parameters()))
 
 
-def legal_mask(obs_vec: np.ndarray, cfg: dict[str, Any] | None = None) -> np.ndarray:
-    """Boolean mask over ACTIONS. Cuts illegal / wasted tools on a tiny dataset."""
+def _block_inert_actions(
+    allow: np.ndarray,
+    *,
+    enabled: bool,
+    query_already_searched: bool,
+    n_verify: float,
+    remaining_steps: float,
+) -> None:
+    """Block actions that cannot change the answer written at stop.
+
+    A retrieve of a query already searched returns the same passages. A second
+    verify does not enter the generator call at stop. A rewrite in the last
+    slot before the forced stop cannot be followed by a retrieve. The first
+    verify stays legal. The flag is ``agent.block_inert_actions``.
+    """
+    if not enabled:
+        return
+    if query_already_searched:
+        allow[ACTIONS.index("retrieve")] = False
+    if n_verify >= 1.0 - 1e-5:
+        allow[ACTIONS.index("verify")] = False
+    # remaining_steps == 1 is already stop-only. At 2, the next decision is that stop.
+    if remaining_steps <= 2.0 + 1e-5:
+        allow[ACTIONS.index("rewrite")] = False
+
+
+def legal_mask(
+    obs_vec: np.ndarray,
+    cfg: dict[str, Any] | None = None,
+    *,
+    query_already_searched: bool = False,
+) -> np.ndarray:
+    """Boolean mask over ACTIONS. Cuts illegal / wasted tools on a tiny dataset.
+
+    ``query_already_searched`` is read only when ``agent.block_inert_actions``
+    is set. It is not one of the 25 network inputs.
+    """
     cfg = cfg or {}
     agent = cfg.get("agent") or {}
     max_steps = float(agent.get("max_steps", 8))
@@ -96,18 +131,23 @@ def legal_mask(obs_vec: np.ndarray, cfg: dict[str, Any] | None = None) -> np.nda
             allow[ACTIONS.index("retrieve")] = False
         if n_rewrite >= max_rewrite - 1e-5:
             allow[ACTIONS.index("rewrite")] = False
-        if not allow.any():
-            allow[ACTIONS.index("stop")] = True
-        return allow
+    else:
+        if n_retrieve >= max_retrieve - 1e-5:
+            allow[ACTIONS.index("retrieve")] = False
+        if n_rewrite >= max_rewrite - 1e-5:
+            allow[ACTIONS.index("rewrite")] = False
+        if n_rerank >= max_rerank - 1e-5:
+            allow[ACTIONS.index("rerank")] = False
+        if n_verify >= max_verify - 1e-5:
+            allow[ACTIONS.index("verify")] = False
 
-    if n_retrieve >= max_retrieve - 1e-5:
-        allow[ACTIONS.index("retrieve")] = False
-    if n_rewrite >= max_rewrite - 1e-5:
-        allow[ACTIONS.index("rewrite")] = False
-    if n_rerank >= max_rerank - 1e-5:
-        allow[ACTIONS.index("rerank")] = False
-    if n_verify >= max_verify - 1e-5:
-        allow[ACTIONS.index("verify")] = False
+    _block_inert_actions(
+        allow,
+        enabled=bool(agent.get("block_inert_actions")),
+        query_already_searched=bool(query_already_searched),
+        n_verify=n_verify,
+        remaining_steps=remaining_steps,
+    )
     if not allow.any():
         allow[ACTIONS.index("stop")] = True
     return allow
@@ -159,11 +199,20 @@ class LearnedPolicy:
     def parameters(self):
         return self.mlp.parameters()
 
-    def _dist(self, obs_np: np.ndarray, cfg: dict[str, Any] | None) -> Categorical:
+    def _dist(
+        self,
+        obs_np: np.ndarray,
+        cfg: dict[str, Any] | None,
+        *,
+        query_already_searched: bool = False,
+    ) -> Categorical:
         obs = torch.as_tensor(np.asarray(obs_np, dtype=np.float32).reshape(1, OBS_DIM), device=self.device)
         logits = self.mlp(obs)
         if cfg is not None:
-            mask = torch.as_tensor(legal_mask(obs_np, cfg), device=self.device)
+            mask = torch.as_tensor(
+                legal_mask(obs_np, cfg, query_already_searched=query_already_searched),
+                device=self.device,
+            )
             logits = logits.masked_fill(~mask.unsqueeze(0), -1e9)
         return Categorical(logits=logits)
 
@@ -173,8 +222,9 @@ class LearnedPolicy:
         cfg: dict[str, Any] | None = None,
         *,
         deterministic: bool = False,
+        query_already_searched: bool = False,
     ) -> tuple[int, torch.Tensor, torch.Tensor]:
-        dist = self._dist(obs_np, cfg)
+        dist = self._dist(obs_np, cfg, query_already_searched=query_already_searched)
         if deterministic:
             action = dist.probs.argmax(dim=-1)
         else:
@@ -189,8 +239,10 @@ class LearnedPolicy:
         obs_np: np.ndarray,
         action_idx: int,
         cfg: dict[str, Any] | None = None,
+        *,
+        query_already_searched: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        dist = self._dist(obs_np, cfg)
+        dist = self._dist(obs_np, cfg, query_already_searched=query_already_searched)
         action = torch.as_tensor([int(action_idx)], device=self.device)
         return dist.log_prob(action).squeeze(), dist.entropy().squeeze()
 
@@ -238,8 +290,14 @@ class LearnedPolicy:
         def policy_fn(obs: dict[str, Any], state: AgentState | None = None) -> str:
             del state
             vec = vectorize_structured_obs(obs, cfg)
+            already = bool(obs.get("query_already_searched"))
             with torch.no_grad():
-                action_idx, _, _ = self.act(vec, cfg=cfg, deterministic=deterministic)
+                action_idx, _, _ = self.act(
+                    vec,
+                    cfg=cfg,
+                    deterministic=deterministic,
+                    query_already_searched=already,
+                )
             return IDX_TO_ACTION[action_idx]
 
         return policy_fn
