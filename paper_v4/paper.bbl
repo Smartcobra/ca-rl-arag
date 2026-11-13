@@ -6,12 +6,12 @@ Asai, A.; Wu, Z.; Wang, Y.; Sil, A.; and Hajishirzi, H. 2024.
 \newblock Self-{RAG}: Learning to Retrieve, Generate, and Critique through Self-Reflection.
 \newblock In \emph{International Conference on Learning Representations}.
 
-\bibitem[{Borgeaud et~al.(2021)Borgeaud, Mensch, Hoffmann, Cai, Rutherford, Millican, van den Driessche, Lespiau, Damoc, Clark, de Las Casas, Guy, Menick, Ring, Hennigan, Huang, Maggiore, Jones, Cassirer, Brock, Paganini, Irving, Vinyals, Osindero, Simonyan, Rae, Elsen, and Sifre}]{borgeaud2022retro}
-Borgeaud, S.; Mensch, A.; Hoffmann, J.; Cai, T.; Rutherford, E.; Millican, K.; van den Driessche, G.; Lespiau, J.-B.; Damoc, B.; Clark, A.; de Las Casas, D.; Guy, A.; Menick, J.; Ring, R.; Hennigan, T.; Huang, S.; Maggiore, L.; Jones, C.; Cassirer, A.; Brock, A.; Paganini, M.; Irving, G.; Vinyals, O.; Osindero, S.; Simonyan, K.; Rae, J.~W.; Elsen, E.; and Sifre, L. 2021.
+\bibitem[{Borgeaud et~al.(2021)Borgeaud, Mensch, Hoffmann, Cai, Rutherford, Millican, van~den Driessche, Lespiau, Damoc, Clark, de~Las~Casas, Guy, Menick, Ring, Hennigan, Huang, Maggiore, Jones, Cassirer, Brock, Paganini, Irving, Vinyals, Osindero, Simonyan, Rae, Elsen, and Sifre}]{borgeaud2022retro}
+Borgeaud, S.; Mensch, A.; Hoffmann, J.; Cai, T.; Rutherford, E.; Millican, K.; van~den Driessche, G.; Lespiau, J.-B.; Damoc, B.; Clark, A.; de~Las~Casas, D.; Guy, A.; Menick, J.; Ring, R.; Hennigan, T.; Huang, S.; Maggiore, L.; Jones, C.; Cassirer, A.; Brock, A.; Paganini, M.; Irving, G.; Vinyals, O.; Osindero, S.; Simonyan, K.; Rae, J.~W.; Elsen, E.; and Sifre, L. 2021.
 \newblock Improving Language Models by Retrieving from Trillions of Tokens.
 \newblock arXiv:2112.04426.
 
-\bibitem[{Chen et~al.(2023)Chen, Zaharia, and Zou}]{chen2023frugalgpt}
+\bibitem[{Chen, Zaharia, and Zou(2023)}]{chen2023frugalgpt}
 Chen, L.; Zaharia, M.; and Zou, J. 2023.
 \newblock {FrugalGPT}: How to Use Large Language Models While Reducing Cost and Improving Performance.
 \newblock arXiv:2305.05176.
@@ -22,22 +22,22 @@ Chen, M.; Sun, L.; Li, T.; Sun, H.; Zhou, Y.; Zhu, C.; Wang, H.; Pan, J.~Z.; Zha
 \newblock arXiv:2503.19470.
 
 \bibitem[{Gandhi et~al.(2026)Gandhi, Lee, Todmal, Dernoncourt, Rossi, Wang, and Lan}]{gandhi2026grasp}
-Gandhi, V.; Lee, J.; Todmal, S.; Dernoncourt, F.; Rossi, R.~A.; Wang, Z.; and Lan, A. 2026.
-\newblock {GRASP}: Granularity-Aware Search Policy for Agentic {RAG}.
+Gandhi, V.; Lee, J.; Todmal, S.; Dernoncourt, F.; Rossi, R.; Wang, Z.; and Lan, A. 2026.
+\newblock {GRASP}: {GR}anularity-Aware Search Policy for Agentic {RAG}.
 \newblock arXiv:2607.10463.
 
-\bibitem[{Gao et~al.(2022)Gao, Dai, Pasupat, Chen, Chaganty, Fan, Zhao, Lao, Lee, Juan, and Guu}]{gao2023rarr}
-Gao, L.; Dai, Z.; Pasupat, P.; Chen, A.; Chaganty, A.~T.; Fan, Y.; Zhao, V.~Y.; Lao, N.; Lee, H.; Juan, D.-C.; and Guu, K. 2022.
+\bibitem[{Gao et~al.(2022{\natexlab{a}})Gao, Dai, Pasupat, Chen, Chaganty, Fan, Zhao, Lao, Lee, Juan, and Guu}]{gao2023rarr}
+Gao, L.; Dai, Z.; Pasupat, P.; Chen, A.; Chaganty, A.~T.; Fan, Y.; Zhao, V.~Y.; Lao, N.; Lee, H.; Juan, D.-C.; and Guu, K. 2022{\natexlab{a}}.
 \newblock {RARR}: Researching and Revising What Language Models Say, Using Language Models.
 \newblock arXiv:2210.08726.
 
-\bibitem[{Gao et~al.(2022)Gao, Ma, Lin, and Callan}]{gao2023hyde}
-Gao, L.; Ma, X.; Lin, J.; and Callan, J. 2022.
+\bibitem[{Gao et~al.(2022{\natexlab{b}})Gao, Ma, Lin, and Callan}]{gao2023hyde}
+Gao, L.; Ma, X.; Lin, J.; and Callan, J. 2022{\natexlab{b}}.
 \newblock Precise Zero-Shot Dense Retrieval without Relevance Labels.
 \newblock arXiv:2212.10496.
 
-\bibitem[{Gao et~al.(2022)Gao, Ma, Lin, and Callan}]{gao2022tevatron}
-Gao, L.; Ma, X.; Lin, J.; and Callan, J. 2022.
+\bibitem[{Gao et~al.(2022{\natexlab{c}})Gao, Ma, Lin, and Callan}]{gao2022tevatron}
+Gao, L.; Ma, X.; Lin, J.; and Callan, J. 2022{\natexlab{c}}.
 \newblock Tevatron: An Efficient and Flexible Toolkit for Dense Retrieval.
 \newblock arXiv:2203.05765.
 

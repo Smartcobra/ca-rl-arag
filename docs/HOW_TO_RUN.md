@@ -2,7 +2,7 @@
 
 This guide explains **why** each command exists, **which datasets** are used, **what evaluation metrics** mean, **how to run** each step, and **what output** you get.
 
-The latest scored runs are the retrieve-first exams. At λ = 20, seeds 42, 43, and 44 (`learned_frontier_lambda20_rfs42`, `rfs43`, `rfs44`) score 103 / 100 / 103 on the locked 300, and the score branch is 0 of 3. The seed-42 cost sweep (`frontier_lambda0`, `frontier_lambda5`, `frontier_lambda20`, `frontier_lambda80`) scores 104 / 100 / 103 / 100. Each learned row carries repairs, breaks, a paired sign test, an exact-match 95% interval, the priced dollars, and the measured latency in milliseconds. Figures are in `results/figs/retrieve_first_*.png`. The write-up is `docs/RESULTS.md` items 21 and 22. The commands below are the older pipeline; they do not retrain those exams.
+The latest scored run is the retrieve-first inert mask, λ = 20, seed 45 (`learned_frontier_lambda20_rfinert45`): 104/300 at 5.41e-4, repairs 11 and breaks 7, sign-test p 0.481, idle steps 1.13 of 5.77 (26.2% of the bill). The unmasked retrieve-first exams stay on disk. At λ = 20, seeds 42, 43, and 44 (`rfs42`, `rfs43`, `rfs44`) score 103 / 100 / 103, and the score branch is 0 of 3. The seed-42 cost sweep scores 104 / 100 / 103 / 100. Idle-action counts for those six rows are in `results/metrics/inert_actions.json`. The write-up is `docs/RESULTS.md` items 21–24. The commands below are the older pipeline; they do not retrain those exams.
 
 Work from the project folder:
 
@@ -787,6 +787,7 @@ Every pilot artifact records a corpus fingerprint (`n_passages` plus a sha1 over
 10. Frontier v3 (2026-09-28): score `learned_policy_frontier_v3_<preset>_best.pt`. Selected λ=0 is epoch 11 (EM 0.343, 103/300, 6 steps / 3 retrieve / 2 rewrite). λ=20 epoch 7 and λ=80 every greedy epoch are retrieve→stop (EM 0.333, 100/300). Last-epoch λ=0 is the `v3last` file (two rewrites, same answers as retrieve→stop). Those files were overwritten on 2026-10-03; read them at git `3a2c83c`. The working-tree `_v3` exams are the 16-d retrain (λ=20, 16 sequences, EM 0.343). Do not overwrite the v2 `.pt` files or `learned_policy.pt`.
 11. Frontier v4 (2026-10-05): same config, `v4` checkpoint and curve names, `--artifact-suffix v4` / `v4last`. Selected λ=0 (epoch 20) and λ=20 (epoch 16) are EM 0.347 (104/300) with the same answers. λ=80 is retrieve→stop. Does not overwrite `_v3`.
 12. λ=20 seeds 42 / 43 / 44 (2026-10-20): `learned_frontier_lambda20_v4s{42,43,44}`. Selected epochs 17 / 14 / 11. Same exam, `rewrite, rewrite, retrieve, stop` on 300/300, EM 0.333 (100/300, Hotpot 52 / NQ 48), $ 2.02e-4. Branch count 0 of 3.
+13. Retrieve-first inert mask (2026-11-07): `learned_frontier_lambda20_rfinert45`. Selected epoch 12. EM 0.347 (104/300, Hotpot 60 / NQ 44), $ 5.41e-4, latency 4110 ms. Repairs 11, breaks 7, sign-test p 0.481. Idle 1.13 of 5.77 tool calls. The 2026-11-04 idle counts for the six earlier retrieve-first rows are `results/metrics/inert_actions.json`. Full write-up: `RESULTS.md` items 23 and 24.
 
 If anything fails, start from smoke test, then re-prepare data, then re-run pilot. Do not debug the trainer against the 300-eval until `correctness_only` has also collapsed.
 
@@ -797,10 +798,10 @@ If anything fails, start from smoke test, then re-prepare data, then re-run pilo
 | Doc | Topic |
 |---|---|
 | `README.md` | Project overview |
-| `docs/RESULTS.md` | **Detailed results:** 80k ranking slice `d456d26` (150 Hotpot + 150 NQ), reward/\(Q_{\mathrm{cal}}\) rescored 2026-09-04. §6 `default` train + 300-eval (collapsed to naive), 2026-09-13 free-cost sanity, failed λ=80 `act_penalty` sweep, 2026-09-23/24 λ=0 / 20 / 80 40-epoch family (tools / 3-retrieve / retrieve→stop), 2026-09-28 frontier v3 (selected λ=0 EM 0.343; files overwritten 2026-10-03), the 16-d retrain (λ=20, 16 sequences, EM 0.343), the 2026-10-05 `v4` rerun (λ=0 and λ=20 tie at EM 0.347; the 16-sequence controller did not repeat), and the 2026-10-20 λ=20 seeds 42/43/44 (same recipe, branch in 0 of 3). SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
+| `docs/RESULTS.md` | **Detailed results,** through the 2026-11-04 idle-action counts and the 2026-11-07 retrieve-first inert mask (seed 45, 104/300, sign-test p 0.481). Items 21–24 are the retrieve-first exams. SQuAD `e8a4423` and leaked-NQ `2417c43` are historical. |
 | `docs/NQ_MAX_TOOLS_ANALYSIS.md` | Leaked-NQ max-tools mechanism; tiny-corpus run `34e6585` (NQ 148/150), not the current Tevatron-NQ snapshot |
 | `docs/REWARD_DESIGN.md` | Why reward weights were chosen |
-| `docs/IMPLEMENTATION_DECISIONS.md` | Verifier = NLI, extractive generator, tiny REINFORCE trainer (2026-09-05); train 2026-09-09; learned eval 2026-09-10; free-cost sanity and λ=80 frontier 2026-09-13; frontier retarget 2026-09-15; λ=0 / 20 / 80 40-epoch family 2026-09-23/24; frontier v3 exams 2026-09-28; 16-d retrain 2026-10-03; `v4` second run 2026-10-05; λ=20 seeds 42/43/44 2026-10-20 |
+| `docs/IMPLEMENTATION_DECISIONS.md` | Decision log through the 2026-11-07 retrieve-first inert mask (seed 45) and the 2026-11-04 idle-action counts |
 | `docs/WHY_SMALL_MLP.md` | Why the policy is 261 parameters; `default` and λ=80 frontier evals were naive; `correctness_only` used the step cap |
 | `docs/EXPERIMENT_LOG.md` | Recorded pilot numbers (each dated block names its run) |
 | `docs/data_cards/*.md` | Dataset cards |

@@ -509,3 +509,30 @@ Repairs are questions one-shot got wrong and this row got right. Breaks are the 
 The 2026-10-31 branch count stays **0 of 3**. This sweep is one seed per λ. Only λ = 0 meets the rule.
 
 Dollars and milliseconds put λ = 80 with one-shot at the cheap end and λ = 0 with λ = 20 at the expensive end. Between those two, λ = 20 has the smaller bill and the longer clock. λ = 5 sits between them on both. The reward uses the nominal latency table. The millisecond column is the measured wall clock. Combined file: `results/metrics/retrieve_first_lambda_sweep.json`. Figures: `results/figs/retrieve_first_lambda_sweep_table.png`, `retrieve_first_lambda_sweep_em_usd.png`. Full write-up: [`RESULTS.md`](RESULTS.md) §10 item 22.
+
+## 2026-11-04 — actions that cannot change the answer
+
+**Run:** no training. `scripts/count_inert_actions.py` reads the retrieve-first trajectories already on disk. An action is idle when it cannot change the answer written at stop: a verify, a retrieve of a query already searched, or a rewrite with no later retrieve. Rerank and stop are not idle. Source: `results/metrics/inert_actions.json`.
+
+| Row | Idle actions | Tool actions | Idle $ ×10⁻⁴ | Share of the bill |
+|---|---:|---:|---:|---:|
+| λ = 20, seed 42 | 2.34 | 5.51 | 1.44 | 31.3% |
+| λ = 20, seed 43 | 0 | 1.00 | 0 | 0 |
+| λ = 20, seed 44 | 3.03 | 7.00 | 1.93 | 34.3% |
+| λ = 0, seed 42 | 2.35 | 5.67 | 1.56 | 32.3% |
+| λ = 5, seed 42 | 1.09 | 2.09 | 0.88 | 34.0% |
+| λ = 80, seed 42 | 0 | 1.00 | 0 | 0 |
+
+Seed 43 and λ = 80 are retrieve, then stop, so the idle count is 0. On λ = 5, dropping the idle steps leaves the one-shot dollar bill on 300/300. Seed 44’s extra price-card dollars, times λ = 20, are 0.0078. Full write-up: [`RESULTS.md`](RESULTS.md) §10 item 23.
+
+## 2026-11-07 — retrieve-first inert mask, λ=20, seed 45
+
+**Run:** `configs/retrieve_first_inert_mask.yaml`, preset `frontier_lambda20`, seed 45, 20 epochs. Same 25-d retrieve-first controller, plus a mask: no retrieve of a query already searched, no second verify, and no rewrite in the last slot before stop. Corpus 83,120 passages, sha1 `18e880b5…`. Artifacts `learned_frontier_lambda20_rfinert45`. Curve `train_policy_curve_retrieve_first_inert_lambda20_s45.json`. Notebook `notebooks/Retrieve_First_Inert_Mask_Lambda20.ipynb`. This file does not replace the `rfs42` / `rfs43` / `rfs44` exams.
+
+**Valid greedy** (n=180). The selected epoch is the first time the curve reaches its best `eval_reward`. That epoch is 12, reward 0.60313, and no later epoch ties it.
+
+**Eval** (frozen argmax of `_best.pt`, n=300). First action is retrieve on 300/300. EM 0.347 (104/300, Hotpot 60 / NQ 44) at 5.41e-4 dollars, measured latency 4110 ms, 6.77 steps, 2.77 retrieve, 2.00 rewrite, 1.00 verify, 0 rerank. Eight sequences. The common path is `retrieve, verify, rewrite, retrieve, rewrite, retrieve, stop` on 223/300. The second action is verify 266 and rewrite 34. Retrieve is 0 as that second action, so the score-branch rule fails. The mask holds on the exam: 0 questions call verify twice, and 0 retrieves repeat a query already searched. Exam reward under λ = 20 is 0.614.
+
+Against `baseline_default_v4` (100/300, Hotpot 60 / NQ 40, $ 1.72e-4, 1196 ms, interval 0.280–0.387): same prediction on 282/300, repairs 11, breaks 7, Hotpot +1 / −1, NQ +10 / −6, union 111/300. Sign-test p 0.481. Exact-match interval 0.293–0.400. The test does not separate the row from one-shot retrieval.
+
+Idle actions on this exam, counted the same way as 2026-11-04: 1.13 of 5.77 tool calls, 1.42×10⁻⁴ dollars, 26.2% of the bill. Those idle steps are the one verify on each question (300) and 38 rewrites with no later retrieve. Extra price-card dollars times λ = 20, against one-shot, are 0.0074. Unmasked seed 44, same λ, is 103/300 at 5.62e-4 with 3.03 idle actions of 7.00 (34.3% of the bill). The mask cuts that idle share and does not take the 26-answer gap. Comparison file: `retrieve_first_inert_lambda20_s45_vs_oneshot.json`. Full write-up: [`RESULTS.md`](RESULTS.md) §10 item 24.

@@ -66,6 +66,12 @@ ROWS = (
         "seed": 42,
         "traj": "learned_frontier_lambda80_rf80s42.jsonl",
     },
+    {
+        "name": "lambda20_s45_masked",
+        "lambda": 20,
+        "seed": 45,
+        "traj": "learned_frontier_lambda20_rfinert45.jsonl",
+    },
 )
 
 ONESHOT = "learned_frontier_lambda20_rfs43.jsonl"

@@ -16,7 +16,7 @@
 % Do not use this file unless you are an experienced LaTeX user.
 %
 \NeedsTeXFormat{LaTeX2e}%
-\ProvidesPackage{aaai2027}[2027/05/04 AAAI 2027 Submission format]%
+\ProvidesPackage{aaai2027}[2027/10/21 AAAI 2027 Submission format]%
 
 %
 % BASIC DEFINITIONS
@@ -115,7 +115,11 @@ This work is published under the \mbox{CC~BY~4.0} license: https://creativecommo
     \@thanks%
   \endgroup%
   % Insert copyright slug unless turned off
-  \if T\copyright@on\insert\aaai@copyrightins{\noindent\footnotesize\copyright@text}\fi%
+  \if T\copyright@on
+    \insert\aaai@copyrightins{\noindent\footnotesize\copyright@text}%
+    \global\aaai@copyrightpendingtrue
+    \xdef\aaai@titlepage{\the\c@page}%
+  \fi%
   %
   \setcounter{footnote}{0}%
   \let\maketitle\relax%
@@ -277,6 +281,12 @@ This work is published under the \mbox{CC~BY~4.0} license: https://creativecommo
       \unvbox\aaai@thanksins}%
   \fi
   \ifvoid\aaai@copyrightins\else
+    \global\aaai@copyrightpendingfalse
+    \ifnum\c@page=\aaai@titlepage\relax
+      \if@firstcolumn\else\aaai@copyrightmisplaced\fi
+    \else
+      \aaai@copyrightmisplaced
+    \fi
     \setbox\footins\vbox{%
       \boxmaxdepth\@maxdepth
       \ifvoid\footins\else\unvbox\footins\fi
@@ -286,6 +296,74 @@ This work is published under the \mbox{CC~BY~4.0} license: https://creativecommo
   \aaai@orig@makecol
 }
 %
+% Whenever a float or marginpar is processed, the output routine fires and TeX
+% empties every insert on the current page into its box register.  The kernel
+% puts \footins back (\@reinserts) but knows nothing about our two private
+% classes, so without the code below the title footnotes and copyright notice of
+% a page-1 column containing a float would sit in their boxes unbudgeted and
+% \@makecol would push them into the bottom margin.
+%
+% 1. In the pass that places a float or marginpar (\outputpenalty = -\@Mii or
+%    -\@Miii), just before the kernel puts the held column text (\@holdpg) back
+%    on the page, we re-insert our material at the *front* of \@holdpg, where it
+%    was before the float arrived.  Re-inserting after the held text (as
+%    \@reinserts does for \footins) is not enough: the column may then break
+%    inside that text and carry the copyright notice into the next column.  We
+%    only do this in that pass because the kernel is guaranteed to \unvbox
+%    \@holdpg right away; other code (e.g. cuted's strips) splits \@holdpg into
+%    boxes, where inserts would be lost.
+% 2. When the float is placed (count > 0, i.e. not a marginpar), the kernel
+%    measures the column in \@pageht; we add our material there like \footins.
+% 3. Any other output path that calls \@reinserts (e.g. cuted's strips) finds
+%    our boxes still full, so we re-insert them there like \footins.
+\newdimen\aaai@heldht
+\def\aaai@hold#1{%
+  \ifvoid#1\else
+    \global\advance\aaai@heldht\ht#1%
+    \global\advance\aaai@heldht\skip#1%
+    \global\advance\aaai@heldht\dp#1%
+    \global\setbox\@holdpg\vbox{\insert#1{\unvbox#1}\unvbox\@holdpg}%
+  \fi}
+\def\aaai@reinsert#1{%
+  \ifvoid#1\else
+    \ifnum\count\@currbox>\z@
+      \advance\@pageht\ht#1%
+      \advance\@pageht\skip#1%
+      \advance\@pageht\dp#1%
+    \fi
+    \insert#1{\unvbox#1}%
+  \fi}
+\g@addto@macro\@reinserts{%
+  \ifnum\count\@currbox>\z@ \advance\@pageht\aaai@heldht \fi
+  \global\aaai@heldht\z@
+  \aaai@reinsert\aaai@thanksins
+  \aaai@reinsert\aaai@copyrightins}
+% Wrap \@specialoutput at \begin{document} so packages that replace it in the
+% preamble (e.g. cuted) are covered as well.
+\AtBeginDocument{%
+  \let\aaai@orig@specialoutput\@specialoutput
+  \def\@specialoutput{%
+    \global\aaai@heldht\z@
+    \ifnum\outputpenalty<-\@Mi
+      \ifnum\outputpenalty>-\@Miv
+        \aaai@hold\aaai@thanksins
+        \aaai@hold\aaai@copyrightins
+      \fi
+    \fi
+    \aaai@orig@specialoutput}}
+%
+% Safety net: complain if the copyright notice ends up anywhere but the first
+% column of the title page, or is never typeset at all.
+\newif\ifaaai@copyrightpending
+\def\aaai@copyrightmisplaced{%
+  \PackageWarningNoLine{aaai2027}{The copyright notice was typeset on page
+    \the\c@page\space\if@firstcolumn(left column)\else(right column)\fi
+    \MessageBreak instead of the bottom of the first column of the first page}}
+\@ifundefined{AddToHook}{}{%
+  \AddToHook{enddocument/afterlastpage}{%
+    \ifaaai@copyrightpending
+      \PackageWarningNoLine{aaai2027}{The copyright notice was never typeset}%
+    \fi}}
 % LISTS AND PARAGRAPHS
 \parindent 10pt
 \topsep 4pt plus 1pt minus 2pt

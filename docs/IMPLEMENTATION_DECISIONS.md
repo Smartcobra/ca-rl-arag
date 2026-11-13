@@ -560,6 +560,31 @@ The three-seed count above stays 0 of 3. This table is one seed per λ.
 
 Dollars and milliseconds put λ = 80 with one-shot at the cheap end and λ = 0 with λ = 20 at the expensive end. Between those two, λ = 20 has the smaller bill and the longer clock. λ = 5 sits between them on both. The millisecond column is measured wall clock. The reward uses the nominal latency table. Exam rewards under each preset are 0.626, 0.601, 0.612, and 0.588.
 
+## 2026-11-04 — Idle actions on the retrieve-first rows
+
+No training. `scripts/count_inert_actions.py` reads the six retrieve-first trajectories. A step is idle when it cannot change the answer written at stop: a verify, a retrieve of a query already searched, or a rewrite with no later retrieve.
+
+| Row | Idle / tool actions | Idle $ ×10⁻⁴ | Share |
+|---|---|---:|---:|
+| λ = 20, seed 42 | 2.34 / 5.51 | 1.44 | 31.3% |
+| λ = 20, seed 43 | 0 / 1.00 | 0 | 0 |
+| λ = 20, seed 44 | 3.03 / 7.00 | 1.93 | 34.3% |
+| λ = 0, seed 42 | 2.35 / 5.67 | 1.56 | 32.3% |
+| λ = 5, seed 42 | 1.09 / 2.09 | 0.88 | 34.0% |
+| λ = 80, seed 42 | 0 / 1.00 | 0 | 0 |
+
+On λ = 5, dropping the idle steps leaves the one-shot dollar bill on 300/300. Seed 44’s extra price-card dollars, times λ = 20, are 0.0078. Source: `results/metrics/inert_actions.json`.
+
+## 2026-11-07 — Retrieve-first inert mask (λ=20, seed 45)
+
+`configs/retrieve_first_inert_mask.yaml`. Same 25-d controller as 2026-10-31, with three extra blocks: no retrieve of a query already searched, no second verify, and no rewrite in the last slot before stop. Preset `frontier_lambda20`, seed 45, 20 epochs. Notebook `notebooks/Retrieve_First_Inert_Mask_Lambda20.ipynb`. Artifact `learned_frontier_lambda20_rfinert45`. The earlier `rfs` files stay.
+
+**Selected exam.** Epoch 12 is the only epoch at greedy reward 0.60313. First action is retrieve on 300/300. EM 0.347 (104/300, Hotpot 60 / NQ 44) at 5.41e-4, latency 4110 ms, 6.77 steps, 8 sequences. Common path on 223/300: `retrieve, verify, rewrite, retrieve, rewrite, retrieve, stop`. Second action is verify 266 and rewrite 34. Retrieve is 0, so the score branch fails. The mask holds: 0 second verifies, 0 repeated-query retrieves. Exam reward 0.614.
+
+**Against this index's one-shot** (100/300, $ 1.72e-4, 1196 ms): same prediction on 282/300, repairs 11, breaks 7, Hotpot +1 / −1, NQ +10 / −6, union 111/300. Sign-test p 0.481. Interval 0.293–0.400. The test does not separate the row from one-shot retrieval.
+
+Idle steps, counted as on 2026-11-04: 1.13 of 5.77 tool calls, 1.42×10⁻⁴ dollars, 26.2% of the bill (300 verifies and 38 rewrites with no later retrieve). Extra dollars times λ = 20 are 0.0074. Unmasked seed 44 is 103/300 at 5.62e-4 with 34.3% of the bill idle. The mask cuts that share. It does not take the 26-answer gap.
+
 ## Observations template
 
 | Date | Experiment | Observation | Implication |
@@ -588,3 +613,5 @@ Dollars and milliseconds put λ = 80 with one-shot at the cheap end and λ = 0 w
 | 2026-10-20 | λ=20 seeds 42, 43, 44 after the nominal-latency fix (`v4s42` / `v4s43` / `v4s44`) | Selected epochs 17 / 14 / 11, same greedy reward 0.60396. Exam is one sequence on 300/300: `rewrite, rewrite, retrieve, stop`. EM 0.333 (100/300, Hotpot 52 / NQ 48) at 2.02e-4 on all three. Predictions and retrieved ids match 300/300. Versus this index's one-shot: +22 / −22 (Hotpot +5 / −13, NQ +17 / −9), union 122/300. Second action is rewrite 300/300, retrieve 0. | The branch on retrieval strength appears in 0 of 3 seeds. Training curves still differ. The selected controller does not. |
 | 2026-10-31 | Retrieve-first λ=20, seeds 42, 43, 44 (`rfs42` / `rfs43` / `rfs44`) | First action retrieve on 300/300. Kept epochs 17 / 2 / 19. Correct counts 103 / 100 / 103. Seed 43 is retrieve→stop and matches one-shot. Seed 42 branches in the raw counts (rewrite 230, retrieve 66) but the best threshold hits 236/296. Seed 44’s second action is verify on 300/300. Paired tests: repairs/breaks 7/4, 0/0, 9/6; sign-test p 0.549, 1.000, 0.607; exact-match intervals 0.290–0.397, 0.280–0.387, 0.290–0.400. Latency 4533 / 1226 / 5285 ms beside one-shot 1196 ms. | The branch on retrieval strength appears in 0 of 3 seeds. Forcing the first retrieve does not by itself produce the score branch. |
 | 2026-11-03 | Retrieve-first λ = 0, 5, 20, 80, seed 42 | Correct 104 / 100 / 103 / 100. Priced 4.82e-4 / 2.60e-4 / 4.60e-4 / 1.72e-4 beside measured 4383 / 1655 / 4533 / 1288 ms. Repairs/breaks 10/6, 0/0, 7/4, 0/0. Sign-test p 0.454, 1.000, 0.549, 1.000. λ = 0 meets the branch count (282/300 at a threshold above every score). λ = 5 and λ = 80 match one-shot predictions. λ = 80 matches the dollar bill. | One seed per λ. The three-seed λ = 20 count stays 0 of 3. Dollars and the clock agree on cheap versus expensive, and they swap λ = 0 with λ = 20. |
+| 2026-11-04 | Idle-action count on the six retrieve-first trajectories | Verify, a repeated-query retrieve, or a rewrite with no later retrieve. λ = 20 seeds 42 / 44 idle 2.34/5.51 (31.3%) and 3.03/7.00 (34.3%). λ = 5 idle 1.09/2.09 (34.0%), and dropping those steps matches the one-shot bill on 300/300. Seed 43 and λ = 80 are retrieve→stop, idle 0. Seed 44’s extra dollars times 20 are 0.0078. | Up through λ = 20 the controller pays for steps that cannot move the answer. |
+| 2026-11-07 | Retrieve-first inert mask, λ=20, seed 45 (`rfinert45`) | Epoch 12. EM 0.347 (104/300, Hotpot 60 / NQ 44) at 5.41e-4, 4110 ms. Common path on 223/300 starts retrieve, verify. Second action retrieve is 0. Mask holds: 0 second verifies, 0 repeated-query retrieves. Repairs 11, breaks 7, p 0.481, interval 0.293–0.400. Idle 1.13/5.77 (26.2% of the bill) against unmasked seed 44 at 34.3%. | The mask cuts idle spending. The sign test does not separate 104/300 from one-shot. The 26-answer gap is still open. |

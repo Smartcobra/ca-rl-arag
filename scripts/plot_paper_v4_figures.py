@@ -165,6 +165,7 @@ def frontier() -> None:
         (20, "learned_frontier_lambda20_rfs43.json", "43"),
         (20, "learned_frontier_lambda20_rfs44.json", "44"),
         (80, "learned_frontier_lambda80_rf80s42.json", "42"),
+        (20, "learned_frontier_lambda20_rfinert45.json", "45"),
     ]
     rf_points = [(lam, seed, summary(name)) for lam, name, seed in retrieve_first]
 
@@ -218,10 +219,11 @@ def frontier() -> None:
     labeled = False
     # λ=80 and λ=20 seed 43 share the one-shot point. Leave them unlabeled.
     offsets = {
-        (0, "42"): (8, 4),
+        (0, "42"): (0, 9),
         (5, "42"): (8, -8),
         (20, "42"): (-28, 8),
         (20, "44"): (8, 4),
+        (20, "45"): (2, -13),
     }
     for lam, seed, (x, y) in rf_points:
         on_oneshot = abs(x - one_shot[0]) < 0.05 and abs(y - one_shot[1]) < 0.002
@@ -238,8 +240,21 @@ def frontier() -> None:
         )
         labeled = True
         if (lam, seed) in offsets:
-            tag = rf"$\lambda={lam}$" if seed == "42" else rf"$\lambda={lam}$, seed {seed}"
-            ax.annotate(tag, (x, y), textcoords="offset points", xytext=offsets[(lam, seed)], fontsize=8, color=SOFT["ink"])
+            if seed == "45":
+                tag = "masked"
+            elif seed == "42":
+                tag = rf"$\lambda={lam}$"
+            else:
+                tag = rf"$\lambda={lam}$, seed {seed}"
+            ax.annotate(
+                tag,
+                (x, y),
+                textcoords="offset points",
+                xytext=offsets[(lam, seed)],
+                fontsize=8,
+                color=SOFT["ink"],
+                ha="center" if (lam, seed) in {(0, "42"), (20, "45")} else "left",
+            )
         print(f"retrieve-first λ={lam} seed {seed}", round(x, 2), round(y, 3))
     ax.set_xlim(1.2, 8.6)
     ax.set_ylim(0.30, 0.46)
@@ -300,7 +315,7 @@ def curves() -> None:
 
 
 def retrieve_first_curves() -> None:
-    """Greedy validation reward for the six retrieve-first runs."""
+    """Greedy validation reward for the seven retrieve-first runs."""
     jobs = (
         (20, 42, "train_policy_curve_retrieve_first_lambda20_s42.json", "#1F4E79", "λ=20, seed 42"),
         (20, 43, "train_policy_curve_retrieve_first_lambda20_s43.json", "#4C9BD4", "λ=20, seed 43"),
@@ -308,14 +323,22 @@ def retrieve_first_curves() -> None:
         (0, 42, "train_policy_curve_retrieve_first_lambda0_s42.json", "#6A994E", "λ=0, seed 42"),
         (5, 42, "train_policy_curve_retrieve_first_lambda5_s42.json", "#E07A3D", "λ=5, seed 42"),
         (80, 42, "train_policy_curve_retrieve_first_lambda80_s42.json", "#9B2226", "λ=80, seed 42"),
+        (20, 45, "train_policy_curve_retrieve_first_inert_lambda20_s45.json", "#6F2C91", "λ=20, seed 45, masked"),
     )
     fig, ax = plt.subplots(figsize=(7.2, 3.6))
     metrics = ROOT / "results" / "metrics"
-    for _lam, _seed, name, color, label in jobs:
+    for _lam, seed, name, color, label in jobs:
         blob = json.loads((metrics / name).read_text())
         epochs = [int(row["epoch"]) for row in blob]
         reward = [float(row["eval_reward"]) for row in blob]
-        ax.plot(epochs, reward, color=color, linewidth=1.5, label=label)
+        ax.plot(
+            epochs,
+            reward,
+            color=color,
+            linewidth=1.5,
+            linestyle="--" if seed == 45 else "-",
+            label=label,
+        )
         best = max(reward)
         chosen = epochs[reward.index(best)]
         ax.scatter([chosen], [best], s=36, color=color, zorder=3)

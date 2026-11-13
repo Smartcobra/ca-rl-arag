@@ -1,15 +1,15 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.10.21)  4 NOV 2026 22:43
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.11.11)  11 NOV 2026 22:52
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**paper-anon.tex
+**paper-anon
 (./paper-anon.tex
-LaTeX2e <2026-06-01>
+LaTeX2e <2026-11-01>
 L3 programming layer <2026-09-09>
-(./paper.tex (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/base/article.cls
-Document Class: article 2025/01/22 v1.4n Standard LaTeX document class
-(/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/base/size10.clo
-File: size10.clo 2025/01/22 v1.4n Standard LaTeX file (size option)
+(/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/base/article.cls
+Document Class: article 2026-06-04 v1.4n Standard LaTeX document class
+(/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/base/size10.clo
+File: size10.clo 2026-06-04 v1.4n Standard LaTeX file (size option)
 )
 \c@part=\count276
 \c@section=\count277
@@ -23,36 +23,36 @@ File: size10.clo 2025/01/22 v1.4n Standard LaTeX file (size option)
 \belowcaptionskip=\skip50
 \bibindent=\dimen150
 ) (./aaai2027.sty
-Package: aaai2027 2027/05/04 AAAI 2027 Submission format
+Package: aaai2027 2027/10/21 AAAI 2027 Submission format
 
 Conference Style for AAAI for LaTeX 2e
-(/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/generic/iftex/iftex.sty
+(/Users/parsuram/Library/TinyTeX/texmf-dist/tex/generic/iftex/iftex.sty
 Package: iftex 2024/12/12 v1.0g TeX engine tests
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/base/fontenc.sty
-Package: fontenc 2025/07/18 v2.1d Standard LaTeX package
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/newtx/newtxtext.sty
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/base/fontenc.sty
+Package: fontenc 2026-07-31 v2.2a Standard LaTeX package
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/newtx/newtxtext.sty
 Package: newtxtext 2024/04/01 v1.744(Michael Sharpe) latex and unicode latex support for TeXGyreTermesX
- `newtxtext' v1.744, 2024/04/01 Text macros taking advantage of TeXGyre Termes and its extensions (msharpe) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/xpatch/xpatch.sty (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/l3kernel/expl3.sty
+ `newtxtext' v1.744, 2024/04/01 Text macros taking advantage of TeXGyre Termes and its extensions (msharpe) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/xpatch/xpatch.sty (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/l3kernel/expl3.sty
 Package: expl3 2026-09-09 L3 programming layer (loader) 
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/l3kernel/l3backend-pdftex.def
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/l3kernel/l3backend-pdftex.def
 File: l3backend-pdftex.def 2026-09-09 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count284
 ))
 Package: xpatch 2020/03/25 v0.3a Extending etoolbox patching commands
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/l3packages/xparse/xparse.sty
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/l3packages/xparse/xparse.sty
 Package: xparse 2025-10-09 L3 Experimental document command parser
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/etoolbox/etoolbox.sty
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/etoolbox/etoolbox.sty
 Package: etoolbox 2025/10/02 v2.5m e-TeX tools for LaTeX (JAW)
 \etb@tempcnta=\count285
-)) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/xcolor/xcolor.sty
+)) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/xcolor/xcolor.sty
 Package: xcolor 2024/09/29 v3.02 LaTeX color extensions (UK)
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/graphics-cfg/color.cfg
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/graphics-cfg/color.cfg
 File: color.cfg 2016/01/02 v1.6 sample color configuration
 )
 Package xcolor Info: Driver file: pdftex.def on input line 274.
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/graphics-def/pdftex.def
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/graphics-def/pdftex.def
 File: pdftex.def 2025/09/29 v1.2d Graphics/color driver for pdftex
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/graphics/mathcolor.ltx)
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/graphics/mathcolor.ltx)
 Package xcolor Info: Model `cmy' substituted by `cmy0' on input line 1349.
 Package xcolor Info: Model `hsb' substituted by `rgb' on input line 1353.
 Package xcolor Info: Model `RGB' extended on input line 1365.
@@ -62,36 +62,36 @@ Package xcolor Info: Model `tHsb' substituted by `hsb' on input line 1369.
 Package xcolor Info: Model `HSB' substituted by `hsb' on input line 1370.
 Package xcolor Info: Model `Gray' substituted by `gray' on input line 1371.
 Package xcolor Info: Model `wave' substituted by `hsb' on input line 1372.
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/xkeyval/xkeyval.sty
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/xkeyval/xkeyval.sty
 Package: xkeyval 2025/11/04 v2.10 package option processing (HA)
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/generic/xkeyval/xkeyval.tex (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/generic/xkeyval/xkvutils.tex
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/generic/xkeyval/xkeyval.tex (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/generic/xkeyval/xkvutils.tex
 \XKV@toks=\toks17
 \XKV@tempa@toks=\toks18
 \XKV@tempb@toks=\toks19
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/generic/xkeyval/keyval.tex))
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/generic/xkeyval/keyval.tex))
 \XKV@depth=\count286
 File: xkeyval.tex 2014/12/03 v2.7a key=value parser (HA)
-)) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/base/textcomp.sty
+)) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/base/textcomp.sty
 Package: textcomp 2024/04/24 v2.1b Standard LaTeX package
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/generic/xstring/xstring.sty (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/generic/xstring/xstring.tex
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/generic/xstring/xstring.sty (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/generic/xstring/xstring.tex
 \xs_counta=\count287
 \xs_countb=\count288
 )
 Package: xstring 2023/08/22 v1.86 String manipulations (CT)
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/base/ifthen.sty
-Package: ifthen 2024/03/16 v1.1e Standard LaTeX ifthen package (DPC)
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/carlisle/scalefnt.sty)
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/base/ifthen.sty
+Package: ifthen 2026-06-01 v1.1e Standard LaTeX ifthen package (DPC)
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/carlisle/scalefnt.sty)
 LaTeX Font Info:    Setting ntxLF sub-encoding to TS1/0 on input line 24.
 LaTeX Font Info:    Setting ntxTLF sub-encoding to TS1/0 on input line 24.
 LaTeX Font Info:    Setting ntxOsF sub-encoding to TS1/0 on input line 24.
 LaTeX Font Info:    Setting ntxTOsF sub-encoding to TS1/0 on input line 24.
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/generic/kastrup/binhex.tex)
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/generic/kastrup/binhex.tex)
 \ntx@tmpcnta=\count289
 \ntx@cnt=\count290
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/fontaxes/fontaxes.sty
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/fontaxes/fontaxes.sty
 Package: fontaxes 2026-01-02 v2.0.2 Font selection axes (deprecated)
 Applying: [2024-11-01] Use figureversions if present on input line 74.
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/figureversions/figureversions.sty
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/figureversions/figureversions.sty
 Package: figureversions 2025-04-29 v1.0.1 Figure versions
 )
 Already applied: [0000-00-00] Fall back to v1 on input line 76.
@@ -111,97 +111,98 @@ Already applied: [0000-00-00] Fall back to v1 on input line 76.
 \tx@dimBB=\dimen163
 \tx@dimC=\dimen164
 LaTeX Info: Redefining \oldstylenums on input line 902.
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/psnfss/helvet.sty
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/psnfss/helvet.sty
 Package: helvet 2020/03/25 PSNFSS-v9.3 (WaS) 
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/psnfss/courier.sty
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/psnfss/courier.sty
 Package: courier 2020/03/25 PSNFSS-v9.3 (WaS) 
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/placeins/placeins.sty
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/placeins/placeins.sty
 Package: placeins 2005/04/18  v 2.2
 )
 \titlebox=\skip51
 \aaai@thanksins=\insert252
 \aaai@copyrightins=\insert251
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/url/url.sty
+\aaai@heldht=\dimen165
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/url/url.sty
 \Urlmuskip=\muskip17
 Package: url 2013/09/16  ver 3.4  Verb mode for urls, etc.
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/graphics/graphicx.sty
-Package: graphicx 2026-05-17 v1.2e Enhanced LaTeX Graphics (DPC,SPQR)
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/graphics/graphics.sty
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/graphics/graphicx.sty
+Package: graphicx 2026-06-26 v1.2e Enhanced LaTeX Graphics (DPC,SPQR)
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/graphics/graphics.sty
 Package: graphics 2026-05-17 v1.4h Standard LaTeX Graphics (DPC,SPQR)
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/graphics/trig.sty
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/graphics/trig.sty
 Package: trig 2023/12/02 v1.11 sin cos tan (DPC)
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/graphics-cfg/graphics.cfg
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/graphics-cfg/graphics.cfg
 File: graphics.cfg 2016/06/04 v1.11 sample graphics configuration
 )
 Package graphics Info: Driver file: pdftex.def on input line 106.
 )
-\Gin@req@height=\dimen165
-\Gin@req@width=\dimen166
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/natbib/natbib.sty
+\Gin@req@height=\dimen166
+\Gin@req@width=\dimen167
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/natbib/natbib.sty
 Package: natbib 2010/09/13 8.31b (PWD, AO)
 \bibhang=\skip52
 \bibsep=\skip53
 LaTeX Info: Redefining \cite on input line 694.
 \c@NAT@ctr=\count291
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/caption/caption.sty
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/caption/caption.sty
 Package: caption 2023/08/05 v3.6o Customizing captions (AR)
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/caption/caption3.sty
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/caption/caption3.sty
 Package: caption3 2023/07/31 v2.4d caption3 kernel (AR)
-\caption@tempdima=\dimen167
-\captionmargin=\dimen168
-\caption@leftmargin=\dimen169
-\caption@rightmargin=\dimen170
-\caption@width=\dimen171
-\caption@indent=\dimen172
-\caption@parindent=\dimen173
-\caption@hangindent=\dimen174
+\caption@tempdima=\dimen168
+\captionmargin=\dimen169
+\caption@leftmargin=\dimen170
+\caption@rightmargin=\dimen171
+\caption@width=\dimen172
+\caption@indent=\dimen173
+\caption@parindent=\dimen174
+\caption@hangindent=\dimen175
 Package caption Info: Standard document class detected.
 )
 \c@caption@flags=\count292
 \c@continuedfloat=\count293
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/amsmath/amsmath.sty
-Package: amsmath 2026/05/19 v2.18d AMS math features
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsmath.sty
+Package: amsmath 2026-08-26 v2.18e AMS math features
 \@mathmargin=\skip54
 
 For additional information on amsmath, use the `?' option.
-(/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/amsmath/amstext.sty
-Package: amstext 2024/11/17 v2.01 AMS text
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/amsmath/amsgen.sty
+(/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amstext.sty
+Package: amstext 2026/06/26 v2.01 AMS text
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsgen.sty
 File: amsgen.sty 1999/11/30 v2.0 generic functions
 \@emptytoks=\toks20
-\ex@=\dimen175
-)) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/amsmath/amsbsy.sty
+\ex@=\dimen176
+)) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsbsy.sty
 Package: amsbsy 1999/11/29 v1.2d Bold Symbols
-\pmbraise@=\dimen176
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/amsmath/amsopn.sty
+\pmbraise@=\dimen177
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsopn.sty
 Package: amsopn 2022/04/08 v2.04 operator names
 )
 \inf@bad=\count294
 LaTeX Info: Redefining \frac on input line 233.
 \uproot@=\count295
 \leftroot@=\count296
-LaTeX Info: Redefining \overline on input line 398.
-LaTeX Info: Redefining \colon on input line 409.
+LaTeX Info: Redefining \overline on input line 370.
+LaTeX Info: Redefining \colon on input line 381.
 \classnum@=\count297
 \DOTSCASE@=\count298
-LaTeX Info: Redefining \ldots on input line 495.
-LaTeX Info: Redefining \dots on input line 498.
-LaTeX Info: Redefining \cdots on input line 619.
+LaTeX Info: Redefining \ldots on input line 467.
+LaTeX Info: Redefining \dots on input line 470.
+LaTeX Info: Redefining \cdots on input line 591.
 \Mathstrutbox@=\box53
 \strutbox@=\box54
-LaTeX Info: Redefining \big on input line 721.
-LaTeX Info: Redefining \Big on input line 722.
-LaTeX Info: Redefining \bigg on input line 723.
-LaTeX Info: Redefining \Bigg on input line 724.
-\big@size=\dimen177
-LaTeX Font Info:    Redeclaring font encoding OML on input line 742.
-LaTeX Font Info:    Redeclaring font encoding OMS on input line 743.
+LaTeX Info: Redefining \big on input line 693.
+LaTeX Info: Redefining \Big on input line 694.
+LaTeX Info: Redefining \bigg on input line 695.
+LaTeX Info: Redefining \Bigg on input line 696.
+\big@size=\dimen178
+LaTeX Font Info:    Redeclaring font encoding OML on input line 714.
+LaTeX Font Info:    Redeclaring font encoding OMS on input line 715.
 \macc@depth=\count299
-LaTeX Info: Redefining \bmod on input line 904.
-LaTeX Info: Redefining \pmod on input line 909.
-LaTeX Info: Redefining \smash on input line 939.
-LaTeX Info: Redefining \relbar on input line 969.
-LaTeX Info: Redefining \Relbar on input line 970.
+LaTeX Info: Redefining \bmod on input line 876.
+LaTeX Info: Redefining \pmod on input line 881.
+LaTeX Info: Redefining \smash on input line 911.
+LaTeX Info: Redefining \relbar on input line 941.
+LaTeX Info: Redefining \Relbar on input line 942.
 \c@MaxMatrixCols=\count300
 \dotsspace@=\muskip18
 \c@parentequation=\count301
@@ -211,65 +212,65 @@ LaTeX Info: Redefining \Relbar on input line 970.
 \column@=\count304
 \maxfields@=\count305
 \andhelp@=\toks22
-\eqnshift@=\dimen178
-\alignsep@=\dimen179
-\tagshift@=\dimen180
-\tagwidth@=\dimen181
-\totwidth@=\dimen182
-\lineht@=\dimen183
+\eqnshift@=\dimen179
+\alignsep@=\dimen180
+\tagshift@=\dimen181
+\tagwidth@=\dimen182
+\totwidth@=\dimen183
+\lineht@=\dimen184
 \@envbody=\toks23
 \multlinegap=\skip55
 \multlinetaggap=\skip56
 \mathdisplay@stack=\toks24
-LaTeX Info: Redefining \[ on input line 2965.
-LaTeX Info: Redefining \] on input line 2966.
-) (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/booktabs/booktabs.sty
+LaTeX Info: Redefining \[ on input line 2937.
+LaTeX Info: Redefining \] on input line 2938.
+) (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/booktabs/booktabs.sty
 Package: booktabs 2020/01/12 v1.61803398 Publication quality tables
-\heavyrulewidth=\dimen184
-\lightrulewidth=\dimen185
-\cmidrulewidth=\dimen186
-\belowrulesep=\dimen187
-\belowbottomsep=\dimen188
-\aboverulesep=\dimen189
-\abovetopsep=\dimen190
-\cmidrulesep=\dimen191
-\cmidrulekern=\dimen192
-\defaultaddspace=\dimen193
+\heavyrulewidth=\dimen185
+\lightrulewidth=\dimen186
+\cmidrulewidth=\dimen187
+\belowrulesep=\dimen188
+\belowbottomsep=\dimen189
+\aboverulesep=\dimen190
+\abovetopsep=\dimen191
+\cmidrulesep=\dimen192
+\cmidrulekern=\dimen193
+\defaultaddspace=\dimen194
 \@cmidla=\count306
 \@cmidlb=\count307
-\@aboverulesep=\dimen194
-\@belowrulesep=\dimen195
+\@aboverulesep=\dimen195
+\@belowrulesep=\dimen196
 \@thisruleclass=\count308
 \@lastruleclass=\count309
-\@thisrulewidth=\dimen196
+\@thisrulewidth=\dimen197
 )
-LaTeX Font Info:    Trying to load font information for T1+ntxtlf on input line 23.
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/newtx/t1ntxtlf.fd
+LaTeX Font Info:    Trying to load font information for T1+ntxtlf on input line 26.
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/newtx/t1ntxtlf.fd
 File: t1ntxtlf.fd 2021/05/24 v1.1 font definition file for T1/ntx/tlf
 )
 LaTeX Font Info:    Font shape `T1/ntxtlf/m/n' will be
-(Font)              scaled to size 10.0pt on input line 23.
+(Font)              scaled to size 10.0pt on input line 26.
  (./paper-anon.aux)
 \openout1 = `paper-anon.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 23.
-LaTeX Font Info:    ... okay on input line 23.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 23.
-LaTeX Font Info:    ... okay on input line 23.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 23.
-LaTeX Font Info:    ... okay on input line 23.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 23.
-LaTeX Font Info:    ... okay on input line 23.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 23.
-LaTeX Font Info:    ... okay on input line 23.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 23.
-LaTeX Font Info:    ... okay on input line 23.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 23.
-LaTeX Font Info:    ... okay on input line 23.
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
 Package: epstopdf-base 2020-01-24 v2.11 Base part for package epstopdf
 Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 485.
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg
 File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
 ))
 \c@mv@tabular=\count310
@@ -280,24 +281,24 @@ Package caption Info: End \AtBeginDocument code.
 \c@aaai@corrfn=\count313
 \titlearea=\box55
 LaTeX Font Info:    Font shape `T1/ntxtlf/m/n' will be
-(Font)              scaled to size 14.4pt on input line 25.
+(Font)              scaled to size 14.4pt on input line 28.
 LaTeX Font Info:    Font shape `T1/ntxtlf/b/n' will be
-(Font)              scaled to size 14.4pt on input line 25.
+(Font)              scaled to size 14.4pt on input line 28.
 LaTeX Font Info:    Font shape `T1/ntxtlf/m/n' will be
-(Font)              scaled to size 12.0pt on input line 25.
+(Font)              scaled to size 12.0pt on input line 28.
 LaTeX Font Info:    Font shape `T1/ntxtlf/b/n' will be
-(Font)              scaled to size 12.0pt on input line 25.
+(Font)              scaled to size 12.0pt on input line 28.
 \actualheight=\skip57
 LaTeX Font Info:    Font shape `T1/ntxtlf/m/n' will be
-(Font)              scaled to size 9.0pt on input line 25.
+(Font)              scaled to size 9.0pt on input line 28.
 LaTeX Font Info:    Font shape `T1/ntxtlf/b/n' will be
-(Font)              scaled to size 10.0pt on input line 27.
+(Font)              scaled to size 10.0pt on input line 30.
 
-Underfull \hbox (badness 3312) in paragraph at lines 50--50
+Underfull \hbox (badness 3312) in paragraph at lines 53--53
 []\T1/ntxtlf/m/n/9 CRAG (Yan et al.
  []
 
-[1{/Users/parsuram/.TinyTeX/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/enc/dvips/newtx/ntx-ec-tlf.enc}
+[1{/Users/parsuram/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/Users/parsuram/Library/TinyTeX/texmf-dist/fonts/enc/dvips/newtx/ntx-ec-tlf.enc}
 
 
 
@@ -305,113 +306,52 @@ Underfull \hbox (badness 3312) in paragraph at lines 50--50
 <figures/pipeline.png, id=13, 1411.2725pt x 673.51625pt>
 File: figures/pipeline.png Graphic file (type png)
 <use figures/pipeline.png>
-Package pdftex.def Info: figures/pipeline.png  used on input line 74.
+Package pdftex.def Info: figures/pipeline.png  used on input line 77.
 (pdftex.def)             Requested size: 505.89pt x 241.42769pt.
 LaTeX Font Info:    Font shape `T1/ntxtlf/m/n' will be
-(Font)              scaled to size 10.95pt on input line 79.
+(Font)              scaled to size 10.95pt on input line 82.
 LaTeX Font Info:    Font shape `T1/ntxtlf/b/n' will be
-(Font)              scaled to size 10.95pt on input line 79.
+(Font)              scaled to size 10.95pt on input line 82.
  [2] [3 <./figures/pipeline.png (PNG copy)>]
 LaTeX Font Info:    Font shape `T1/ntxtlf/b/n' will be
-(Font)              scaled to size 9.0pt on input line 122.
-
-Overfull \hbox (9.23663pt too wide) in paragraph at lines 118--129
- [][] 
- []
-
-
-Overfull \hbox (7.14485pt too wide) in paragraph at lines 136--146
- [][] 
- []
-
-<figures/frontier.png, id=20, 513.117pt x 293.77756pt>
+(Font)              scaled to size 9.0pt on input line 126.
+<figures/frontier.png, id=20, 513.117pt x 291.2481pt>
 File: figures/frontier.png Graphic file (type png)
 <use figures/frontier.png>
-Package pdftex.def Info: figures/frontier.png  used on input line 155.
-(pdftex.def)             Requested size: 465.41786pt x 266.47731pt.
+Package pdftex.def Info: figures/frontier.png  used on input line 160.
+(pdftex.def)             Requested size: 465.41786pt x 264.1829pt.
 <figures/repairs.png, id=22, 520.344pt x 187.902pt>
 File: figures/repairs.png Graphic file (type png)
 <use figures/repairs.png>
-Package pdftex.def Info: figures/repairs.png  used on input line 167.
-(pdftex.def)             Requested size: 252.94499pt x 91.34166pt.
-[4] [5 <./figures/frontier.png>] [6 <./figures/repairs.png>] (./paper-anon.bbl
+Package pdftex.def Info: figures/repairs.png  used on input line 172.
+(pdftex.def)             Requested size: 328.82541pt x 118.74873pt.
+
+Underfull \vbox (badness 1406) has occurred while \output is active []
+
+ [4] [5 <./figures/frontier.png>] [6 <./figures/repairs.png>] (./paper-anon.bbl
 LaTeX Font Info:    Font shape `T1/ntxtlf/m/it' will be
 (Font)              scaled to size 10.0pt on input line 7.
- [7]
-Underfull \hbox (badness 5652) in paragraph at lines 115--118
-[]\T1/ntxtlf/m/n/10 Qwen Team. 2024.  Qwen2.5 Tech-ni-cal Re-port.
- []
-
-[8])
-LaTeX Font Info:    Trying to load font information for T1+pcr on input line 277.
- (/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/tex/latex/psnfss/t1pcr.fd
-File: t1pcr.fd 2001/06/04 font definitions for T1/pcr.
-)
-Underfull \hbox (badness 10000) in paragraph at lines 277--278
-\T1/ntxtlf/m/n/10 Table 6[] is ev-ery pre-set in
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 277--278
-\T1/pcr/m/n/10 configs/reward_weights.yaml\T1/ntxtlf/m/n/10 . The frozen
- []
-
-
-Underfull \hbox (badness 5908) in paragraph at lines 277--278
-\T1/ntxtlf/m/n/10 rows use \T1/pcr/m/n/10 default\T1/ntxtlf/m/n/10 . The rewrite-first exam uses
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 277--278
-\T1/pcr/m/n/10 frontier_lambda20\T1/ntxtlf/m/n/10 . The retrieve-first sweep
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 277--278
-\T1/ntxtlf/m/n/10 uses \T1/pcr/m/n/10 frontier_lambda0\T1/ntxtlf/m/n/10 , \T1/pcr/m/n/10 frontier_lambda5\T1/ntxtlf/m/n/10 ,
- []
-
-
-Underfull \hbox (badness 2050) in paragraph at lines 277--278
-\T1/pcr/m/n/10 frontier_lambda20\T1/ntxtlf/m/n/10 , and \T1/pcr/m/n/10 frontier_lambda80\T1/ntxtlf/m/n/10 ,
- []
-
-
-Overfull \hbox (29.92537pt too wide) in paragraph at lines 338--347
- [][] 
- []
-
-<figures/train_curves.png, id=47, 513.117pt x 222.95296pt>
-File: figures/train_curves.png Graphic file (type png)
-<use figures/train_curves.png>
-Package pdftex.def Info: figures/train_curves.png  used on input line 353.
-(pdftex.def)             Requested size: 239.39438pt x 104.01904pt.
-<figures/train_curves_retrieve_first.png, id=48, 513.117pt x 252.2223pt>
-File: figures/train_curves_retrieve_first.png Graphic file (type png)
-<use figures/train_curves_retrieve_first.png>
-Package pdftex.def Info: figures/train_curves_retrieve_first.png  used on input line 360.
-(pdftex.def)             Requested size: 239.39438pt x 117.67471pt.
-[9{/Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/enc/dvips/base/8r.enc}] [10 <./figures/train_curves.png> <./figures/train_curves_retrieve_first.png>] [11
+ [7] [8]) [9
 
 ] (./paper-anon.aux)
  ***********
-LaTeX2e <2026-06-01>
+LaTeX2e <2026-11-01>
 L3 programming layer <2020/03/25>
  ***********
- ) ) 
+ ) 
 Here is how much of TeX's memory you used:
- 6473 strings out of 469040
- 108238 string characters out of 5456349
- 548026 words of memory out of 5000000
- 35502 multiletter control sequences out of 15000+600000
- 664149 words of font info for 64 fonts, out of 8000000 for 9000
+ 6411 strings out of 468958
+ 106806 string characters out of 5453524
+ 545351 words of memory out of 5000000
+ 35531 multiletter control sequences out of 15000+600000
+ 663528 words of font info for 62 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 94i,10n,120p,1305b,374s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi9.pfb></Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb></Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb></Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/public/newtx/ztmb.pfb></Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/public/newtx/ztmr.pfb></Users/parsuram/.TinyTeX/TinyTeX/texmf-dist/fonts/type1/public/newtx/ztmri.pfb>
-Output written on paper-anon.pdf (11 pages, 1352213 bytes).
+ 89i,10n,117p,1283b,374s stack positions out of 10000i,1000n,20000p,200000b,200000s
+</Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi9.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/newtx/ztmb.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/newtx/ztmr.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/newtx/ztmri.pfb>
+Output written on paper-anon.pdf (9 pages, 1152600 bytes).
 PDF statistics:
- 122 PDF objects out of 1000 (max. 8388607)
- 71 compressed objects within 1 object stream
+ 106 PDF objects out of 1000 (max. 8388607)
+ 63 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
- 26 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 16 words of extra memory for PDF output out of 10000 (max. 10000000)
 

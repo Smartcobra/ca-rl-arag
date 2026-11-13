@@ -9,10 +9,11 @@ pdflatex paper-anon && bibtex paper-anon && pdflatex paper-anon && pdflatex pape
 pdflatex ReproducibilityChecklist
 ```
 
-`paper.tex` still has the name in `\author`. The `submission` option
-replaces that block with "Anonymous submission", drops `\affiliations`,
-and blanks `\pdfinfo`. There is no acknowledgements section and no
-repository URL. After the PDF exists:
+`paper-anon.tex` is the complete anonymous source, with
+`\usepackage[submission]{aaai2027}`. That option replaces the author
+block with "Anonymous submission", drops `\affiliations`, and blanks
+`\pdfinfo`. `paper.tex` is the named copy. There is no acknowledgements
+section and no repository URL. After the PDF exists:
 
 ```bash
 pdffonts paper-anon.pdf
@@ -36,11 +37,15 @@ out. The reproducibility checklist is a separate upload
 because a checklist after the references would either eat a content
 page or land on a page the call reserves for references.
 
-FrontierIR 2027 is listed as a workshop venue. Its call is not posted,
-and the 2026 call did not state an Ethics and Limitations rule. Re-read
-that call when it appears before treating the main-track page rule as
-the workshop rule. The 2026 workshop allowed appendices outside the
-page count. AAAI-27 main track does not.
+FrontierIR 2027 has posted its call
+(https://frontier-ir-workshop.github.io/). Full papers are 4 to 7
+pages, and short papers are up to 4 pages, both excluding references
+and appendices. The call does not mention a separate supplementary
+PDF. It requires the AAAI-27 author kit, double-blind review, and a
+non-archival paper. Deadline 20 November 2026 (AoE). AAAI-27 main
+track still counts a content appendix and reserves pages 8 and 9 for
+references, so the appendix lives in `supplement.tex` and is not part
+of `paper-anon.pdf`.
 
 ## What the paper now says
 
