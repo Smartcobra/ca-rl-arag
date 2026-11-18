@@ -119,12 +119,12 @@ Press, O.; Zhang, M.; Min, S.; Schmidt, L.; Smith, N.~A.; and Lewis, M. 2022.
 \bibitem[{Rajpurkar et~al.(2016)Rajpurkar, Zhang, Lopyrev, and Liang}]{rajpurkar2016squad}
 Rajpurkar, P.; Zhang, J.; Lopyrev, K.; and Liang, P. 2016.
 \newblock {SQuAD}: 100{,}000+ Questions for Machine Comprehension of Text.
-\newblock In \emph{Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing}.
+\newblock In \emph{Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing}, 2383--2392.
 
 \bibitem[{Robertson and Zaragoza(2009)}]{robertson2009bm25}
 Robertson, S.; and Zaragoza, H. 2009.
 \newblock The Probabilistic Relevance Framework: {BM25} and Beyond.
-\newblock \emph{Foundations and Trends in Information Retrieval}, 3(4): 333--389.
+\newblock \emph{Foundations and Trends in Information Retrieval}, 4(1--2): 1--174.
 
 \bibitem[{Schick et~al.(2023)Schick, Dwivedi-Yu, Dess{\`i}, Raileanu, Lomeli, Zettlemoyer, Cancedda, and Scialom}]{schick2023toolformer}
 Schick, T.; Dwivedi-Yu, J.; Dess{\`i}, R.; Raileanu, R.; Lomeli, M.; Zettlemoyer, L.; Cancedda, N.; and Scialom, T. 2023.

@@ -105,7 +105,7 @@ R = {} & \alpha Q_{\mathrm{ans}} + \beta Q_{\mathrm{ground}} + \gamma Q_{\mathrm
 Default weights are \(\alpha{=}1\), \(\beta{=}0.4\), \(\gamma{=}0.15\), \(\lambda{=}2\), latency weight \(0.5\), hallucination weight \(0.5\), and \(\rho{=}0.02\). The three-seed exam sets \(\rho{=}0\) and \(\lambda{=}20\). A correct answer scores \(+0.3\) on the calibration term. Abstaining scores \(+0.6\) when the passage list is empty, the mean retrieval score is below 3, or verify returns contradiction, and \(-0.2\) otherwise. On this corpus the mean-score arm does not fire: raw BM25 means stay above 20, and means after the lexical reranker stay above 7. Empty evidence and a contradiction label still earn \(+0.6\). A wrong answer scores \(-0.4\) with evidence and \(-0.2\) without it.
 
 \subsection{Data}
-The test set is locked at 300 questions: 150 HotpotQA distractor items \cite{yang2018hotpotqa} and 150 Natural Questions items \cite{kwiatkowski2019nq}, disjoint from training and validation. The index holds HotpotQA contexts, unused HotpotQA distractors, and the DPR 100-word Wikipedia passages released with Natural Questions \cite{karpukhin2020dpr,gao2022tevatron}, including the passages needed by the 500 training and 180 validation questions, 83{,}120 passages in total. Gold text is a Wikipedia passage. BM25 recall at five, measured on the 80{,}000-passage snapshot of this evaluation set, is 0.927 on HotpotQA and 0.587 on Natural Questions, so a second retrieval can matter. Three frozen controllers define the corners of the cost plot: one-shot retrieval, a rule that reranks and verifies when the mean score is at least 3, and a max-tool policy that spends three retrieves, one rewrite, one rerank, and one verify. A fourth frozen string, retrieve then rewrite then rewrite then verify then verify then stop, is the six-step recipe used in the ceilings.
+The test set is locked at 300 questions: 150 HotpotQA distractor items \cite{yang2018hotpotqa} and 150 Natural Questions items \cite{kwiatkowski2019nq}, disjoint from training and validation. The index holds HotpotQA contexts, unused HotpotQA distractors, and the DPR 100-word Wikipedia passages released with Natural Questions \cite{karpukhin2020dpr,gao2022tevatron}, including the passages needed by the 500 training and 180 validation questions, 83{,}120 passages in total. Gold text is a Wikipedia passage. BM25 recall at five, measured on the 80{,}000-passage snapshot of this evaluation set, is 0.927 on HotpotQA and 0.587 on Natural Questions, so a second retrieval can matter. Three frozen controllers define the corners of the cost plot: one-shot retrieval, a rule that reranks and verifies when the mean score is at least 3, and a max-tool policy that spends three retrieves, one rewrite, one rerank, and one verify. A fourth frozen string, retrieve then rewrite then rewrite then verify then verify then stop, is the six-step recipe used in the ceilings. The reward presets, the observation vector, the training curves and hours, the prompts, the Adaptive-RAG grid, two example trajectories and the corpus counts are in the appendix.
 
 \section{Results}
 
@@ -171,7 +171,7 @@ Against one-shot retrieval the recipe agrees on 179 of 300 predictions. Of the 1
 \label{fig:repairs}
 \end{figure*}
 
-That union is the pairwise coverage of one-shot retrieval and the learned recipe. The ceiling in Figure~\ref{fig:frontier} keeps the cheapest correct trajectory among one-shot retrieval, max tools, and this learned recipe. The six-step recipe adds no new correct question. Max tools adds 4 questions that one-shot retrieval and the learned recipe both miss, so the ceiling is 126/300 at \(1.81\times 10^{-4}\) dollars. Any one policy still scores about 100. The questions move.
+That union is the pairwise coverage of one-shot retrieval and the learned recipe. The ceiling in Figure~\ref{fig:frontier} keeps the cheapest correct trajectory among one-shot retrieval, max tools, and this learned recipe, and is 126/300 at \(1.81\times 10^{-4}\) dollars. Any one policy still scores about 100. The questions move.
 
 The recipe never branches on the retrieval score. We count a seed only when the second action is sometimes rewrite and sometimes retrieve, at least 15 times each, and one threshold on the mean score matches at least 250 of those questions. Here the first action is already rewrite, so the second action still sees a mean score of 0 and no passages. That action is rewrite on all 300 questions, on all three seeds. Retrieve is never the second action. The count is 0 of 3.
 
@@ -235,7 +235,7 @@ Repairs are questions one-shot retrieval got wrong and this row got right. Break
 5 & 42 & 7 & 100/300 & 2.60 & 0.88 & 1655 & 0 & 0 & 1.000 & 0.280--0.387 \\
 80 & 42 & 4 & 100/300 & 1.72 & 0.00 & 1288 & 0 & 0 & 1.000 & 0.280--0.387 \\
 \midrule
-20 & 45 & 12 & 104/300 & 5.41 & 1.42 & 4110 & 11 & 7 & 0.481 & 0.293--0.400 \\
+20, mask & 45 & 12 & 104/300 & 5.41 & 1.42 & 4110 & 11 & 7 & 0.481 & 0.293--0.400 \\
 \bottomrule
 \end{tabular}
 \caption{Retrieve-first controller on the 83{,}120-passage index. The last row is masked seed 45. The \(\lambda{=}20\) block is three seeds, and seed 42 appears once. Dollars and Idle are times \(10^{-4}\). Idle cannot change the answer written at stop. Repairs, breaks, \(p\), and the 95\% interval are against one-shot retrieval, 100/300 at 1.72 and 1196 ms. We report each row, not a mean.}
@@ -257,7 +257,7 @@ There are three limits on what these results support.
 
 First, the controller never reads passage text. This is a study of the reward and of credit assignment in a small policy, not a fine-tune of the generator. The retrieve-first controller's second action sees a real BM25 score, and the score branch still appears in 0 of 3 seeds at \(\lambda{=}20\).
 
-Second, the rewrite-first exam is three seeds at one setting, \(\lambda{=}20\) with the action charge off. The retrieve-first sweep is one seed at each of \(\lambda{=}0\), 5, 20, and 80, again with the charge off. We report each row. We do not report a mean or a standard deviation. The frozen rows in Table~\ref{tab:frozen} are one pass each, at temperature 0.
+Second, the rewrite-first exam is three seeds at one setting, \(\lambda{=}20\) with the action charge off. The retrieve-first sweep is one seed at each of \(\lambda{=}0\), 5, 20, and 80, again with the charge off, plus one masked seed at \(\lambda{=}20\). We report each row. We do not report a mean or a standard deviation. The frozen rows in Table~\ref{tab:frozen} are one pass each, at temperature 0.
 
 Third, the verifier and the reranker are lexical, and the price card is a scale for a local model. A neural verifier, a dense retriever, or a generator-sized policy could move the 26-answer gap and the dollar weight at which extra tools stop paying. That comparison was not run. Self-RAG, CRAG, Search-R1, and GRASP are not reimplemented. Adaptive-RAG in Table~\ref{tab:adaptive} is the two-recipe classifier.
 
@@ -279,5 +279,143 @@ Pricing a tool can refuse a search that would have changed the answer, and the u
 \raggedright
 \bibliography{references}
 \endgroup
+
+\appendix
+\section{Technical Appendix: Reward Weights and the Price Card}
+Table~\ref{tab:presets} is every preset in our configuration file. The frozen rows use \texttt{default}. The rewrite-first exam uses \texttt{frontier\_lambda20}. The retrieve-first sweep uses \texttt{frontier\_lambda0}, \texttt{frontier\_lambda5}, \texttt{frontier\_lambda20}, and \texttt{frontier\_lambda80}, with the action charge at 0. \texttt{frontier\_act02} is the older \(\lambda{=}80\) preset and keeps the charge at 0.02. The unused-budget bonus is paid only when \(Q_{\mathrm{ans}}\) clears the quality gate.
+
+\begin{table*}[t]
+\centering
+\small
+\begin{tabular}{lcccccccccc}
+\toprule
+Preset & \(\alpha\) & \(\beta\) & \(\gamma\) & \(\lambda\) & \(\mu\) & Hall. & \(\rho\) & Budget & Gate & Bonus \\
+\midrule
+default & 1 & 0.4 & 0.15 & 2 & 0.5 & 0.5 & 0.02 & 1 & 0.5 & 0.1 \\
+correctness\_only & 1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 \\
+correctness\_grounding & 1 & 0.4 & 0 & 0 & 0 & 0.5 & 0 & 0 & 0 & 0 \\
+correctness\_faithfulness\_cost & 1 & 0.4 & 0 & 2 & 0.5 & 0.5 & 0.02 & 1 & 0.5 & 0.1 \\
+lambda\_zero & 1 & 0.4 & 0.15 & 0 & 0 & 0.5 & 0.02 & 1 & 0.5 & 0.1 \\
+high\_cost\_pressure & 1 & 0.4 & 0.2 & 8 & 2 & 0.5 & 0.05 & 1 & 0.5 & 0.2 \\
+frontier\_lambda0 & 1 & 0.4 & 0.15 & 0 & 0.5 & 0.5 & 0 & 1 & 0.5 & 0.1 \\
+frontier\_lambda5 & 1 & 0.4 & 0.15 & 5 & 0.5 & 0.5 & 0 & 1 & 0.5 & 0.1 \\
+frontier\_lambda20 & 1 & 0.4 & 0.15 & 20 & 0.5 & 0.5 & 0 & 1 & 0.5 & 0.1 \\
+frontier\_lambda80 & 1 & 0.4 & 0.15 & 80 & 0.5 & 0.5 & 0 & 1 & 0.5 & 0.1 \\
+frontier\_act02 & 1 & 0.4 & 0.15 & 80 & 0.5 & 0.5 & 0.02 & 1 & 0.5 & 0.1 \\
+\bottomrule
+\end{tabular}
+\caption{Reward presets. Hall.\ is the hallucination weight. \(\rho\) is the per-action charge after the first action. Budget is the unit penalty for a hard-budget break. Gate is the \(Q_{\mathrm{ans}}\) threshold for the unused-budget bonus.}
+\label{tab:presets}
+\end{table*}
+
+The price card meters local tokens at \$0.15 per million input tokens and \$0.60 per million output tokens. BM25 is \(5\times 10^{-5}\) dollars per call. The latency term uses a fixed table, not the wall clock: 212.4 ms per retrieve, 999.2 ms per rewrite, 143.2 ms per rerank, 0 ms per verify, and 853.9 ms plus 52.0 ms per completion token for a generation. The latency weight is 0.5 and the unit is \(10^{-3}\) dollars per second. Logged latency remains the measured time.
+
+\FloatBarrier
+\section{Technical Appendix: Observation}
+The rewrite-first policy reads 16 numbers. There is no question text, no dataset indicator, and no passage text. Before any retrieval the four score channels are 0. The retrieve-first controller appends nine numbers after these sixteen: question length, who, what, when, which, a yes/no bit, a capitalized-entity count, draft abstention, and draft overlap with the top passage.
+
+\begin{center}
+\small
+\setlength{\tabcolsep}{0.5em}
+\begin{tabular}{@{}rp{0.86\columnwidth}@{}}
+1 & Mean of the top-five BM25 scores, z-scored on the training slice and clipped to \([-3, 3]\). \\
+2 & Evidence count, divided by 10 and clipped to 1. \\
+3 & Remaining steps, divided by the step cap. \\
+4 & Remaining budget, divided by the dollar cap and clipped to \([0, 1]\). \\
+5 & Verifier support, else 0. \\
+6 & Verifier contradiction, else 0. \\
+7 & Retrieve count, divided by 3 and clipped to 1. \\
+8 & Rewrite count, divided by 2 and clipped to 1. \\
+9 & Rerank count, divided by 2 and clipped to 1. \\
+10 & Verify count, divided by 2 and clipped to 1. \\
+11 & Top-1 BM25 score, z-scored and clipped to \([-3, 3]\). \\
+12 & Gap between the top two BM25 scores, z-scored and clipped to \([-3, 3]\). \\
+13 & Verify one-hot, support. \\
+14 & Verify one-hot, contradiction. \\
+15 & Verify one-hot, neutral. \\
+16 & Minimum of the top-five BM25 scores, z-scored and clipped to \([-3, 3]\).
+\end{tabular}
+\end{center}
+
+\FloatBarrier
+\section{Technical Appendix: Training}
+Both networks are one hidden layer of width 16. The rewrite-first network reads 16 numbers and has 357 parameters. The retrieve-first network reads 25 numbers and has 501 parameters. The optimizer is Adam. The learning rate is 0.003. Training runs for 20 epochs on 500 questions. The entropy bonus coefficient is 0.01. The advantage on a training question is that question's sampled reward minus the reward of one-shot retrieval on the same question. After each epoch the mode is rolled out on the 180. The checkpoint is the first epoch with the highest greedy reward on that 180. The generator is Qwen2.5-3B-Instruct at temperature 0. Training used one NVIDIA T4.
+
+The rewrite-first seeds 42, 43, and 44 select epochs 17, 14, and 11. Table~\ref{tab:learned} is that exam. The three rows tie on every reported value except the selected epoch. Figure~\ref{fig:curves} is those three curves. The marker is the selected epoch.
+
+The seven retrieve-first runs use the 501-parameter network. At \(\lambda{=}20\), seeds 42, 43, and 44 select epochs 17, 2, and 19. Seed 42 at \(\lambda{=}0\), 5, and 80 selects epochs 18, 7, and 4. The masked seed 45 at \(\lambda{=}20\) selects epoch 12. The \(\lambda{=}20\) seed-42 training is the sweep row, not a second run. Figure~\ref{fig:rfcurves} is those seven curves. The marker is the selected epoch.
+
+The hours are a budget extrapolated from measured step time, not a wall-clock log of the Colab job. For the rewrite-first \(\lambda{=}20\) exam that budget is 11.8 hours for one seed and 35.4 hours for three seeds. For each retrieve-first run the same extrapolation uses that exam's measured milliseconds per step, the run's mean train and validation step counts, and one pass over the 300. It is 9.6, 7.1, and 9.7 hours for \(\lambda{=}20\) seeds 42, 43, and 44, 10.8, 7.9, and 7.1 hours for seed 42 at \(\lambda{=}0\), 5, and 80, and 6.9 hours for the masked seed 45.
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{ccccccc}
+\toprule
+Seed & Epoch & HotpotQA & NQ & Correct & Steps & \$ \(\times 10^{-4}\) \\
+\midrule
+42 & 17 & 52/150 & 48/150 & 100/300 & 4 & 2.02 \\
+43 & 14 & 52/150 & 48/150 & 100/300 & 4 & 2.02 \\
+44 & 11 & 52/150 & 48/150 & 100/300 & 4 & 2.02 \\
+\bottomrule
+\end{tabular}
+\caption{The three rewrite-first \(\lambda{=}20\) exams. Each seed emits one action string, rewrite then rewrite then retrieve then stop. The rows tie on every reported value except the selected epoch, so no cell is marked as best. One-shot retrieval on the same index scores 100/300 at \(1.72\times 10^{-4}\) dollars. We report the three rows, not a mean.}
+\label{tab:learned}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{train_curves.png}
+\caption{Greedy reward on the 180 for the three rewrite-first \(\lambda{=}20\) seeds. The marker is the first epoch of the maximum.}
+\label{fig:curves}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{train_curves_retrieve_first.png}
+\caption{Greedy reward on the 180 for the seven retrieve-first runs. The marker is the first epoch of the maximum. The \(\lambda{=}20\) seed-42 curve is the sweep's \(\lambda{=}20\) row. Seed 45 is the masked controller, and its marker is epoch 12.}
+\label{fig:rfcurves}
+\end{figure}
+
+\FloatBarrier
+\section{Technical Appendix: Prompts}
+Rewrite, system: ``You rewrite search queries for retrieval. Return only the rewritten query, no quotes or explanation.'' User: the original question, the current evidence or ``(no evidence)'', then ``Rewritten query:''.
+
+Yes/no questions, system: ``You are a concise open-domain QA assistant. This is a yes/no question. Reply with exactly yes or no. Do not reply ABSTAIN. Do not explain or quote. Use only the evidence. If the passages name the entities in the question, compare them and answer.''
+
+Other questions, when abstention is allowed, system: ``You are a concise open-domain QA assistant. Answer using only the provided evidence. Reply with a short answer span (a few words when possible). Reply with a short answer span. Never append ABSTAIN after an answer. Use the single token ABSTAIN only if none of the passages could support any answer (empty evidence, or passages about clearly unrelated entities). If a passage title or span could be the answer, you must answer it. Do not use ABSTAIN as a hedge when you are unsure. No explanation and no quotes.'' The user message is the evidence, the question, and ``Answer:''.
+
+\FloatBarrier
+\section{Technical Appendix: Adaptive-RAG Grid}
+Table~\ref{tab:grid} is exact match on the 180 for each inverse regularization strength. The test set is not used. Under the first labeling, strengths 10 and 100 tie at 62/180 and strength 100 has the lower mean dollar cost. Under the cheap labeling, every strength sends all 180 questions to one-shot retrieval and scores 58/180, the one-shot total.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+Strength & Miss \(\to\) rewrite & Miss \(\to\) one-shot \\
+\midrule
+0.01 & 59/180 & 58/180 \\
+0.1 & 59/180 & 58/180 \\
+1 & 59/180 & 58/180 \\
+10 & 62/180 & 58/180 \\
+100 & 62/180 & 58/180 \\
+\bottomrule
+\end{tabular}
+\caption{Validation exact match for the two labelings. One-shot retrieval alone is 58/180. The rewrite-first recipe alone is 59/180.}
+\label{tab:grid}
+\end{table}
+
+\FloatBarrier
+\section{Technical Appendix: Example Trajectories}
+One repair, HotpotQA. Question: ``What science fantasy young adult series, told in first person, has a set of companion books narrating the stories of enslaved worlds and alien species?'' Gold: Animorphs. One-shot retrieval is retrieve, stop, answers ABSTAIN, and costs \(1.66\times 10^{-4}\) dollars. The rewrite-first recipe rewrites to ``science fantasy young adult series first person enslaved worlds alien species companion books'', rewrites again to ``science fantasy young adult first person enslaved alien species companion books series worlds'', retrieves, stops, answers Animorphs, and costs \(2.08\times 10^{-4}\) dollars.
+
+One break, HotpotQA. Question: ``Who is older, Annie Morton or Terry Richardson?'' Gold: Terry Richardson. One-shot retrieval is retrieve, stop, answers Terry Richardson, and costs \(1.61\times 10^{-4}\) dollars. The rewrite-first recipe rewrites to ``Who is older Annie Morton or Terry Richardson'', rewrites again to ``Who is older Annie Morton and Terry Richardson'', retrieves, stops, answers Annie Morton, and costs \(1.89\times 10^{-4}\) dollars.
+
+\FloatBarrier
+\section{Technical Appendix: Corpus}
+The index is the on-disk corpus of 83{,}120 passages. Counted by source field: HotpotQA slice passages 2{,}780, of which 1{,}114 are marked gold support; unused HotpotQA distractors 74{,}261; DPR Wikipedia passages for Natural Questions 2{,}786, all marked gold; Natural Questions distractors 3{,}293. The sum is 83{,}120. Gold text is a Wikipedia passage. The 500 training and 180 validation questions are prefixes of the HotpotQA and Natural Questions training splits, disjoint from the locked 300.
 
 \end{document}

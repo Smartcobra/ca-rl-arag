@@ -1,8 +1,8 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.11.11)  11 NOV 2026 22:52
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.11.11)  18 NOV 2026 21:40
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**paper-anon
+**paper-anon.tex
 (./paper-anon.tex
 LaTeX2e <2026-11-01>
 L3 programming layer <2026-09-09>
@@ -325,33 +325,63 @@ File: figures/repairs.png Graphic file (type png)
 <use figures/repairs.png>
 Package pdftex.def Info: figures/repairs.png  used on input line 172.
 (pdftex.def)             Requested size: 328.82541pt x 118.74873pt.
-
-Underfull \vbox (badness 1406) has occurred while \output is active []
-
  [4] [5 <./figures/frontier.png>] [6 <./figures/repairs.png>] (./paper-anon.bbl
 LaTeX Font Info:    Font shape `T1/ntxtlf/m/it' will be
 (Font)              scaled to size 10.0pt on input line 7.
- [7] [8]) [9
+ [7] [8])
+LaTeX Font Info:    Trying to load font information for T1+pcr on input line 288.
+ (/Users/parsuram/Library/TinyTeX/texmf-dist/tex/latex/psnfss/t1pcr.fd
+File: t1pcr.fd 2001/06/04 font definitions for T1/pcr.
+)
+Underfull \hbox (badness 3291) in paragraph at lines 288--289
+\T1/ntxtlf/m/n/10 frozen rows use \T1/pcr/m/n/10 default\T1/ntxtlf/m/n/10 . The rewrite-first exam
+ []
 
-] (./paper-anon.aux)
+
+Underfull \hbox (badness 1242) in paragraph at lines 288--289
+\T1/ntxtlf/m/n/10 uses \T1/pcr/m/n/10 frontier_lambda20\T1/ntxtlf/m/n/10 . The retrieve-first sweep
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 288--289
+\T1/ntxtlf/m/n/10 uses \T1/pcr/m/n/10 frontier_lambda0\T1/ntxtlf/m/n/10 , \T1/pcr/m/n/10 frontier_lambda5\T1/ntxtlf/m/n/10 ,
+ []
+
+
+Underfull \hbox (badness 2050) in paragraph at lines 288--289
+\T1/pcr/m/n/10 frontier_lambda20\T1/ntxtlf/m/n/10 , and \T1/pcr/m/n/10 frontier_lambda80\T1/ntxtlf/m/n/10 ,
+ []
+
+[9{/Users/parsuram/Library/TinyTeX/texmf-dist/fonts/enc/dvips/base/8r.enc}]
+<figures/train_curves.png, id=51, 513.117pt x 223.3143pt>
+File: figures/train_curves.png Graphic file (type png)
+<use figures/train_curves.png>
+Package pdftex.def Info: figures/train_curves.png  used on input line 372.
+(pdftex.def)             Requested size: 239.39438pt x 104.18762pt.
+<figures/train_curves_retrieve_first.png, id=52, 513.117pt x 252.2223pt>
+File: figures/train_curves_retrieve_first.png Graphic file (type png)
+<use figures/train_curves_retrieve_first.png>
+Package pdftex.def Info: figures/train_curves_retrieve_first.png  used on input line 379.
+(pdftex.def)             Requested size: 239.39438pt x 117.67471pt.
+ [10] [11 <./figures/train_curves.png> <./figures/train_curves_retrieve_first.png>] (./paper-anon.aux)
  ***********
 LaTeX2e <2026-11-01>
 L3 programming layer <2020/03/25>
  ***********
  ) 
 Here is how much of TeX's memory you used:
- 6411 strings out of 468958
- 106806 string characters out of 5453524
- 545351 words of memory out of 5000000
- 35531 multiletter control sequences out of 15000+600000
- 663528 words of font info for 62 fonts, out of 8000000 for 9000
+ 6474 strings out of 468958
+ 108153 string characters out of 5453524
+ 551465 words of memory out of 5000000
+ 35588 multiletter control sequences out of 15000+600000
+ 664149 words of font info for 64 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 89i,10n,117p,1283b,374s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi9.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/newtx/ztmb.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/newtx/ztmr.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/newtx/ztmri.pfb>
-Output written on paper-anon.pdf (9 pages, 1152600 bytes).
+ 89i,10n,117p,1287b,374s stack positions out of 10000i,1000n,20000p,200000b,200000s
+</Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi9.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/newtx/ztmb.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/newtx/ztmr.pfb></Users/parsuram/Library/TinyTeX/texmf-dist/fonts/type1/public/newtx/ztmri.pfb>
+Output written on paper-anon.pdf (11 pages, 1348820 bytes).
 PDF statistics:
- 106 PDF objects out of 1000 (max. 8388607)
- 63 compressed objects within 1 object stream
+ 122 PDF objects out of 1000 (max. 8388607)
+ 71 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
- 16 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 26 words of extra memory for PDF output out of 10000 (max. 10000000)
 

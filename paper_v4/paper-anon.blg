@@ -5,42 +5,42 @@ The style file: aaai2027.bst
 Database file #1: references.bib
 You've used 36 entries,
             2840 wiz_defined-function locations,
-            751 strings with 13079 characters,
-and the built_in function-call counts, 28898 in all, are:
-= -- 2033
+            753 strings with 13091 characters,
+and the built_in function-call counts, 29099 in all, are:
+= -- 2060
 > -- 2390
 < -- 1
 + -- 885
 - -- 846
-* -- 2401
-:= -- 4983
+* -- 2410
+:= -- 5000
 add.period$ -- 144
 call.type$ -- 36
 change.case$ -- 418
 chr.to.int$ -- 37
 cite$ -- 36
-duplicate$ -- 1645
-empty$ -- 1389
+duplicate$ -- 1658
+empty$ -- 1404
 format.name$ -- 947
-if$ -- 5282
+if$ -- 5336
 int.to.chr$ -- 3
 int.to.str$ -- 1
-missing$ -- 409
+missing$ -- 410
 newline$ -- 184
 num.names$ -- 144
 pop$ -- 960
 preamble$ -- 1
 purify$ -- 402
 quote$ -- 0
-skip$ -- 779
+skip$ -- 794
 stack$ -- 0
-substring$ -- 673
-swap$ -- 935
+substring$ -- 707
+swap$ -- 947
 text.length$ -- 1
 text.prefix$ -- 0
 top$ -- 0
 type$ -- 324
 warning$ -- 0
-while$ -- 165
+while$ -- 168
 width$ -- 0
-write$ -- 444
+write$ -- 445
